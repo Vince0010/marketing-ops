@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Rocket, Target, Users, Palette, Share2, DollarSign,
-  ListChecks, AlertTriangle, BarChart3, Globe, ChevronDown, ChevronRight,
+  ListChecks, AlertTriangle, BarChart3, Globe, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { createDefaultStages } from '@/lib/defaultStages'
@@ -109,11 +109,13 @@ const SECTIONS: Section[] = [
   { id: 'competitive', title: 'Competitive & Market Context', icon: Globe },
 ]
 
+const TOTAL_STEPS = SECTIONS.length
+
 export default function CampaignCreate() {
   const navigate = useNavigate()
   const [form, setForm] = useState<FormData>(INITIAL_FORM)
   const [stages, setStages] = useState<StageConfig[]>(createDefaultStages())
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['fundamentals']))
+  const [currentStep, setCurrentStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -121,13 +123,18 @@ export default function CampaignCreate() {
     setForm((prev) => ({ ...prev, ...updates }))
   }
 
-  const toggleSection = (id: string) => {
-    setExpandedSections((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  const section = SECTIONS[currentStep]
+  const isFirstStep = currentStep === 0
+  const isLastStep = currentStep === TOTAL_STEPS - 1
+
+  const goNext = () => {
+    setError(null)
+    if (currentStep < TOTAL_STEPS - 1) setCurrentStep((s) => s + 1)
+  }
+
+  const goBack = () => {
+    setError(null)
+    if (currentStep > 0) setCurrentStep((s) => s - 1)
   }
 
   const canSubmit = form.name && form.campaign_type && form.start_date && form.end_date &&
@@ -306,54 +313,85 @@ export default function CampaignCreate() {
         </p>
       </div>
 
-      {/* Section accordion */}
-      <div className="space-y-3">
-        {SECTIONS.map((section) => {
-          const isExpanded = expandedSections.has(section.id)
-          const Icon = section.icon
-          return (
-            <Card key={section.id}>
-              <CardHeader
-                className="cursor-pointer select-none"
-                onClick={() => toggleSection(section.id)}
-              >
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Icon className="w-5 h-5" />
-                    {section.title}
-                    {section.required && (
-                      <Badge variant="secondary" className="text-xs">Required</Badge>
-                    )}
-                  </CardTitle>
-                  {isExpanded ? (
-                    <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                  )}
-                </div>
-              </CardHeader>
-              {isExpanded && (
-                <CardContent>{renderSectionContent(section.id)}</CardContent>
-              )}
-            </Card>
-          )
-        })}
+      {/* Step indicator */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-sm font-medium text-muted-foreground">
+          Step {currentStep + 1} of {TOTAL_STEPS}
+        </span>
+        <div className="flex gap-1.5">
+          {SECTIONS.map((s, i) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setCurrentStep(i)}
+              className={`h-2 rounded-full transition-all ${
+                i === currentStep
+                  ? 'w-6 bg-primary'
+                  : i < currentStep
+                    ? 'w-2 bg-primary/50'
+                    : 'w-2 bg-muted'
+              }`}
+              aria-label={`Go to step ${i + 1}: ${s.title}`}
+            />
+          ))}
+        </div>
       </div>
 
-      {/* Submit */}
+      {/* Current step form (one form per step) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            {(() => {
+              const Icon = section.icon
+              return (
+                <>
+                  <Icon className="w-5 h-5" />
+                  {section.title}
+                  {section.required && (
+                    <Badge variant="secondary" className="text-xs">Required</Badge>
+                  )}
+                </>
+              )
+            })()}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {renderSectionContent(section.id)}
+        </CardContent>
+      </Card>
+
+      {/* Error message */}
       {error && (
         <div className="text-sm text-destructive bg-destructive/10 px-4 py-3 rounded-lg">
           {error}
         </div>
       )}
 
-      <div className="flex justify-end gap-3 pb-8">
-        <Button variant="outline" onClick={() => navigate('/dashboard')}>
-          Cancel
-        </Button>
-        <Button onClick={handleSubmit} disabled={!canSubmit || submitting}>
-          {submitting ? 'Creating...' : 'Create Campaign'}
-        </Button>
+      {/* Navigation: Back, Next / Create Campaign */}
+      <div className="flex justify-between gap-3 pb-8">
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate('/dashboard')}>
+            Cancel
+          </Button>
+          {!isFirstStep && (
+            <Button variant="outline" onClick={goBack}>
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Back
+            </Button>
+          )}
+        </div>
+        <div>
+          {isLastStep ? (
+            <Button onClick={handleSubmit} disabled={!canSubmit || submitting}>
+              {submitting ? 'Creating...' : 'Create Campaign'}
+            </Button>
+          ) : (
+            <Button onClick={goNext}>
+              Next
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   )
