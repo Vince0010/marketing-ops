@@ -2,24 +2,78 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import type { Campaign } from '../types/campaign'
-import { 
-  TrendingUp, 
-  Clock, 
-  AlertCircle, 
+import {
+  TrendingUp,
+  Clock,
+  AlertCircle,
   CheckCircle2,
   ArrowRight,
   Rocket,
-  BarChart3
+  BarChart3,
+  MoreVertical,
+  Eye,
+  Trash2,
+  Pause,
+  Play,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Progress } from '@/components/ui/progress'
+import { formatCurrency } from '@/utils/formatting'
 
 interface Stats {
   total: number
   inProgress: number
   completed: number
   planning: number
+}
+
+// Skeleton component inline for loading state
+function SkeletonCard() {
+  return (
+    <Card className="animate-pulse">
+      <CardContent className="pt-6">
+        <div className="flex items-start justify-between">
+          <div className="flex-1 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="h-5 w-48 bg-gray-200 rounded" />
+              <div className="h-5 w-20 bg-gray-200 rounded-full" />
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="h-4 w-24 bg-gray-100 rounded" />
+              <div className="h-4 w-24 bg-gray-100 rounded" />
+              <div className="h-4 w-20 bg-gray-100 rounded" />
+            </div>
+            <div className="h-2 w-full bg-gray-100 rounded" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function SkeletonStatCard() {
+  return (
+    <Card className="animate-pulse">
+      <CardContent className="pt-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-4 w-24 bg-gray-200 rounded" />
+            <div className="h-8 w-12 bg-gray-200 rounded" />
+          </div>
+          <div className="w-12 h-12 bg-gray-100 rounded-lg" />
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 export default function Dashboard() {
@@ -29,7 +83,7 @@ export default function Dashboard() {
     total: 0,
     inProgress: 0,
     completed: 0,
-    planning: 0
+    planning: 0,
   })
 
   useEffect(() => {
@@ -46,13 +100,13 @@ export default function Dashboard() {
       if (error) throw error
 
       setCampaigns(data || [])
-      
-      // Calculate stats
+
       const newStats: Stats = {
         total: data?.length || 0,
-        inProgress: data?.filter(c => c.status === 'in_progress').length || 0,
-        completed: data?.filter(c => c.status === 'completed').length || 0,
-        planning: data?.filter(c => c.status === 'planning' || c.status === 'validated').length || 0
+        inProgress: data?.filter((c) => c.status === 'in_progress').length || 0,
+        completed: data?.filter((c) => c.status === 'completed').length || 0,
+        planning:
+          data?.filter((c) => c.status === 'planning' || c.status === 'validated').length || 0,
       }
       setStats(newStats)
     } catch (error) {
@@ -63,16 +117,19 @@ export default function Dashboard() {
   }
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
+    const variants: Record<
+      string,
+      { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string; className?: string }
+    > = {
       planning: { variant: 'secondary', label: 'Planning' },
-      validated: { variant: 'default', label: 'Validated' },
-      in_progress: { variant: 'default', label: 'In Progress' },
-      completed: { variant: 'outline', label: 'Completed' },
-      paused: { variant: 'destructive', label: 'Paused' }
+      validated: { variant: 'outline', label: 'Validated', className: 'border-blue-300 text-blue-700 bg-blue-50' },
+      in_progress: { variant: 'default', label: 'In Progress', className: 'bg-green-600' },
+      completed: { variant: 'outline', label: 'Completed', className: 'border-green-300 text-green-700 bg-green-50' },
+      paused: { variant: 'destructive', label: 'Paused' },
     }
     const badge = variants[status] || variants.planning
     return (
-      <Badge variant={badge.variant}>
+      <Badge variant={badge.variant} className={badge.className}>
         {badge.label}
       </Badge>
     )
@@ -84,6 +141,12 @@ export default function Dashboard() {
     return 'text-red-600'
   }
 
+  const getHealthBg = (health: number) => {
+    if (health >= 80) return 'bg-green-600'
+    if (health >= 60) return 'bg-yellow-500'
+    return 'bg-red-500'
+  }
+
   const getCampaignRoute = (campaign: Campaign) => {
     if (campaign.status === 'planning') return `/campaigns/${campaign.id}/validate`
     if (campaign.status === 'in_progress') return `/campaigns/${campaign.id}/tracker`
@@ -91,10 +154,34 @@ export default function Dashboard() {
     return `/campaigns/${campaign.id}/validate`
   }
 
+  const filterCampaigns = (filter: string) => {
+    if (filter === 'all') return campaigns
+    if (filter === 'active') return campaigns.filter((c) => c.status === 'in_progress')
+    if (filter === 'planning') return campaigns.filter((c) => c.status === 'planning' || c.status === 'validated')
+    if (filter === 'completed') return campaigns.filter((c) => c.status === 'completed')
+    return campaigns
+  }
+
+  // Loading skeleton
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="h-8 w-64 bg-gray-200 rounded animate-pulse" />
+            <div className="h-4 w-96 bg-gray-100 rounded animate-pulse mt-2" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <SkeletonStatCard key={i} />
+          ))}
+        </div>
+        <div className="space-y-4">
+          {[...Array(3)].map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
       </div>
     )
   }
@@ -107,6 +194,12 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold text-gray-900">Campaign Dashboard</h1>
           <p className="text-gray-600 mt-1">Manage and monitor your marketing campaigns</p>
         </div>
+        <Button asChild>
+          <Link to="/campaigns/new" className="gap-2">
+            <Rocket className="w-4 h-4" />
+            New Campaign
+          </Link>
+        </Button>
       </div>
 
       {/* Stats Overview */}
@@ -168,7 +261,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Campaigns List */}
+      {/* Campaigns with Tabs Filter */}
       {campaigns.length === 0 ? (
         <Card className="text-center py-12">
           <CardContent>
@@ -184,77 +277,143 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-gray-900">All Campaigns</h2>
-          <div className="grid grid-cols-1 gap-4">
-            {campaigns.map((campaign) => (
-              <Card key={campaign.id} className="hover:shadow-lg transition-shadow cursor-pointer">
-                <Link to={getCampaignRoute(campaign)}>
-                  <CardContent className="pt-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{campaign.name}</h3>
-                      {getStatusBadge(campaign.status)}
-                    </div>
-                    
-                    <div className="flex items-center space-x-6 text-sm text-gray-600">
-                      <span>Type: {campaign.campaign_type?.replace('_', ' ')}</span>
-                      <span>Objective: {campaign.primary_objective}</span>
-                      <span>Budget: ${campaign.total_budget?.toLocaleString()}</span>
-                      <span>
-                        {new Date(campaign.start_date).toLocaleDateString()} - {new Date(campaign.end_date).toLocaleDateString()}
-                      </span>
-                    </div>
+        <Tabs defaultValue="all" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <TabsList>
+              <TabsTrigger value="all">All ({stats.total})</TabsTrigger>
+              <TabsTrigger value="active">Active ({stats.inProgress})</TabsTrigger>
+              <TabsTrigger value="planning">Planning ({stats.planning})</TabsTrigger>
+              <TabsTrigger value="completed">Completed ({stats.completed})</TabsTrigger>
+            </TabsList>
+          </div>
 
-                    {/* Health Indicators */}
-                    {campaign.status === 'in_progress' && (
-                      <div className="flex items-center space-x-4 mt-3">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs text-gray-600">Operational Health:</span>
-                          <span className={`text-sm font-semibold ${getHealthColor(campaign.operational_health)}`}>
-                            {campaign.operational_health}%
-                          </span>
+          {['all', 'active', 'planning', 'completed'].map((filter) => (
+            <TabsContent key={filter} value={filter} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filterCampaigns(filter).map((campaign) => (
+                  <Card key={campaign.id} className="hover:shadow-lg transition-shadow group">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="text-base truncate">{campaign.name}</CardTitle>
+                          <CardDescription className="mt-1">
+                            {campaign.campaign_type?.replace(/_/g, ' ')}
+                          </CardDescription>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs text-gray-600">Performance Health:</span>
-                          <span className={`text-sm font-semibold ${getHealthColor(campaign.performance_health)}`}>
-                            {campaign.performance_health}%
-                          </span>
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(campaign.status)}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link to={getCampaignRoute(campaign)}>
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  View Details
+                                </Link>
+                              </DropdownMenuItem>
+                              {campaign.status === 'in_progress' && (
+                                <DropdownMenuItem>
+                                  <Pause className="w-4 h-4 mr-2" />
+                                  Pause Campaign
+                                </DropdownMenuItem>
+                              )}
+                              {campaign.status === 'paused' && (
+                                <DropdownMenuItem>
+                                  <Play className="w-4 h-4 mr-2" />
+                                  Resume Campaign
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem className="text-red-600">
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
-                        {campaign.drift_count > 0 && (
-                          <div className="flex items-center space-x-2">
-                            <AlertCircle className="text-yellow-600" size={16} />
-                            <span className="text-xs text-gray-600">
-                              {campaign.drift_count} drift event{campaign.drift_count !== 1 ? 's' : ''}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {/* Key Metrics Row */}
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Budget</span>
+                          <p className="font-semibold">{formatCurrency(campaign.total_budget)}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">KPI</span>
+                          <p className="font-semibold">{campaign.primary_kpi}</p>
+                        </div>
+                      </div>
+
+                      {/* Health bar for in-progress */}
+                      {campaign.status === 'in_progress' && (
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-muted-foreground">Operational Health</span>
+                            <span className={`font-semibold ${getHealthColor(campaign.operational_health)}`}>
+                              {campaign.operational_health}%
                             </span>
                           </div>
-                        )}
-                      </div>
-                    )}
+                          <Progress value={campaign.operational_health} className={`h-1.5 ${getHealthBg(campaign.operational_health)}`} />
+                          {campaign.drift_count > 0 && (
+                            <div className="flex items-center gap-1 text-xs text-yellow-600">
+                              <AlertCircle size={12} />
+                              {campaign.drift_count} drift event{campaign.drift_count !== 1 ? 's' : ''}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
-                    {/* Risk Score for Planning */}
-                    {campaign.status === 'planning' && campaign.risk_score && (
-                      <div className="flex items-center space-x-2 mt-3">
-                        <span className="text-xs text-gray-600">Risk Score:</span>
-                        <span className={`text-sm font-semibold ${
-                          campaign.risk_score >= 70 ? 'text-green-600' :
-                          campaign.risk_score >= 50 ? 'text-yellow-600' : 'text-red-600'
-                        }`}>
-                          {campaign.risk_score}/100
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                      {/* Risk score for planning */}
+                      {(campaign.status === 'planning' || campaign.status === 'validated') && campaign.risk_score != null && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Risk Score</span>
+                          <span
+                            className={`font-semibold ${
+                              campaign.risk_score >= 70
+                                ? 'text-green-600'
+                                : campaign.risk_score >= 50
+                                ? 'text-yellow-600'
+                                : 'text-red-600'
+                            }`}
+                          >
+                            {campaign.risk_score}/100
+                          </span>
+                        </div>
+                      )}
 
-                    <ArrowRight className="text-muted-foreground" size={20} />
-                  </div>
-                  </CardContent>
-                </Link>
-              </Card>
-            ))}
-          </div>
-        </div>
+                      {/* Date range */}
+                      <div className="text-xs text-muted-foreground pt-1 border-t">
+                        {new Date(campaign.start_date).toLocaleDateString()} &ndash;{' '}
+                        {new Date(campaign.end_date).toLocaleDateString()}
+                      </div>
+
+                      {/* View button */}
+                      <Button asChild variant="outline" size="sm" className="w-full">
+                        <Link to={getCampaignRoute(campaign)}>
+                          View Campaign <ArrowRight className="w-4 h-4 ml-1" />
+                        </Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              {filterCampaigns(filter).length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  No campaigns in this category
+                </div>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
       )}
     </div>
   )
