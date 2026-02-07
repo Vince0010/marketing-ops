@@ -1,632 +1,359 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import { Slider } from '@/components/ui/slider'
 import {
-  Rocket,
-  ChevronRight,
-  ChevronLeft,
-  Plus,
-  X,
-  Check,
-  Calendar,
-  DollarSign,
-  Target,
-  ListChecks,
+  Rocket, Target, Users, Palette, Share2, DollarSign,
+  ListChecks, AlertTriangle, BarChart3, Globe, ChevronDown, ChevronRight,
 } from 'lucide-react'
-import { CAMPAIGN_TYPES, CAMPAIGN_OBJECTIVES, PRIMARY_KPIS } from '@/lib/constants'
 import { supabase } from '@/lib/supabase'
-import type { PhaseType } from '@/types/phase'
+import { createDefaultStages } from '@/lib/defaultStages'
+import { stagesToPhaseInserts } from '@/lib/stageUtils'
+import type { StageConfig } from '@/types/phase'
+import type {
+  CampaignType, PrimaryObjective, PrimaryKPI,
+  TargetAudience as TargetAudienceType, CreativeStrategy as CreativeStrategyType,
+  ChannelPlacement as ChannelPlacementType, BudgetStrategy as BudgetStrategyType,
+  TrackingSetup as TrackingSetupType, CompetitiveContext as CompetitiveContextType,
+  Constraints,
+} from '@/types/campaign'
 
-interface PhaseInput {
-  id: string
-  phase_name: string
-  phase_type: PhaseType
-  planned_duration_days: number
-  owner: string
+import CampaignFundamentals from '@/components/campaign-form/CampaignFundamentals'
+import ObjectivesKPIs from '@/components/campaign-form/ObjectivesKPIs'
+import TargetAudience from '@/components/campaign-form/TargetAudience'
+import CreativeStrategy from '@/components/campaign-form/CreativeStrategy'
+import ChannelPlacement from '@/components/campaign-form/ChannelPlacement'
+import BudgetStrategyComponent from '@/components/campaign-form/BudgetStrategy'
+import ConstraintsRisks from '@/components/campaign-form/ConstraintsRisks'
+import TrackingSetup from '@/components/campaign-form/TrackingSetup'
+import CompetitiveContext from '@/components/campaign-form/CompetitiveContext'
+import StageBuilder from '@/components/stages/StageBuilder'
+
+interface FormData {
+  // Fundamentals
+  name: string
+  campaign_type?: CampaignType
+  start_date: string
+  end_date: string
+  total_budget: number | ''
+  industry: string
+  description: string
+  // Objectives
+  primary_objective?: PrimaryObjective
+  primary_kpi?: PrimaryKPI
+  target_value: number | ''
+  secondary_kpis: string[]
+  // Audience
+  target_audience: TargetAudienceType
+  audience_type: string[]
+  // Creative
+  creative_strategy: CreativeStrategyType
+  // Channels
+  channel_placement: ChannelPlacementType
+  // Budget
+  daily_budget: number | ''
+  budget_strategy: BudgetStrategyType
+  // Tracking
+  meta_pixel_id: string
+  meta_ads_account_id: string
+  tracking_setup: TrackingSetupType
+  // Competitive
+  competitive_context: CompetitiveContextType
+  // Constraints
+  constraints: Constraints
 }
 
-const PHASE_TYPES: { value: PhaseType; label: string }[] = [
-  { value: 'planning', label: 'Planning' },
-  { value: 'creative', label: 'Creative' },
-  { value: 'compliance', label: 'Compliance' },
-  { value: 'setup', label: 'Setup' },
-  { value: 'launch', label: 'Launch' },
-  { value: 'optimization', label: 'Optimization' },
-  { value: 'reporting', label: 'Reporting' },
-]
+const INITIAL_FORM: FormData = {
+  name: '',
+  campaign_type: undefined,
+  start_date: '',
+  end_date: '',
+  total_budget: '',
+  industry: '',
+  description: '',
+  primary_objective: undefined,
+  primary_kpi: undefined,
+  target_value: '',
+  secondary_kpis: [],
+  target_audience: {},
+  audience_type: [],
+  creative_strategy: {},
+  channel_placement: {},
+  daily_budget: '',
+  budget_strategy: {},
+  meta_pixel_id: '',
+  meta_ads_account_id: '',
+  tracking_setup: {},
+  competitive_context: {},
+  constraints: {},
+}
 
-const TEAM_MEMBERS = [
-  'Sarah Johnson',
-  'Mike Chen',
-  'Emily Davis',
-  'Tom Wilson',
-]
+interface Section {
+  id: string
+  title: string
+  icon: React.ElementType
+  required?: boolean
+}
 
-const STEPS = [
-  { label: 'Details', icon: <Rocket className="w-4 h-4" /> },
-  { label: 'Budget & Timeline', icon: <DollarSign className="w-4 h-4" /> },
-  { label: 'Phases', icon: <ListChecks className="w-4 h-4" /> },
-  { label: 'Review', icon: <Check className="w-4 h-4" /> },
+const SECTIONS: Section[] = [
+  { id: 'fundamentals', title: 'Campaign Fundamentals', icon: Rocket, required: true },
+  { id: 'objectives', title: 'Objectives & KPIs', icon: Target, required: true },
+  { id: 'audience', title: 'Target Audience', icon: Users },
+  { id: 'creative', title: 'Creative Strategy', icon: Palette },
+  { id: 'channels', title: 'Channel & Placement', icon: Share2 },
+  { id: 'budget', title: 'Budget Strategy', icon: DollarSign },
+  { id: 'stages', title: 'Execution Stages', icon: ListChecks, required: true },
+  { id: 'constraints', title: 'Constraints & Risk Factors', icon: AlertTriangle },
+  { id: 'tracking', title: 'Tracking & Measurement', icon: BarChart3 },
+  { id: 'competitive', title: 'Competitive & Market Context', icon: Globe },
 ]
 
 export default function CampaignCreate() {
   const navigate = useNavigate()
-  const [step, setStep] = useState(0)
+  const [form, setForm] = useState<FormData>(INITIAL_FORM)
+  const [stages, setStages] = useState<StageConfig[]>(createDefaultStages())
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['fundamentals']))
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // Step 1: Campaign Details
-  const [name, setName] = useState('')
-  const [campaignType, setCampaignType] = useState('')
-  const [objective, setObjective] = useState('')
-  const [primaryKpi, setPrimaryKpi] = useState('')
-  const [targetValue, setTargetValue] = useState('')
-  const [description, setDescription] = useState('')
-
-  // Step 2: Budget & Timeline
-  const [totalBudget, setTotalBudget] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-
-  // Step 3: Phases
-  const [phases, setPhases] = useState<PhaseInput[]>([
-    { id: crypto.randomUUID(), phase_name: 'Planning & Strategy', phase_type: 'planning', planned_duration_days: 3, owner: 'Sarah Johnson' },
-    { id: crypto.randomUUID(), phase_name: 'Creative Development', phase_type: 'creative', planned_duration_days: 5, owner: 'Mike Chen' },
-    { id: crypto.randomUUID(), phase_name: 'Campaign Setup', phase_type: 'setup', planned_duration_days: 2, owner: 'Emily Davis' },
-    { id: crypto.randomUUID(), phase_name: 'Launch & Monitor', phase_type: 'launch', planned_duration_days: 1, owner: 'Sarah Johnson' },
-    { id: crypto.randomUUID(), phase_name: 'Optimization', phase_type: 'optimization', planned_duration_days: 7, owner: 'Tom Wilson' },
-  ])
-
-  const addPhase = () => {
-    setPhases([
-      ...phases,
-      {
-        id: crypto.randomUUID(),
-        phase_name: '',
-        phase_type: 'planning',
-        planned_duration_days: 3,
-        owner: '',
-      },
-    ])
+  const updateForm = (updates: Partial<FormData>) => {
+    setForm((prev) => ({ ...prev, ...updates }))
   }
 
-  const removePhase = (id: string) => {
-    if (phases.length <= 1) return
-    setPhases(phases.filter((p) => p.id !== id))
+  const toggleSection = (id: string) => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
-  const updatePhase = (id: string, field: keyof PhaseInput, value: string | number) => {
-    setPhases(phases.map((p) => (p.id === id ? { ...p, [field]: value } : p)))
-  }
-
-  const totalPhaseDays = phases.reduce((acc, p) => acc + p.planned_duration_days, 0)
-
-  const canNext = () => {
-    if (step === 0) return name && campaignType && objective && primaryKpi
-    if (step === 1) return totalBudget && startDate && endDate
-    if (step === 2) return phases.length > 0 && phases.every((p) => p.phase_name && p.owner)
-    return true
-  }
+  const canSubmit = form.name && form.campaign_type && form.start_date && form.end_date &&
+    form.total_budget && form.primary_objective && form.primary_kpi && form.target_value &&
+    stages.length > 0
 
   const handleSubmit = async () => {
+    if (!canSubmit) return
     setSubmitting(true)
+    setError(null)
+
     try {
-      const { data, error } = await supabase
+      const { data: campaign, error: insertError } = await supabase
         .from('campaigns')
         .insert({
-          name,
-          campaign_type: campaignType,
-          primary_objective: objective,
-          primary_kpi: primaryKpi,
-          target_value: parseFloat(targetValue) || 0,
-          total_budget: parseFloat(totalBudget) || 0,
-          start_date: startDate,
-          end_date: endDate,
+          name: form.name,
+          campaign_type: form.campaign_type!,
           status: 'planning',
+          description: form.description || null,
+          industry: form.industry || null,
+          start_date: form.start_date,
+          end_date: form.end_date,
+          total_budget: Number(form.total_budget),
+          daily_budget: form.daily_budget ? Number(form.daily_budget) : null,
+          primary_objective: form.primary_objective!,
+          primary_kpi: form.primary_kpi!,
+          target_value: Number(form.target_value),
+          secondary_kpis: form.secondary_kpis.length ? form.secondary_kpis : null,
+          target_audience: Object.keys(form.target_audience).length ? form.target_audience : null,
+          audience_type: form.audience_type.length ? form.audience_type : null,
+          creative_strategy: Object.keys(form.creative_strategy).length ? form.creative_strategy : null,
+          channel_placement: Object.keys(form.channel_placement).length ? form.channel_placement : null,
+          budget_strategy: Object.keys(form.budget_strategy).length ? form.budget_strategy : null,
+          tracking_setup: Object.keys(form.tracking_setup).length ? form.tracking_setup : null,
+          meta_pixel_id: form.meta_pixel_id || null,
+          meta_ads_account_id: form.meta_ads_account_id || null,
+          competitive_context: Object.keys(form.competitive_context).length ? form.competitive_context : null,
+          constraints: Object.keys(form.constraints).length ? form.constraints : null,
+          operational_health: 100,
+          performance_health: 100,
+          drift_count: 0,
+          positive_drift_count: 0,
+          negative_drift_count: 0,
         })
-        .select()
+        .select('id')
         .single()
 
-      if (error) throw error
+      if (insertError) throw insertError
 
-      // Insert phases
-      if (data) {
-        let cumulativeDays = 0
-        const phaseInserts = phases.map((p, i) => {
-          const phaseStart = new Date(startDate)
-          phaseStart.setDate(phaseStart.getDate() + cumulativeDays)
-          const phaseEnd = new Date(phaseStart)
-          phaseEnd.setDate(phaseEnd.getDate() + p.planned_duration_days)
-          cumulativeDays += p.planned_duration_days
+      const phaseInserts = stagesToPhaseInserts(stages, campaign.id, form.start_date)
+      const { error: phasesError } = await supabase
+        .from('execution_phases')
+        .insert(phaseInserts)
 
-          return {
-            campaign_id: data.id,
-            phase_number: i + 1,
-            phase_name: p.phase_name,
-            phase_type: p.phase_type,
-            planned_start_date: phaseStart.toISOString().split('T')[0],
-            planned_end_date: phaseEnd.toISOString().split('T')[0],
-            planned_duration_days: p.planned_duration_days,
-            status: 'pending' as const,
-            drift_days: 0,
-            owner: p.owner,
-          }
-        })
+      if (phasesError) throw phasesError
 
-        await supabase.from('execution_phases').insert(phaseInserts)
+      navigate(`/campaigns/${campaign.id}/validate`)
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'message' in err && typeof (err as { message?: string }).message === 'string') {
+        setError((err as { message: string }).message)
+      } else {
+        setError('Failed to create campaign')
       }
-
-      navigate(`/campaigns/${data.id}/validate`)
-    } catch (error) {
-      console.error('Error creating campaign:', error)
     } finally {
       setSubmitting(false)
     }
   }
 
+  const renderSectionContent = (sectionId: string) => {
+    switch (sectionId) {
+      case 'fundamentals':
+        return (
+          <CampaignFundamentals
+            data={{
+              name: form.name,
+              campaign_type: form.campaign_type,
+              start_date: form.start_date,
+              end_date: form.end_date,
+              total_budget: form.total_budget,
+              industry: form.industry,
+              description: form.description,
+            }}
+            onChange={updateForm}
+          />
+        )
+      case 'objectives':
+        return (
+          <ObjectivesKPIs
+            data={{
+              primary_objective: form.primary_objective,
+              primary_kpi: form.primary_kpi,
+              target_value: form.target_value,
+              secondary_kpis: form.secondary_kpis,
+            }}
+            onChange={updateForm}
+          />
+        )
+      case 'audience':
+        return (
+          <TargetAudience
+            data={{ target_audience: form.target_audience, audience_type: form.audience_type }}
+            onChange={updateForm}
+          />
+        )
+      case 'creative':
+        return (
+          <CreativeStrategy
+            data={form.creative_strategy}
+            onChange={(creative_strategy) => updateForm({ creative_strategy })}
+          />
+        )
+      case 'channels':
+        return (
+          <ChannelPlacement
+            data={form.channel_placement}
+            onChange={(channel_placement) => updateForm({ channel_placement })}
+          />
+        )
+      case 'budget':
+        return (
+          <BudgetStrategyComponent
+            data={{ ...form.budget_strategy, daily_budget: form.daily_budget }}
+            onChange={(updates: Partial<BudgetStrategyType> & { daily_budget?: number | '' }) => {
+              const { daily_budget, ...budgetUpdates } = updates
+              if (daily_budget !== undefined) updateForm({ daily_budget })
+              if (Object.keys(budgetUpdates).length) {
+                updateForm({ budget_strategy: { ...form.budget_strategy, ...budgetUpdates } })
+              }
+            }}
+          />
+        )
+      case 'stages':
+        return <StageBuilder stages={stages} onChange={setStages} />
+      case 'constraints':
+        return (
+          <ConstraintsRisks
+            data={form.constraints}
+            onChange={(constraints) => updateForm({ constraints })}
+          />
+        )
+      case 'tracking':
+        return (
+          <TrackingSetup
+            data={{
+              ...form.tracking_setup,
+              meta_pixel_id: form.meta_pixel_id,
+              meta_ads_account_id: form.meta_ads_account_id,
+            }}
+            onChange={(updates: Partial<TrackingSetupType> & { meta_pixel_id?: string; meta_ads_account_id?: string }) => {
+              const { meta_pixel_id, meta_ads_account_id, ...trackingUpdates } = updates
+              if (meta_pixel_id !== undefined) updateForm({ meta_pixel_id })
+              if (meta_ads_account_id !== undefined) updateForm({ meta_ads_account_id })
+              if (Object.keys(trackingUpdates).length) {
+                updateForm({ tracking_setup: { ...form.tracking_setup, ...trackingUpdates } })
+              }
+            }}
+          />
+        )
+      case 'competitive':
+        return (
+          <CompetitiveContext
+            data={form.competitive_context}
+            onChange={(competitive_context) => updateForm({ competitive_context })}
+          />
+        )
+      default:
+        return null
+    }
+  }
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold">Create New Campaign</h1>
-        <p className="text-muted-foreground mt-1">Plan your marketing campaign with AI-powered insights</p>
+        <p className="text-muted-foreground mt-1">
+          Plan your marketing campaign with AI-powered insights
+        </p>
       </div>
 
-      {/* Step Indicator */}
-      <div className="flex items-center justify-between">
-        {STEPS.map((s, i) => (
-          <div key={i} className="flex items-center flex-1">
-            <button
-              onClick={() => i < step && setStep(i)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                i === step
-                  ? 'bg-blue-100 text-blue-700'
-                  : i < step
-                  ? 'text-green-600 cursor-pointer hover:bg-green-50'
-                  : 'text-muted-foreground'
-              }`}
-            >
-              <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                  i === step
-                    ? 'bg-blue-600 text-white'
-                    : i < step
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-200 text-gray-500'
-                }`}
+      {/* Section accordion */}
+      <div className="space-y-3">
+        {SECTIONS.map((section) => {
+          const isExpanded = expandedSections.has(section.id)
+          const Icon = section.icon
+          return (
+            <Card key={section.id}>
+              <CardHeader
+                className="cursor-pointer select-none"
+                onClick={() => toggleSection(section.id)}
               >
-                {i < step ? <Check className="w-4 h-4" /> : i + 1}
-              </div>
-              <span className="hidden sm:inline">{s.label}</span>
-            </button>
-            {i < STEPS.length - 1 && (
-              <div className={`flex-1 h-0.5 mx-2 ${i < step ? 'bg-green-400' : 'bg-gray-200'}`} />
-            )}
-          </div>
-        ))}
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Icon className="w-5 h-5" />
+                    {section.title}
+                    {section.required && (
+                      <Badge variant="secondary" className="text-xs">Required</Badge>
+                    )}
+                  </CardTitle>
+                  {isExpanded ? (
+                    <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                  )}
+                </div>
+              </CardHeader>
+              {isExpanded && (
+                <CardContent>{renderSectionContent(section.id)}</CardContent>
+              )}
+            </Card>
+          )
+        })}
       </div>
 
-      {/* Step 1: Campaign Details */}
-      {step === 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Rocket className="w-5 h-5" />
-              Campaign Details
-            </CardTitle>
-            <CardDescription>Enter the basic information for your marketing campaign</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Campaign Name *</Label>
-              <Input
-                id="name"
-                placeholder="e.g. Summer Sale 2026"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Campaign Type *</Label>
-                <Select value={campaignType} onValueChange={setCampaignType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CAMPAIGN_TYPES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>
-                        {t.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Primary Objective *</Label>
-                <Select value={objective} onValueChange={setObjective}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select objective" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CAMPAIGN_OBJECTIVES.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Primary KPI *</Label>
-                <Select value={primaryKpi} onValueChange={setPrimaryKpi}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select KPI" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PRIMARY_KPIS.map((k) => (
-                      <SelectItem key={k.value} value={k.value}>
-                        {k.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="target">Target Value</Label>
-                <Input
-                  id="target"
-                  type="number"
-                  placeholder="e.g. 3.5 for ROAS"
-                  value={targetValue}
-                  onChange={(e) => setTargetValue(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                placeholder="Describe your campaign goals and strategy"
-                rows={3}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-          </CardContent>
-        </Card>
+      {/* Submit */}
+      {error && (
+        <div className="text-sm text-destructive bg-destructive/10 px-4 py-3 rounded-lg">
+          {error}
+        </div>
       )}
 
-      {/* Step 2: Budget & Timeline */}
-      {step === 1 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5" />
-              Budget & Timeline
-            </CardTitle>
-            <CardDescription>Set budget allocation and campaign dates</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="budget">Total Budget (USD) *</Label>
-              <div className="relative">
-                <DollarSign className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="budget"
-                  type="number"
-                  className="pl-9"
-                  placeholder="50000"
-                  value={totalBudget}
-                  onChange={(e) => setTotalBudget(e.target.value)}
-                />
-              </div>
-              {totalBudget && (
-                <p className="text-sm text-muted-foreground">
-                  Daily budget estimate: ${(parseFloat(totalBudget) / 30).toFixed(0)}/day (over 30 days)
-                </p>
-              )}
-            </div>
-
-            <Separator />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="start">
-                  <Calendar className="w-4 h-4 inline mr-1" />
-                  Start Date *
-                </Label>
-                <Input
-                  id="start"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="end">
-                  <Calendar className="w-4 h-4 inline mr-1" />
-                  End Date *
-                </Label>
-                <Input
-                  id="end"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {startDate && endDate && (
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <p className="text-sm font-medium text-blue-800">
-                  Campaign Duration:{' '}
-                  {Math.ceil(
-                    (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)
-                  )}{' '}
-                  days
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Step 3: Phase Timeline Planner */}
-      {step === 2 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <ListChecks className="w-5 h-5" />
-                  Phase Timeline Planner
-                </CardTitle>
-                <CardDescription>
-                  Define execution phases. Total: {totalPhaseDays} days across {phases.length} phases
-                </CardDescription>
-              </div>
-              <Button variant="outline" size="sm" onClick={addPhase} className="gap-1">
-                <Plus className="w-4 h-4" /> Add Phase
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Visual timeline bar */}
-            <div className="flex h-3 rounded-full overflow-hidden bg-gray-100">
-              {phases.map((phase, i) => {
-                const colors = [
-                  'bg-blue-500',
-                  'bg-purple-500',
-                  'bg-green-500',
-                  'bg-yellow-500',
-                  'bg-red-500',
-                  'bg-indigo-500',
-                  'bg-pink-500',
-                ]
-                const widthPercent = totalPhaseDays > 0 ? (phase.planned_duration_days / totalPhaseDays) * 100 : 0
-                return (
-                  <div
-                    key={phase.id}
-                    className={`${colors[i % colors.length]} transition-all`}
-                    style={{ width: `${widthPercent}%` }}
-                    title={`${phase.phase_name}: ${phase.planned_duration_days} days`}
-                  />
-                )
-              })}
-            </div>
-
-            <Separator />
-
-            {/* Phase list */}
-            <div className="space-y-3">
-              {phases.map((phase, i) => (
-                <div key={phase.id} className="border rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Badge variant="outline">Phase {i + 1}</Badge>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-red-600"
-                      onClick={() => removePhase(phase.id)}
-                      disabled={phases.length <= 1}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Phase Name *</Label>
-                      <Input
-                        placeholder="e.g. Creative Development"
-                        value={phase.phase_name}
-                        onChange={(e) => updatePhase(phase.id, 'phase_name', e.target.value)}
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs">Type</Label>
-                      <Select
-                        value={phase.phase_type}
-                        onValueChange={(v) => updatePhase(phase.id, 'phase_type', v)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PHASE_TYPES.map((t) => (
-                            <SelectItem key={t.value} value={t.value}>
-                              {t.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs">Owner *</Label>
-                      <Select
-                        value={phase.owner}
-                        onValueChange={(v) => updatePhase(phase.id, 'owner', v)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Assign owner" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TEAM_MEMBERS.map((m) => (
-                            <SelectItem key={m} value={m}>
-                              {m}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex justify-between">
-                      <Label className="text-xs">Duration</Label>
-                      <span className="text-xs font-semibold">{phase.planned_duration_days} days</span>
-                    </div>
-                    <Slider
-                      value={[phase.planned_duration_days]}
-                      onValueChange={([v]) => updatePhase(phase.id, 'planned_duration_days', v)}
-                      min={1}
-                      max={30}
-                      step={1}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Step 4: Review */}
-      {step === 3 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="w-5 h-5" />
-              Review Campaign
-            </CardTitle>
-            <CardDescription>Verify all details before creating the campaign</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Summary Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Campaign Info</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Name</span>
-                    <span className="font-medium">{name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Type</span>
-                    <span className="font-medium">{campaignType.replace(/_/g, ' ')}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Objective</span>
-                    <span className="font-medium">{objective}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">KPI</span>
-                    <Badge variant="outline">{primaryKpi}</Badge>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Budget & Timeline</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Budget</span>
-                    <span className="font-medium">${parseFloat(totalBudget || '0').toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Start</span>
-                    <span className="font-medium">{startDate}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">End</span>
-                    <span className="font-medium">{endDate}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Phase Summary */}
-            <div className="space-y-3">
-              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-                Execution Phases ({phases.length} phases, {totalPhaseDays} total days)
-              </h3>
-              <div className="space-y-2">
-                {phases.map((phase, i) => (
-                  <div key={phase.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="text-xs">
-                        P{i + 1}
-                      </Badge>
-                      <span className="text-sm font-medium">{phase.phase_name}</span>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span>{phase.owner}</span>
-                      <Badge variant="outline">{phase.planned_duration_days}d</Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Navigation */}
-      <div className="flex items-center justify-between pt-2">
-        <Button variant="outline" onClick={() => step > 0 && setStep(step - 1)} disabled={step === 0}>
-          <ChevronLeft className="w-4 h-4 mr-1" />
-          Back
+      <div className="flex justify-end gap-3 pb-8">
+        <Button variant="outline" onClick={() => navigate('/dashboard')}>
+          Cancel
         </Button>
-
-        {step < STEPS.length - 1 ? (
-          <Button onClick={() => setStep(step + 1)} disabled={!canNext()}>
-            Next
-            <ChevronRight className="w-4 h-4 ml-1" />
-          </Button>
-        ) : (
-          <Button onClick={handleSubmit} disabled={submitting} className="gap-2">
-            {submitting ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Creating...
-              </>
-            ) : (
-              <>
-                <Rocket className="w-4 h-4" />
-                Create Campaign
-              </>
-            )}
-          </Button>
-        )}
+        <Button onClick={handleSubmit} disabled={!canSubmit || submitting}>
+          {submitting ? 'Creating...' : 'Create Campaign'}
+        </Button>
       </div>
     </div>
   )

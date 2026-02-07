@@ -1,32 +1,35 @@
+import type {
+  Campaign as CampaignRow,
+  CampaignInsert,
+} from './campaign'
+import type {
+  ExecutionPhase as ExecutionPhaseRow,
+  ExecutionPhaseInsert,
+  DriftEvent as DriftEventRow,
+} from './phase'
+
 export type Database = {
   public: {
     Tables: {
       campaigns: {
-        Row: Campaign
-        Insert: CampaignInsert
-        Update: CampaignUpdate
+        Row: CampaignRow
+        Insert: CampaignInsert & Record<string, unknown>
+        Update: Partial<CampaignInsert> & Record<string, unknown>
       }
       execution_phases: {
-        Row: ExecutionPhase
-        Insert: ExecutionPhaseInsert
-        Update: ExecutionPhaseUpdate
+        Row: ExecutionPhaseRow
+        Insert: ExecutionPhaseInsert & Record<string, unknown>
+        Update: Partial<ExecutionPhaseInsert> & Record<string, unknown>
       }
       drift_events: {
-        Row: DriftEvent
-        Insert: DriftEventInsert
-        Update: DriftEventUpdate
+        Row: DriftEventRow
+        Insert: Omit<DriftEventRow, 'id' | 'created_at'> & Record<string, unknown>
+        Update: Partial<Omit<DriftEventRow, 'id' | 'created_at'>> & Record<string, unknown>
       }
     }
+    Views: Record<string, never>
+    Functions: Record<string, never>
+    Enums: Record<string, never>
+    CompositeTypes: Record<string, never>
   }
 }
-
-// These will be expanded in campaign.ts
-export type Campaign = any
-export type CampaignInsert = any
-export type CampaignUpdate = any
-export type ExecutionPhase = any
-export type ExecutionPhaseInsert = any
-export type ExecutionPhaseUpdate = any
-export type DriftEvent = any
-export type DriftEventInsert = any
-export type DriftEventUpdate = any
