@@ -74,18 +74,31 @@ export interface DriftEvent {
   phase_id: string
   created_at: string
 
-  drift_type: DriftType
+  // Drift Details
   drift_days: number
+  drift_type: DriftType
+  reason?: string
+  impact_description?: string
 
+  // Learning & Templates
+  lesson_learned?: string
+  success_pattern?: string
+  template_created?: boolean
+
+  // Performance Impact
+  performance_impact?: 'positive' | 'negative' | 'neutral' | 'unknown'
+  cost_impact?: number
+
+  // Metadata (for compatibility with existing code)
   phase_name: string
   planned_duration: number
   actual_duration: number
-
   root_cause?: string
   attribution?: string
-
   impact_on_timeline?: string
-  lesson_learned?: string
   actionable_insight?: string
-  template_worthy: boolean
+  template_worthy?: boolean
+
+  recorded_by?: string
+  recorded_at?: string
 }

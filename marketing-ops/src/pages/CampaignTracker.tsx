@@ -27,52 +27,10 @@ import {
 import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase, DriftEvent } from '@/types/phase'
+import type { StakeholderAction } from '@/types/database'
 import { formatDate } from '@/utils/formatting'
 
-// Seeded drift events for demo
-const SEEDED_DRIFT_EVENTS: Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>[] = [
-  {
-    drift_type: 'negative',
-    drift_days: 3,
-    phase_name: 'Creative Development',
-    planned_duration: 5,
-    actual_duration: 8,
-    root_cause: 'Design revisions requested by stakeholders',
-    attribution: 'Mike Chen',
-    impact_on_timeline: 'Delayed launch by 2 days',
-    lesson_learned: 'Build in stakeholder review buffer',
-    actionable_insight: 'Add a stakeholder review checkpoint after initial concepts',
-    template_worthy: true,
-  },
-  {
-    drift_type: 'positive',
-    drift_days: -1,
-    phase_name: 'Campaign Setup',
-    planned_duration: 3,
-    actual_duration: 2,
-    root_cause: 'Reused template from previous campaign',
-    attribution: 'Emily Davis',
-    impact_on_timeline: 'Recovered 1 day',
-    lesson_learned: 'Maintain campaign templates for recurring types',
-    actionable_insight: 'Create a template library for common campaign setups',
-    template_worthy: true,
-  },
-  {
-    drift_type: 'negative',
-    drift_days: 2,
-    phase_name: 'Compliance Review',
-    planned_duration: 2,
-    actual_duration: 4,
-    root_cause: 'Legal team flagged ad copy for regulatory concerns',
-    attribution: 'Legal Team',
-    impact_on_timeline: 'Added 2 days to pre-launch',
-    lesson_learned: 'Submit compliance review earlier in process',
-    actionable_insight: 'Run parallel compliance reviews during creative phase',
-    template_worthy: false,
-  },
-]
-
-// Seeded AI recommendations
+// AI Recommendations for demo
 const AI_RECOMMENDATIONS = [
   {
     title: 'Increase budget for top-performing channel',
@@ -112,6 +70,8 @@ export default function CampaignTracker() {
   const { id } = useParams<{ id: string }>()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [phases, setPhases] = useState<ExecutionPhase[]>([])
+  const [driftEvents, setDriftEvents] = useState<DriftEvent[]>([])
+  const [stakeholderActions, setStakeholderActions] = useState<StakeholderAction[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -120,13 +80,17 @@ export default function CampaignTracker() {
 
   const fetchData = async () => {
     try {
-      const [campaignRes, phasesRes] = await Promise.all([
+      const [campaignRes, phasesRes, driftRes, stakeholderRes] = await Promise.all([
         supabase.from('campaigns').select('*').eq('id', id).single(),
         supabase.from('execution_phases').select('*').eq('campaign_id', id).order('phase_number'),
+        supabase.from('drift_events').select('*').eq('campaign_id', id).order('created_at', { ascending: false }),
+        supabase.from('stakeholder_actions').select('*').eq('campaign_id', id).order('requested_date', { ascending: false }),
       ])
 
       if (campaignRes.data) setCampaign(campaignRes.data)
       if (phasesRes.data) setPhases(phasesRes.data)
+      if (driftRes.data) setDriftEvents(driftRes.data)
+      if (stakeholderRes.data) setStakeholderActions(stakeholderRes.data)
     } catch (error) {
       console.error('Error:', error)
     } finally {
@@ -165,8 +129,10 @@ export default function CampaignTracker() {
       (new Date(now).getTime() - new Date(phase.actual_start_date).getTime()) / (1000 * 60 * 60 * 24)
     )
     const driftDays = actualDays - phase.planned_duration_days
+    const driftType = driftDays > 1 ? 'negative' : driftDays < -1 ? 'positive' : 'neutral'
 
     try {
+      // Update the phase
       await supabase
         .from('execution_phases')
         .update({
@@ -174,10 +140,63 @@ export default function CampaignTracker() {
           actual_end_date: now,
           actual_duration_days: actualDays,
           drift_days: driftDays,
-          drift_type: driftDays > 1 ? 'negative' : driftDays < -1 ? 'positive' : 'neutral',
+          drift_type: driftType,
         })
         .eq('id', phaseId)
 
+      // Create drift event if there's significant drift
+      if (Math.abs(driftDays) > 0) {
+        const driftEventData = {
+          campaign_id: campaign?.id || '',
+          phase_id: phaseId,
+          drift_days: driftDays,
+          drift_type: driftType,
+          phase_name: phase.phase_name,
+          planned_duration: phase.planned_duration_days,
+          actual_duration: actualDays,
+          reason: driftDays > 0 ? 'Timeline overrun' : 'Completed ahead of schedule',
+          impact_description: Math.abs(driftDays) > 2 ? 'Significant impact on subsequent phases' : 'Minor timeline adjustment',
+          lesson_learned: driftType === 'positive' ? 'Process optimization identified' : 'Timeline monitoring needed',
+          template_created: driftType === 'positive' && Math.abs(driftDays) > 1,
+        }
+
+        await supabase.from('drift_events').insert([driftEventData])
+
+        // Refresh drift events to show the new one
+        const { data: updatedDriftEvents } = await supabase
+          .from('drift_events')
+          .select('*')
+          .eq('campaign_id', campaign?.id)
+          .order('created_at', { ascending: false })
+        
+        if (updatedDriftEvents) setDriftEvents(updatedDriftEvents)
+
+        // Update campaign drift counters
+        const newDriftCount = (campaign?.drift_count || 0) + 1
+        const newPositiveDrift = driftType === 'positive' ? (campaign?.positive_drift_count || 0) + 1 : (campaign?.positive_drift_count || 0)
+        const newNegativeDrift = driftType === 'negative' ? (campaign?.negative_drift_count || 0) + 1 : (campaign?.negative_drift_count || 0)
+        
+        await supabase
+          .from('campaigns')
+          .update({
+            drift_count: newDriftCount,
+            positive_drift_count: newPositiveDrift,
+            negative_drift_count: newNegativeDrift,
+          })
+          .eq('id', campaign?.id)
+
+        // Update local campaign state
+        if (campaign) {
+          setCampaign({
+            ...campaign,
+            drift_count: newDriftCount,
+            positive_drift_count: newPositiveDrift,
+            negative_drift_count: newNegativeDrift,
+          })
+        }
+      }
+
+      // Update local phase state
       setPhases((prev) =>
         prev.map((p) =>
           p.id === phaseId
@@ -187,7 +206,7 @@ export default function CampaignTracker() {
                 actual_end_date: now,
                 actual_duration_days: actualDays,
                 drift_days: driftDays,
-                drift_type: driftDays > 1 ? 'negative' : driftDays < -1 ? 'positive' : 'neutral',
+                drift_type: driftType,
               }
             : p
         )
@@ -223,9 +242,40 @@ export default function CampaignTracker() {
     }
   }
 
-  const operationalHealth = campaign?.operational_health ?? 85
-  const performanceHealth = campaign?.performance_health ?? 72
-  const totalDrift = phases.reduce((acc, p) => acc + (p.drift_days || 0), 0)
+  // Calculate real health indicators based on campaign data
+  const calculateHealthIndicators = () => {
+    const completedPhases = phases.filter(p => p.status === 'completed')
+    const totalPhases = phases.length
+    
+    // Operational Health: Based on phase completion rate and drift
+    let operationalHealth = 100
+    if (totalPhases > 0) {
+      const completionRate = (completedPhases.length / totalPhases) * 100
+      const avgDrift = completedPhases.length > 0 
+        ? Math.abs(completedPhases.reduce((acc, p) => acc + (p.drift_days || 0), 0) / completedPhases.length)
+        : 0
+      
+      // Reduce health based on drift (more than 2 days average is concerning)
+      const driftPenalty = Math.min(avgDrift * 5, 30) // Max 30 point penalty
+      operationalHealth = Math.max(completionRate - driftPenalty, 0)
+    }
+    
+    // Performance Health: Use campaign data or calculate from phases
+    const performanceHealth = campaign?.performance_health ?? 
+      (campaign?.status === 'completed' ? 85 : 
+       campaign?.status === 'in_progress' ? 75 : 90)
+    
+    // Total drift calculation
+    const totalDrift = completedPhases.reduce((acc, p) => acc + Math.abs(p.drift_days || 0), 0)
+    
+    return {
+      operational: Math.round(operationalHealth),
+      performance: Math.round(performanceHealth),
+      totalDrift
+    }
+  }
+
+  const { operational: operationalHealth, performance: performanceHealth, totalDrift } = calculateHealthIndicators()
 
   if (loading) {
     return (
@@ -307,10 +357,10 @@ export default function CampaignTracker() {
             <CardTitle className="text-sm font-medium">Drift Events</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{SEEDED_DRIFT_EVENTS.length}</div>
+            <div className="text-2xl font-bold">{driftEvents.length}</div>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs text-red-600">{SEEDED_DRIFT_EVENTS.filter(d => d.drift_type === 'negative').length} delays</span>
-              <span className="text-xs text-green-600">{SEEDED_DRIFT_EVENTS.filter(d => d.drift_type === 'positive').length} ahead</span>
+              <span className="text-xs text-red-600">{driftEvents.filter(d => d.drift_type === 'negative').length} delays</span>
+              <span className="text-xs text-green-600">{driftEvents.filter(d => d.drift_type === 'positive').length} ahead</span>
             </div>
           </CardContent>
         </Card>
@@ -321,6 +371,7 @@ export default function CampaignTracker() {
         <TabsList>
           <TabsTrigger value="execution">Execution Timeline</TabsTrigger>
           <TabsTrigger value="drift">Drift Analysis</TabsTrigger>
+          <TabsTrigger value="accountability">Accountability</TabsTrigger>
           <TabsTrigger value="recommendations">AI Recommendations</TabsTrigger>
         </TabsList>
 
@@ -473,63 +524,203 @@ export default function CampaignTracker() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {SEEDED_DRIFT_EVENTS.map((event, i) => (
-                  <div key={i} className="border rounded-lg p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2">
-                        {event.drift_type === 'negative' ? (
-                          <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
-                            <ArrowUp className="w-4 h-4 text-red-600" />
+                {driftEvents.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Drift Events Yet</h3>
+                    <p className="text-gray-500">Drift events will appear here as phases are completed with timeline deviations.</p>
+                  </div>
+                ) : (
+                  driftEvents.map((event) => (
+                    <div key={event.id} className="border rounded-lg p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          {event.drift_type === 'negative' ? (
+                            <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                              <ArrowUp className="w-4 h-4 text-red-600" />
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                              <ArrowDown className="w-4 h-4 text-green-600" />
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-semibold text-sm">{event.phase_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Planned: {event.planned_duration}d | Actual: {event.actual_duration}d
+                            </p>
                           </div>
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                            <ArrowDown className="w-4 h-4 text-green-600" />
+                        </div>
+                        <Badge variant={event.drift_type === 'negative' ? 'destructive' : 'default'} className={event.drift_type === 'positive' ? 'bg-green-600' : ''}>
+                          {event.drift_days > 0 ? '+' : ''}{event.drift_days}d
+                        </Badge>
+                      </div>
+
+                      <Separator />
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Root Cause</span>
+                          <p className="font-medium">{event.root_cause || 'Not specified'}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Impact</span>
+                          <p className="font-medium">{event.impact_on_timeline || event.impact_description || 'Timeline adjustment'}</p>
+                        </div>
+                        {event.lesson_learned && (
+                          <div className="md:col-span-2">
+                            <span className="text-muted-foreground">Lesson Learned</span>
+                            <p className="font-medium">{event.lesson_learned}</p>
                           </div>
                         )}
-                        <div>
-                          <p className="font-semibold text-sm">{event.phase_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Planned: {event.planned_duration}d | Actual: {event.actual_duration}d
+                      </div>
+
+                      {event.lesson_learned && (
+                        <div className="bg-blue-50 p-3 rounded-lg">
+                          <p className="text-sm">
+                            <Zap className="w-4 h-4 inline mr-1 text-blue-600" />
+                            <span className="font-medium text-blue-800">Insight:</span>{' '}
+                            <span className="text-blue-700">{event.lesson_learned}</span>
                           </p>
                         </div>
-                      </div>
-                      <Badge variant={event.drift_type === 'negative' ? 'destructive' : 'default'} className={event.drift_type === 'positive' ? 'bg-green-600' : ''}>
-                        {event.drift_days > 0 ? '+' : ''}{event.drift_days}d
-                      </Badge>
+                      )}
+
+                      {event.drift_type === 'positive' && event.template_created && (
+                        <div className="bg-green-50 p-3 rounded-lg">
+                          <p className="text-sm">
+                            <TrendingUp className="w-4 h-4 inline mr-1 text-green-600" />
+                            <span className="font-medium text-green-800">💡 Success Pattern Detected</span>
+                          </p>
+                          <Button size="sm" variant="outline" className="mt-2">
+                            Save as Template
+                          </Button>
+                        </div>
+                      )}
                     </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-                    <Separator />
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Root Cause</span>
-                        <p className="font-medium">{event.root_cause}</p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Attribution</span>
-                        <p className="font-medium">{event.attribution}</p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Impact</span>
-                        <p className="font-medium">{event.impact_on_timeline}</p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Lesson Learned</span>
-                        <p className="font-medium">{event.lesson_learned}</p>
-                      </div>
-                    </div>
-
-                    {event.actionable_insight && (
-                      <div className="bg-blue-50 p-3 rounded-lg">
-                        <p className="text-sm">
-                          <Zap className="w-4 h-4 inline mr-1 text-blue-600" />
-                          <span className="font-medium text-blue-800">Insight:</span>{' '}
-                          <span className="text-blue-700">{event.actionable_insight}</span>
-                        </p>
-                      </div>
-                    )}
+        {/* Accountability Timeline Tab */}
+        <TabsContent value="accountability" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Accountability Timeline</CardTitle>
+              <CardDescription>
+                Track stakeholder actions, approvals, and delay attribution
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {stakeholderActions.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Activity className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Stakeholder Actions Yet</h3>
+                    <p className="text-gray-500">Stakeholder actions and approvals will be tracked here.</p>
                   </div>
-                ))}
+                ) : (
+                  stakeholderActions.map((action) => {
+                    const isOverdue = action.status === 'overdue' || (action.expected_date && new Date(action.expected_date) < new Date() && action.status !== 'completed')
+                    const getActorColor = (type: string) => {
+                      switch (type) {
+                        case 'client': return 'bg-purple-100 border-purple-200 text-purple-800'
+                        case 'agency': return 'bg-blue-100 border-blue-200 text-blue-800'
+                        case 'external': return 'bg-gray-100 border-gray-200 text-gray-800'
+                        default: return 'bg-gray-100 border-gray-200 text-gray-800'
+                      }
+                    }
+
+                    return (
+                      <div key={action.id} className={`border rounded-lg p-4 space-y-3 ${isOverdue ? 'border-red-200 bg-red-50' : ''}`}>
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`px-3 py-1 rounded-full text-sm border ${getActorColor(action.stakeholder_type)}`}>
+                              {action.stakeholder_type.charAt(0).toUpperCase() + action.stakeholder_type.slice(1)}
+                            </div>
+                            <div>
+                              <p className="font-semibold">{action.action_description}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {action.stakeholder_name} ({action.stakeholder_role})
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant={action.status === 'completed' ? 'default' : isOverdue ? 'destructive' : 'secondary'}>
+                              {action.status === 'completed' ? 'Completed' : isOverdue ? 'Overdue' : action.status}
+                            </Badge>
+                            {isOverdue && action.overdue_days && (
+                              <p className="text-xs text-red-600 mt-1">
+                                {action.overdue_days}d overdue
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <Separator />
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Requested</span>
+                            <p className="font-medium">{formatDate(action.requested_date)}</p>
+                          </div>
+                          {action.expected_date && (
+                            <div>
+                              <span className="text-muted-foreground">Expected</span>
+                              <p className="font-medium">{formatDate(action.expected_date)}</p>
+                            </div>
+                          )}
+                          {action.actual_date && (
+                            <div>
+                              <span className="text-muted-foreground">Completed</span>
+                              <p className="font-medium">{formatDate(action.actual_date)}</p>
+                            </div>
+                          )}
+                          {action.critical_path && (
+                            <div>
+                              <span className="text-muted-foreground">Critical Path</span>
+                              <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-200">
+                                Critical
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
+
+                        {action.delay_reason && (
+                          <div className="bg-yellow-50 p-3 rounded-lg">
+                            <p className="text-sm">
+                              <AlertTriangle className="w-4 h-4 inline mr-1 text-yellow-600" />
+                              <span className="font-medium text-yellow-800">Delay Reason:</span>{' '}
+                              <span className="text-yellow-700">{action.delay_reason}</span>
+                            </p>
+                            {action.delay_attribution && (
+                              <p className="text-xs text-yellow-600 mt-1">
+                                Attribution: {action.delay_attribution}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {action.delay_impact && (
+                          <div className="bg-red-50 p-3 rounded-lg">
+                            <p className="text-sm">
+                              <span className="font-medium text-red-800">Impact:</span>{' '}
+                              <span className="text-red-700">{action.delay_impact}</span>
+                            </p>
+                          </div>
+                        )}
+
+                        {action.notes && (
+                          <div className="text-sm text-muted-foreground">
+                            <span className="font-medium">Notes:</span> {action.notes}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
               </div>
             </CardContent>
           </Card>
