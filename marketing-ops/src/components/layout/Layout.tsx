@@ -1,16 +1,41 @@
-import type { ReactNode } from 'react'
-import Header from './Header'
+import { useState, type ReactNode } from 'react'
+import Sidebar from './Sidebar'
+import { Menu } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 interface LayoutProps {
   children: ReactNode
 }
 
 export default function Layout({ children }: LayoutProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <Header />
-      <div className="flex-1">
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gray-50">
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      
+      {/* Overlay for mobile */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      
+      <div className="ml-0 md:ml-64">
+        {/* Mobile hamburger button */}
+        <div className="md:hidden fixed top-4 left-4 z-30">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setSidebarOpen(true)}
+            className="bg-white shadow-md"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        </div>
+        
+        <main className="px-8 py-8">
           {children}
         </main>
       </div>
