@@ -10,6 +10,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { createDefaultStages } from '@/lib/defaultStages'
 import { stagesToPhaseInserts } from '@/lib/stageUtils'
+import { SIMULATE_CAMPAIGN_ID, saveSimulatePayload } from '@/lib/simulate'
 import type { StageConfig } from '@/types/phase'
 import type {
   CampaignType, PrimaryObjective, PrimaryKPI,
@@ -203,6 +204,55 @@ export default function CampaignCreate() {
     }
   }
 
+  /** Create campaign in memory and go to validate — no Supabase. Use while DB is not ready. */
+  const handleSimulate = () => {
+    if (!canSubmit) return
+    setError(null)
+    const now = new Date().toISOString()
+    const campaign = {
+      id: SIMULATE_CAMPAIGN_ID,
+      created_at: now,
+      name: form.name,
+      campaign_type: form.campaign_type!,
+      status: 'planning',
+      description: form.description || null,
+      industry: form.industry || null,
+      start_date: form.start_date,
+      end_date: form.end_date,
+      total_budget: Number(form.total_budget),
+      daily_budget: form.daily_budget ? Number(form.daily_budget) : null,
+      primary_objective: form.primary_objective!,
+      primary_kpi: form.primary_kpi!,
+      target_value: Number(form.target_value),
+      secondary_kpis: form.secondary_kpis.length ? form.secondary_kpis : null,
+      target_audience: Object.keys(form.target_audience).length ? form.target_audience : null,
+      audience_type: form.audience_type.length ? form.audience_type : null,
+      creative_strategy: Object.keys(form.creative_strategy).length ? form.creative_strategy : null,
+      channel_placement: Object.keys(form.channel_placement).length ? form.channel_placement : null,
+      budget_strategy: Object.keys(form.budget_strategy).length ? form.budget_strategy : null,
+      tracking_setup: Object.keys(form.tracking_setup).length ? form.tracking_setup : null,
+      meta_pixel_id: form.meta_pixel_id || null,
+      meta_ads_account_id: form.meta_ads_account_id || null,
+      competitive_context: Object.keys(form.competitive_context).length ? form.competitive_context : null,
+      constraints: Object.keys(form.constraints).length ? form.constraints : null,
+      operational_health: 100,
+      performance_health: 100,
+      drift_count: 0,
+      positive_drift_count: 0,
+      negative_drift_count: 0,
+      risk_score: 75,
+    }
+    const phaseInserts = stagesToPhaseInserts(stages, SIMULATE_CAMPAIGN_ID, form.start_date)
+    const phases = phaseInserts.map((p, i) => ({
+      ...p,
+      id: `simulate-phase-${i}`,
+      created_at: now,
+      drift_days: 0,
+    }))
+    saveSimulatePayload({ campaign, phases })
+    navigate(`/campaigns/${SIMULATE_CAMPAIGN_ID}/validate`)
+  }
+
   const renderSectionContent = (sectionId: string) => {
     switch (sectionId) {
       case 'fundamentals':
@@ -380,7 +430,12 @@ export default function CampaignCreate() {
             </Button>
           )}
         </div>
-        <div>
+        <div className="flex gap-2">
+          {isLastStep && (
+            <Button variant="secondary" onClick={handleSimulate} disabled={!canSubmit}>
+              Simulate (no Supabase)
+            </Button>
+          )}
           {isLastStep ? (
             <Button onClick={handleSubmit} disabled={!canSubmit || submitting}>
               {submitting ? 'Creating...' : 'Create Campaign'}

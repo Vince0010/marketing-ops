@@ -30,6 +30,7 @@ import {
   Target,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { isSimulateId, loadSimulatePayload } from '@/lib/simulate'
 import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase } from '@/types/phase'
 import { formatCurrency } from '@/utils/formatting'
@@ -130,11 +131,17 @@ export default function CampaignAnalytics() {
 
   const fetchData = async () => {
     try {
+      if (id && isSimulateId(id)) {
+        const payload = loadSimulatePayload()
+        if (payload?.campaign) setCampaign(payload.campaign as Campaign)
+        if (payload?.phases?.length) setPhases(payload.phases as ExecutionPhase[])
+        setLoading(false)
+        return
+      }
       const [campaignRes, phasesRes] = await Promise.all([
         supabase.from('campaigns').select('*').eq('id', id).single(),
         supabase.from('execution_phases').select('*').eq('campaign_id', id).order('phase_number'),
       ])
-
       if (campaignRes.data) setCampaign(campaignRes.data)
       if (phasesRes.data) setPhases(phasesRes.data)
     } catch (error) {
@@ -186,6 +193,15 @@ export default function CampaignAnalytics() {
 
   return (
     <div className="space-y-6">
+      {id && isSimulateId(id) && (
+        <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTitle>Simulation mode</AlertTitle>
+          <AlertDescription>
+            This campaign is simulated (no Supabase). Data is stored in this browser only.
+          </AlertDescription>
+        </Alert>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

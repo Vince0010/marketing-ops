@@ -23,11 +23,15 @@ import {
   Target,
   DollarSign,
   BarChart3,
+  History,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { isSimulateId, loadSimulatePayload, saveSimulatePayload, type PhaseStatusChange } from '@/lib/simulate'
 import type { Campaign } from '@/types/campaign'
-import type { ExecutionPhase, DriftEvent } from '@/types/phase'
+import type { ExecutionPhase, DriftEvent, PhaseTicket } from '@/types/phase'
 import { formatDate } from '@/utils/formatting'
+import TrackerTimeline from '@/components/tracker/TrackerTimeline'
+import TrackerCalendar from '@/components/tracker/TrackerCalendar'
 
 // Seeded drift events for demo
 const SEEDED_DRIFT_EVENTS: Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>[] = [
@@ -112,6 +116,7 @@ export default function CampaignTracker() {
   const { id } = useParams<{ id: string }>()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [phases, setPhases] = useState<ExecutionPhase[]>([])
+  const [statusChanges, setStatusChanges] = useState<PhaseStatusChange[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -120,11 +125,18 @@ export default function CampaignTracker() {
 
   const fetchData = async () => {
     try {
+      if (id && isSimulateId(id)) {
+        const payload = loadSimulatePayload()
+        if (payload?.campaign) setCampaign(payload.campaign as Campaign)
+        if (payload?.phases?.length) setPhases(payload.phases as ExecutionPhase[])
+        setStatusChanges((payload?.status_changes as PhaseStatusChange[]) ?? [])
+        setLoading(false)
+        return
+      }
       const [campaignRes, phasesRes] = await Promise.all([
         supabase.from('campaigns').select('*').eq('id', id).single(),
         supabase.from('execution_phases').select('*').eq('campaign_id', id).order('phase_number'),
       ])
-
       if (campaignRes.data) setCampaign(campaignRes.data)
       if (phasesRes.data) setPhases(phasesRes.data)
     } catch (error) {
@@ -136,21 +148,32 @@ export default function CampaignTracker() {
 
   const handleStartPhase = async (phaseId: string) => {
     const now = new Date().toISOString().split('T')[0]
+    const phase = phases.find((p) => p.id === phaseId)
+    const nextPhases = phases.map((p) =>
+      p.id === phaseId ? { ...p, status: 'in_progress' as const, actual_start_date: now } : p
+    )
+    setPhases(nextPhases)
+    if (id && isSimulateId(id)) {
+      const payload = loadSimulatePayload()
+      if (payload) {
+        const change: PhaseStatusChange = {
+          phaseId,
+          phaseName: phase?.phase_name ?? phaseId,
+          from: 'pending',
+          to: 'in_progress',
+          at: new Date().toISOString(),
+        }
+        const nextChanges = [...(payload.status_changes ?? []), change]
+        setStatusChanges(nextChanges)
+        saveSimulatePayload({ ...payload, phases: nextPhases, status_changes: nextChanges })
+      }
+      return
+    }
     try {
       await supabase
         .from('execution_phases')
-        .update({
-          status: 'in_progress',
-          actual_start_date: now,
-        })
+        .update({ status: 'in_progress', actual_start_date: now })
         .eq('id', phaseId)
-
-      // Update local state
-      setPhases((prev) =>
-        prev.map((p) =>
-          p.id === phaseId ? { ...p, status: 'in_progress', actual_start_date: now } : p
-        )
-      )
     } catch (error) {
       console.error('Error starting phase:', error)
     }
@@ -165,7 +188,37 @@ export default function CampaignTracker() {
       (new Date(now).getTime() - new Date(phase.actual_start_date).getTime()) / (1000 * 60 * 60 * 24)
     )
     const driftDays = actualDays - phase.planned_duration_days
+    const driftType = driftDays > 1 ? 'negative' : driftDays < -1 ? 'positive' : 'neutral'
 
+    const nextPhases = phases.map((p) =>
+      p.id === phaseId
+        ? {
+            ...p,
+            status: 'completed' as const,
+            actual_end_date: now,
+            actual_duration_days: actualDays,
+            drift_days: driftDays,
+            drift_type: driftType,
+          }
+        : p
+    )
+    setPhases(nextPhases)
+    if (id && isSimulateId(id)) {
+      const payload = loadSimulatePayload()
+      if (payload) {
+        const change: PhaseStatusChange = {
+          phaseId,
+          phaseName: phase.phase_name,
+          from: 'in_progress',
+          to: 'completed',
+          at: new Date().toISOString(),
+        }
+        const nextChanges = [...(payload.status_changes ?? []), change]
+        setStatusChanges(nextChanges)
+        saveSimulatePayload({ ...payload, phases: nextPhases, status_changes: nextChanges })
+      }
+      return
+    }
     try {
       await supabase
         .from('execution_phases')
@@ -174,24 +227,9 @@ export default function CampaignTracker() {
           actual_end_date: now,
           actual_duration_days: actualDays,
           drift_days: driftDays,
-          drift_type: driftDays > 1 ? 'negative' : driftDays < -1 ? 'positive' : 'neutral',
+          drift_type: driftType,
         })
         .eq('id', phaseId)
-
-      setPhases((prev) =>
-        prev.map((p) =>
-          p.id === phaseId
-            ? {
-                ...p,
-                status: 'completed',
-                actual_end_date: now,
-                actual_duration_days: actualDays,
-                drift_days: driftDays,
-                drift_type: driftDays > 1 ? 'negative' : driftDays < -1 ? 'positive' : 'neutral',
-              }
-            : p
-        )
-      )
     } catch (error) {
       console.error('Error completing phase:', error)
     }
@@ -227,6 +265,102 @@ export default function CampaignTracker() {
   const performanceHealth = campaign?.performance_health ?? 72
   const totalDrift = phases.reduce((acc, p) => acc + (p.drift_days || 0), 0)
 
+  const handlePhasesReorder = (reordered: ExecutionPhase[]) => {
+    setPhases(reordered)
+    if (id && isSimulateId(id)) {
+      const payload = loadSimulatePayload()
+      if (payload) saveSimulatePayload({ ...payload, phases: reordered })
+    }
+  }
+
+  const persistPhases = (next: ExecutionPhase[], nextStatusChanges?: PhaseStatusChange[]) => {
+    setPhases(next)
+    if (nextStatusChanges !== undefined) setStatusChanges(nextStatusChanges)
+    if (id && isSimulateId(id)) {
+      const payload = loadSimulatePayload()
+      if (payload) {
+        saveSimulatePayload({
+          ...payload,
+          phases: next,
+          ...(nextStatusChanges !== undefined && { status_changes: nextStatusChanges }),
+        })
+      }
+    }
+  }
+
+  const handleAddTicket = (phaseId: string) => {
+    const ticket: PhaseTicket = { id: crypto.randomUUID(), title: 'New task' }
+    const next = phases.map((p) =>
+      p.id === phaseId ? { ...p, tickets: [...(p.tickets ?? []), ticket] } : p
+    )
+    persistPhases(next)
+  }
+
+  const handleMoveTicket = (ticketId: string, fromPhaseId: string, toPhaseId: string, insertIndex?: number) => {
+    const fromPhase = phases.find((p) => p.id === fromPhaseId)
+    const ticket = fromPhase?.tickets?.find((t) => t.id === ticketId)
+    if (!fromPhase || !ticket) return
+    const fromTickets = (fromPhase.tickets ?? []).filter((t) => t.id !== ticketId)
+    const toPhase = phases.find((p) => p.id === toPhaseId)
+    if (!toPhase) return
+    const toTickets = [...(toPhase.tickets ?? [])]
+    const idx = insertIndex ?? toTickets.length
+    toTickets.splice(idx, 0, ticket)
+    const next = phases.map((p) => {
+      if (p.id === fromPhaseId) return { ...p, tickets: fromTickets }
+      if (p.id === toPhaseId) return { ...p, tickets: toTickets }
+      return p
+    })
+    persistPhases(next)
+  }
+
+  const handleRemoveTicket = (phaseId: string, ticketId: string) => {
+    const next = phases.map((p) =>
+      p.id === phaseId ? { ...p, tickets: (p.tickets ?? []).filter((t) => t.id !== ticketId) } : p
+    )
+    persistPhases(next)
+  }
+
+  const handleEditTicket = (phaseId: string, ticketId: string, updates: Partial<PhaseTicket>) => {
+    const next = phases.map((p) => {
+      if (p.id !== phaseId) return p
+      const tickets = (p.tickets ?? []).map((t) =>
+        t.id === ticketId ? { ...t, ...updates } : t
+      )
+      return { ...p, tickets }
+    })
+    persistPhases(next)
+  }
+
+  const handleRevertPhase = (phaseId: string, newStatus: 'pending' | 'in_progress') => {
+    const phase = phases.find((p) => p.id === phaseId)
+    if (!phase || phase.status !== 'completed') return
+    const fromStatus = phase.status
+    const updated: ExecutionPhase = {
+      ...phase,
+      status: newStatus,
+      actual_end_date: undefined,
+      actual_duration_days: undefined,
+      drift_days: 0,
+      drift_type: undefined,
+      drift_reason: undefined,
+    }
+    if (newStatus === 'pending') {
+      updated.actual_start_date = undefined
+    }
+    const next = phases.map((p) => (p.id === phaseId ? updated : p))
+    const change: PhaseStatusChange = {
+      phaseId,
+      phaseName: phase.phase_name,
+      from: fromStatus,
+      to: newStatus,
+      at: new Date().toISOString(),
+    }
+    const nextChanges = [...statusChanges, change]
+    setStatusChanges(nextChanges)
+    persistPhases(next, nextChanges)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -237,6 +371,15 @@ export default function CampaignTracker() {
 
   return (
     <div className="space-y-6">
+      {id && isSimulateId(id) && (
+        <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTitle>Simulation mode</AlertTitle>
+          <AlertDescription>
+            This campaign is simulated (no Supabase). Data is stored in this browser only.
+          </AlertDescription>
+        </Alert>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -320,101 +463,34 @@ export default function CampaignTracker() {
       <Tabs defaultValue="execution" className="space-y-4">
         <TabsList>
           <TabsTrigger value="execution">Execution Timeline</TabsTrigger>
+          <TabsTrigger value="calendar">Calendar</TabsTrigger>
           <TabsTrigger value="drift">Drift Analysis</TabsTrigger>
           <TabsTrigger value="recommendations">AI Recommendations</TabsTrigger>
         </TabsList>
 
-        {/* Execution Timeline Tab */}
+        {/* Execution Timeline Tab - Notion-style draggable board */}
         <TabsContent value="execution" className="space-y-4">
-          {/* Horizontal Timeline View */}
           <Card>
             <CardHeader>
               <CardTitle>Phase Timeline</CardTitle>
-              <CardDescription>Click a phase to start or complete it</CardDescription>
+              <CardDescription>
+                Add tickets to stages, drag tickets between phases, and drag phase columns to reorder. Start/Complete updates phase status and drift.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* Horizontal scroll container */}
-              <div className="flex gap-4 overflow-x-auto pb-4">
-                {phases.map((phase, i) => (
-                  <div key={phase.id} className="flex items-center">
-                    <Card className={`min-w-[220px] border-2 ${getPhaseStatusColor(phase.status)}`}>
-                      <CardContent className="pt-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <Badge variant="outline" className="text-xs">
-                            Phase {phase.phase_number || i + 1}
-                          </Badge>
-                          {getPhaseStatusBadge(phase.status)}
-                        </div>
-
-                        <h4 className="font-semibold text-sm">{phase.phase_name}</h4>
-
-                        <div className="space-y-1 text-xs text-muted-foreground">
-                          <div className="flex justify-between">
-                            <span>Planned</span>
-                            <span>{phase.planned_duration_days}d</span>
-                          </div>
-                          {phase.actual_duration_days != null && (
-                            <div className="flex justify-between">
-                              <span>Actual</span>
-                              <span className={phase.drift_days > 0 ? 'text-red-600 font-semibold' : phase.drift_days < 0 ? 'text-green-600 font-semibold' : ''}>
-                                {phase.actual_duration_days}d
-                              </span>
-                            </div>
-                          )}
-                          {phase.owner && (
-                            <div className="flex justify-between">
-                              <span>Owner</span>
-                              <span className="font-medium text-foreground">{phase.owner}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Drift indicator */}
-                        {phase.status === 'completed' && phase.drift_days !== 0 && (
-                          <div className={`flex items-center gap-1 text-xs font-semibold ${phase.drift_days > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {phase.drift_days > 0 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
-                            {Math.abs(phase.drift_days)}d {phase.drift_days > 0 ? 'over' : 'under'}
-                          </div>
-                        )}
-
-                        {/* Action buttons */}
-                        {phase.status === 'pending' && (
-                          <Button
-                            size="sm"
-                            className="w-full gap-1"
-                            onClick={() => handleStartPhase(phase.id)}
-                          >
-                            <Play className="w-3 h-3" />
-                            Start Phase
-                          </Button>
-                        )}
-                        {phase.status === 'in_progress' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full gap-1 border-green-300 text-green-700 hover:bg-green-50"
-                            onClick={() => handleCompletePhase(phase.id)}
-                          >
-                            <CheckCircle2 className="w-3 h-3" />
-                            Complete
-                          </Button>
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    {/* Connector arrow */}
-                    {i < phases.length - 1 && (
-                      <ArrowRight className="w-5 h-5 text-muted-foreground mx-1 shrink-0" />
-                    )}
-                  </div>
-                ))}
-
-                {phases.length === 0 && (
-                  <div className="text-center w-full py-8 text-muted-foreground">
-                    No execution phases defined. Create phases in the campaign setup.
-                  </div>
-                )}
-              </div>
+              <TrackerTimeline
+                phases={phases}
+                onReorder={id && isSimulateId(id) ? handlePhasesReorder : undefined}
+                onStartPhase={handleStartPhase}
+                onCompletePhase={handleCompletePhase}
+                onAddTicket={handleAddTicket}
+                onMoveTicket={handleMoveTicket}
+                onRemoveTicket={handleRemoveTicket}
+                onEditTicket={handleEditTicket}
+                onRevertPhase={handleRevertPhase}
+                getPhaseStatusColor={getPhaseStatusColor}
+                getPhaseStatusBadge={getPhaseStatusBadge}
+              />
             </CardContent>
           </Card>
 
@@ -450,6 +526,55 @@ export default function CampaignTracker() {
                   </div>
                 )
               })}
+            </CardContent>
+          </Card>
+
+          {/* Phase status changes (audit) */}
+          {statusChanges.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <History className="h-4 w-4" />
+                  Phase status changes
+                </CardTitle>
+                <CardDescription>
+                  Log of status transitions for audit and analysis. Reverts and completions update the timeline and drift.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2 max-h-48 overflow-y-auto">
+                  {[...statusChanges].reverse().slice(0, 20).map((c, i) => (
+                    <li key={`${c.phaseId}-${c.at}-${i}`} className="flex items-center justify-between text-sm py-1 border-b border-border/50 last:border-0">
+                      <span className="font-medium">{c.phaseName}</span>
+                      <span className="text-muted-foreground">
+                        {c.from} → {c.to}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(c.at).toLocaleString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Calendar Tab */}
+        <TabsContent value="calendar" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Campaign Calendar</CardTitle>
+              <CardDescription>
+                Phase schedule and milestones. See overlaps and delays at a glance.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TrackerCalendar
+                phases={phases}
+                campaignStart={campaign?.start_date}
+                campaignEnd={campaign?.end_date}
+              />
             </CardContent>
           </Card>
         </TabsContent>

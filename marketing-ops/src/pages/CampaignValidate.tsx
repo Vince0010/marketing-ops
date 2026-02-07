@@ -31,6 +31,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { isSimulateId, loadSimulatePayload, saveSimulatePayload } from '@/lib/simulate'
 import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase } from '@/types/phase'
 import { getGateDecision } from '@/utils/calculations'
@@ -60,11 +61,17 @@ export default function CampaignValidate() {
 
   const fetchData = async () => {
     try {
+      if (id && isSimulateId(id)) {
+        const payload = loadSimulatePayload()
+        if (payload?.campaign) setCampaign(payload.campaign as Campaign)
+        if (payload?.phases?.length) setPhases(payload.phases as ExecutionPhase[])
+        setLoading(false)
+        return
+      }
       const [campaignRes, phasesRes] = await Promise.all([
         supabase.from('campaigns').select('*').eq('id', id).single(),
         supabase.from('execution_phases').select('*').eq('campaign_id', id).order('phase_number'),
       ])
-
       if (campaignRes.data) setCampaign(campaignRes.data)
       if (phasesRes.data) setPhases(phasesRes.data)
     } catch (error) {
@@ -161,7 +168,15 @@ export default function CampaignValidate() {
         updates.override_reason = overrideReason
       }
 
-      await supabase.from('campaigns').update(updates).eq('id', id)
+      if (id && isSimulateId(id)) {
+        const payload = loadSimulatePayload()
+        if (payload?.campaign) {
+          const updated = { ...payload.campaign, ...updates }
+          saveSimulatePayload({ ...payload, campaign: updated })
+        }
+      } else {
+        await supabase.from('campaigns').update(updates).eq('id', id)
+      }
 
       if (decision === 'proceed') {
         navigate(`/campaigns/${id}/tracker`)
@@ -183,6 +198,15 @@ export default function CampaignValidate() {
 
   return (
     <div className="space-y-6">
+      {id && isSimulateId(id) && (
+        <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertTitle>Simulation mode</AlertTitle>
+          <AlertDescription>
+            This campaign is simulated (no Supabase). Data is stored in this browser only.
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Pre-Launch Validation</h1>

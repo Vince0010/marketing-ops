@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Plus, RotateCcw } from 'lucide-react'
-import type { StageConfig } from '@/types/phase'
+import type { StageConfig, StageTicket } from '@/types/phase'
 import { createDefaultStages } from '@/lib/defaultStages'
-import StageList from './StageList'
+import StageBoard from './StageBoard'
 import StageEditor from './StageEditor'
+import TicketEditor from './TicketEditor'
 
 interface Props {
   stages: StageConfig[]
@@ -12,12 +13,10 @@ interface Props {
 }
 
 export default function StageBuilder({ stages, onChange }: Props) {
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingStageId, setEditingStageId] = useState<string | null>(null)
+  const [editingTicket, setEditingTicket] = useState<{ stageTempId: string; ticket: StageTicket } | null>(null)
 
-  const editingStage = editingId ? stages.find((s) => s.tempId === editingId) || null : null
-
-  const renumber = (list: StageConfig[]): StageConfig[] =>
-    list.map((s, i) => ({ ...s, phase_number: i + 1 }))
+  const editingStage = editingStageId ? stages.find((s) => s.tempId === editingStageId) ?? null : null
 
   const addStage = () => {
     const newStage: StageConfig = {
@@ -31,72 +30,72 @@ export default function StageBuilder({ stages, onChange }: Props) {
       deliverables: [],
       approvers: [],
       dependencies: [],
+      tickets: [],
     }
     onChange([...stages, newStage])
-    setEditingId(newStage.tempId)
-  }
-
-  const removeStage = (tempId: string) => {
-    const removedNumber = stages.find((s) => s.tempId === tempId)?.phase_number
-    const filtered = stages
-      .filter((s) => s.tempId !== tempId)
-      .map((s) => ({
-        ...s,
-        dependencies: s.dependencies.filter((d) => d !== String(removedNumber)),
-      }))
-    onChange(renumber(filtered))
-  }
-
-  const moveStage = (fromIndex: number, direction: 'up' | 'down') => {
-    const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1
-    if (toIndex < 0 || toIndex >= stages.length) return
-    const updated = [...stages]
-    const [moved] = updated.splice(fromIndex, 1)
-    updated.splice(toIndex, 0, moved)
-    onChange(renumber(updated))
+    setEditingStageId(newStage.tempId)
   }
 
   const updateStage = (updated: StageConfig) => {
     onChange(stages.map((s) => (s.tempId === updated.tempId ? updated : s)))
   }
 
-  const resetStages = () => {
-    onChange(createDefaultStages())
+  const updateTicketFromEditor = (updates: { title: string; description?: string }) => {
+    if (!editingTicket) return
+    const { stageTempId, ticket } = editingTicket
+    onChange(
+      stages.map((s) => {
+        if (s.tempId !== stageTempId) return s
+        const tickets = (s.tickets ?? []).map((t) =>
+          t.id === ticket.id ? { ...t, ...updates } : t
+        )
+        return { ...s, tickets }
+      })
+    )
+    setEditingTicket(null)
   }
 
   const totalDays = stages.reduce((sum, s) => sum + s.planned_duration_days, 0)
+  const totalTickets = stages.reduce((sum, s) => sum + (s.tickets?.length ?? 0), 0)
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          {stages.length} stage{stages.length !== 1 ? 's' : ''} · {totalDays} total days
+          {stages.length} stage{stages.length !== 1 ? 's' : ''} · {totalTickets} ticket{totalTickets !== 1 ? 's' : ''} · {totalDays} total days
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={resetStages}>
+          <Button variant="outline" size="sm" onClick={() => onChange(createDefaultStages())}>
             <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-            Reset Defaults
+            Reset
           </Button>
           <Button variant="outline" size="sm" onClick={addStage}>
             <Plus className="h-3.5 w-3.5 mr-1.5" />
-            Add Stage
+            Add stage
           </Button>
         </div>
       </div>
 
-      <StageList
+      <StageBoard
         stages={stages}
-        onMove={moveStage}
-        onEdit={setEditingId}
-        onRemove={removeStage}
+        onChange={onChange}
+        onEditStage={setEditingStageId}
+        onEditTicket={(stageTempId, ticket) => setEditingTicket({ stageTempId, ticket })}
       />
 
       <StageEditor
         stage={editingStage}
         allStages={stages}
-        open={!!editingId}
+        open={!!editingStageId}
         onSave={updateStage}
-        onClose={() => setEditingId(null)}
+        onClose={() => setEditingStageId(null)}
+      />
+
+      <TicketEditor
+        ticket={editingTicket?.ticket ?? null}
+        open={!!editingTicket}
+        onSave={updateTicketFromEditor}
+        onClose={() => setEditingTicket(null)}
       />
     </div>
   )

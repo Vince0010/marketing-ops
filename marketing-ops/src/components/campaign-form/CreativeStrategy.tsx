@@ -47,23 +47,6 @@ export default function CreativeStrategy({ data, onChange }: Props) {
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label>Creative Format</Label>
-        <div className="grid grid-cols-2 gap-2">
-          {FORMATS.map(({ value, label }) => (
-            <label key={value} className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={(data.format || []).includes(value)}
-                onChange={() => toggleFormat(value)}
-                className="rounded border-gray-300"
-              />
-              {label}
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-2">
         <Label htmlFor="theme">Creative Theme / Concept</Label>
         <Input
           id="theme"
@@ -100,22 +83,48 @@ export default function CreativeStrategy({ data, onChange }: Props) {
         </Select>
       </div>
 
-      <div className="space-y-2">
-        <Label>Creative Testing Plan</Label>
-        <div className="space-y-2">
-          {TESTING_OPTIONS.map((option) => (
-            <label key={option} className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={(data.testing_plan || []).includes(option)}
-                onChange={() => toggleTestingPlan(option)}
-                className="rounded border-gray-300"
-              />
-              {option}
-            </label>
-          ))}
-        </div>
-      </div>
+      <Accordion type="multiple" className="space-y-2">
+        <AccordionItem value="formats" className="border rounded-lg px-4">
+          <AccordionTrigger className="text-sm font-medium hover:no-underline">
+            Creative formats
+          </AccordionTrigger>
+          <AccordionContent className="pt-2">
+            <div className="grid grid-cols-2 gap-2">
+              {FORMATS.map(({ value, label }) => (
+                <label key={value} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={(data.format || []).includes(value)}
+                    onChange={() => toggleFormat(value)}
+                    className="rounded border-input"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+        <AccordionItem value="testing" className="border rounded-lg px-4">
+          <AccordionTrigger className="text-sm font-medium hover:no-underline">
+            Creative testing plan
+          </AccordionTrigger>
+          <AccordionContent className="pt-2">
+            <div className="space-y-2">
+              {TESTING_OPTIONS.map((option) => (
+                <label key={option} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={(data.testing_plan || []).includes(option)}
+                    onChange={() => toggleTestingPlan(option)}
+                    className="rounded border-input"
+                  />
+                  {option}
+                </label>
+              ))}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   )
 }

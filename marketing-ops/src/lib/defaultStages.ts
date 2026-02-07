@@ -22,5 +22,6 @@ export function createDefaultStages(): StageConfig[] {
     deliverables: [],
     approvers: [],
     dependencies: [],
+    tickets: [],
   }))
 }

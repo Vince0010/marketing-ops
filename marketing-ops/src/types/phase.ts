@@ -12,6 +12,13 @@ export type PhaseStatus = 'pending' | 'in_progress' | 'completed' | 'blocked'
 
 export type DriftType = 'positive' | 'negative' | 'neutral'
 
+// Ticket/card inside a stage (Notion-like)
+export interface StageTicket {
+  id: string
+  title: string
+  description?: string
+}
+
 // Working state for the stage builder (before saving to DB)
 export interface StageConfig {
   tempId: string
@@ -24,6 +31,19 @@ export interface StageConfig {
   deliverables: string[]
   approvers: string[]
   dependencies: string[] // phase_number references as strings
+  tickets?: StageTicket[]
+}
+
+// Task/ticket on an execution phase (tracker board)
+export type TicketPriority = 'low' | 'medium' | 'high' | 'critical'
+
+export interface PhaseTicket {
+  id: string
+  title: string
+  description?: string
+  assignee?: string
+  due_date?: string
+  priority?: TicketPriority
 }
 
 export interface ExecutionPhase {
@@ -61,6 +81,8 @@ export interface ExecutionPhase {
   activities?: string[]
   deliverables?: string[]
   approvers?: string[]
+  /** Tasks/tickets in this phase (tracker board; persisted in simulate) */
+  tickets?: PhaseTicket[]
 }
 
 // For inserting phases into Supabase (omit auto-generated fields)
