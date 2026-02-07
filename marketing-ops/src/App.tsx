@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import Layout from './components/layout/Layout'
-import Dashboard from './pages/Dashboard'
+import Layout from './components/layout/Layout.tsx'
+import Dashboard from './pages/Dashboard.tsx'
 import CampaignCreate from './pages/CampaignCreate'
 import CampaignValidate from './pages/CampaignValidate'
 import CampaignTracker from './pages/CampaignTracker'
