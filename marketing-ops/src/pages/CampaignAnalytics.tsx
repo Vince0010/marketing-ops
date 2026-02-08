@@ -33,7 +33,6 @@ import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase } from '@/types/phase'
 import type { PerformanceMetric, StakeholderAction } from '@/types/database'
 import { formatCurrency } from '@/utils/formatting'
-
 export default function CampaignAnalytics() {
   const { id } = useParams<{ id: string }>()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
@@ -514,7 +513,7 @@ export default function CampaignAnalytics() {
           )}
         </TabsContent>
 
-        {/* Audience Insights Tab - Demographic analysis */}
+
         {/* Accountability Tab */}
         <TabsContent value="accountability">
           <Card>

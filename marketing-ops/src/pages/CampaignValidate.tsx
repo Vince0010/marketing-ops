@@ -33,7 +33,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase } from '@/types/phase'
-import { getGateDecision, calculateDetailedRiskScore, type RiskAssessment } from '@/utils/calculations'
+import { getGateDecision, calculateDetailedRiskScore, type RiskAssessment, type RiskFactorResult } from '@/utils/calculations'
 import { formatCurrency } from '@/utils/formatting'
 import { DecisionStatusBadge } from '@/components/DecisionStatusBadge'
 
@@ -107,11 +107,11 @@ export default function CampaignValidate() {
         campaign_id: campaignId,
         overall_score: assessment.overallScore,
         risk_level: assessment.riskLevel,
-        timeline_risk: assessment.factors.find(f => f.name === 'Timeline Feasibility')?.score,
-        budget_risk: assessment.factors.find(f => f.name === 'Budget Adequacy')?.score,
-        resource_risk: assessment.factors.find(f => f.name === 'Team Capacity')?.score,
-        performance_risk: assessment.factors.find(f => f.name === 'Historical Performance')?.score,
-        risk_factors: assessment.factors.filter(f => f.status !== 'pass').map(f => f.name),
+        timeline_risk: assessment.factors.find((f: RiskFactorResult) => f.name === 'Timeline Feasibility')?.score,
+        budget_risk: assessment.factors.find((f: RiskFactorResult) => f.name === 'Budget Adequacy')?.score,
+        resource_risk: assessment.factors.find((f: RiskFactorResult) => f.name === 'Team Capacity')?.score,
+        performance_risk: assessment.factors.find((f: RiskFactorResult) => f.name === 'Historical Performance')?.score,
+        risk_factors: assessment.factors.filter((f: RiskFactorResult) => f.status !== 'pass').map((f: RiskFactorResult) => f.name),
         mitigation_suggestions: assessment.mitigationSuggestions,
         gate_recommendation: assessment.gateRecommendation,
         gate_reason: assessment.gateReason,
@@ -155,7 +155,7 @@ export default function CampaignValidate() {
   }
 
   // Generate risk factors from calculated assessment
-  const riskFactors: RiskFactor[] = riskAssessment?.factors.map((factor) => ({
+  const riskFactors: RiskFactor[] = riskAssessment?.factors.map((factor: RiskFactorResult) => ({
     name: factor.name,
     score: factor.score,
     status: factor.status,
