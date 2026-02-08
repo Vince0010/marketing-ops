@@ -14,6 +14,7 @@ import type { ExecutionPhase } from '@/types/phase'
 import type { MarketerAction, MarketerActionInsert, TaskPhaseHistory } from '@/types/actions'
 import { KanbanColumn } from './KanbanColumn'
 import { ActionCard } from './ActionCard'
+import { DelayReasonModal } from './DelayReasonModal'
 import { cn } from '@/lib/utils'
 
 /**
@@ -37,6 +38,14 @@ interface KanbanBoardProps {
 
 export default function KanbanBoard({ campaignId, externalData }: KanbanBoardProps) {
     const [activeTask, setActiveTask] = useState<MarketerAction | null>(null)
+    const [isDelayModalOpen, setIsDelayModalOpen] = useState(false)
+    const [pendingMove, setPendingMove] = useState<{
+        taskId: string,
+        newPhaseId: string | null,
+        oldPhaseId: string | null,
+        taskTitle: string,
+        daysLate: number
+    } | null>(null)
 
     // Use own hook if no external data provided
     const ownHook = useCampaignExecution(externalData ? undefined : campaignId)
@@ -45,6 +54,7 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
     const {
         phases,
         tasks,
+        history,
         loading: executionLoading,
         error: executionError,
         createTask,
@@ -88,6 +98,19 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
         return [...phases].sort((a, b) => a.phase_number - b.phase_number)
     }, [phases])
 
+    // Calculate completed count per phase from history
+    // A task is "completed" in a phase when it has exited (exited_at is set)
+    const completedByPhase = useMemo(() => {
+        const counts = new Map<string, number>()
+        history.forEach(entry => {
+            if (entry.exited_at && entry.phase_id) {
+                const current = counts.get(entry.phase_id) || 0
+                counts.set(entry.phase_id, current + 1)
+            }
+        })
+        return counts
+    }, [history])
+
     const handleDragStart = (event: DragStartEvent) => {
         const task = tasks.find(t => t.id === event.active.id)
         setActiveTask(task || null)
@@ -109,10 +132,73 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
         // Don't do anything if dropped in same column
         if (newPhaseId === oldPhaseId) return
 
+        // Check for overdue task
+        if (task.due_date && newPhaseId !== oldPhaseId) {
+            const now = new Date()
+            const dueDate = new Date(task.due_date)
+            // Reset time part for accurate day comparison
+            now.setHours(0, 0, 0, 0)
+            dueDate.setHours(0, 0, 0, 0)
+
+            console.log('[KanbanBoard] Checking overdue:', {
+                taskTitle: task.title,
+                dueDate: task.due_date,
+                now: now.toISOString(),
+                dueDateObj: dueDate.toISOString(),
+                isOverdue: now > dueDate,
+                hasReason: !!task.delay_reason
+            })
+
+            if (now > dueDate) {
+                // Task is overdue
+                // If it already has a delay reason, we might not need to ask again,
+                // allows updating reason or skipping. For now, let's ask if it acts as a "gate".
+                // Or maybe only if !task.delay_reason.
+                // Requirement: "promt and ask why it is late".
+                // Let's prompt if no reason exists OR if it's moving to a later phase (implies continuing work late).
+                // Simplest UX: check if late and reason is missing.
+
+                // Let's ask always if it's late to confirm the reason? 
+                // Getting the "stored for context" part implies we want to capture it.
+                // If I move it back and forth, do I answer every time?
+                // Let's check `!task.delay_reason`.
+                if (!task.delay_reason) {
+                    const daysLate = Math.ceil((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
+                    setPendingMove({
+                        taskId,
+                        newPhaseId,
+                        oldPhaseId,
+                        taskTitle: task.title,
+                        daysLate
+                    })
+                    setIsDelayModalOpen(true)
+                    return
+                }
+            }
+        }
+
         try {
             await moveTaskToPhase(taskId, newPhaseId, oldPhaseId)
         } catch (err) {
             console.error('Failed to move task:', err)
+        }
+    }
+
+    const handleDelayConfirm = async (reason: string) => {
+        if (!pendingMove) return
+
+        try {
+            await moveTaskToPhase(
+                pendingMove.taskId,
+                pendingMove.newPhaseId,
+                pendingMove.oldPhaseId,
+                reason
+            )
+        } catch (err) {
+            console.error('Failed to move task with reason:', err)
+        } finally {
+            setIsDelayModalOpen(false)
+            setPendingMove(null)
         }
     }
 
@@ -185,6 +271,7 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
                             tasks={tasksByPhase.get(phase.id) || []}
                             campaignId={campaignId}
                             onCreateTask={handleCreateTask}
+                            completedCount={completedByPhase.get(phase.id) || 0}
                         />
                     ))}
                 </div>
@@ -198,6 +285,17 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
                     ) : null}
                 </DragOverlay>
             </DndContext>
+
+            <DelayReasonModal
+                isOpen={isDelayModalOpen}
+                onClose={() => {
+                    setIsDelayModalOpen(false)
+                    setPendingMove(null)
+                }}
+                onConfirm={handleDelayConfirm}
+                taskTitle={pendingMove?.taskTitle || ''}
+                daysLate={pendingMove?.daysLate || 0}
+            />
 
             {/* Empty state */}
             {phases.length === 0 && tasks.length === 0 && (

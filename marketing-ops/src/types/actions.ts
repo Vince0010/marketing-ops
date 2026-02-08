@@ -4,17 +4,12 @@ export type ActionStatus = 'planned' | 'in_progress' | 'completed' | 'blocked' |
 
 export type ActionPriority = 'low' | 'medium' | 'high' | 'critical'
 
-export type ActionType =
-    | 'creative_asset'
-    | 'copy_review'
-    | 'legal_approval'
-    | 'platform_setup'
-    | 'audience_targeting'
-    | 'budget_allocation'
-    | 'performance_review'
-    | 'optimization'
-    | 'reporting'
-    | 'custom'
+// ActionType is flexible - workflows are user-defined per campaign
+// Common examples provided as defaults in UI, but any string is valid
+export type ActionType = string
+
+// Completion timing for phase transitions
+export type CompletionTiming = 'early' | 'on_time' | 'late'
 
 /**
  * Main task/action entity stored in marketer_actions table
@@ -49,6 +44,9 @@ export interface MarketerAction {
     tags?: string[]
     notes?: string
 
+    // Delay tracking
+    delay_reason?: string
+
     // Estimated effort
     estimated_hours?: number
     actual_hours?: number
@@ -74,6 +72,7 @@ export interface TaskPhaseHistory {
     entered_at: string
     exited_at: string | null
     time_spent_minutes: number | null
+    completion_timing?: CompletionTiming
     created_at: string
 }
 
@@ -81,3 +80,4 @@ export interface TaskPhaseHistory {
  * For inserting history entries
  */
 export type TaskPhaseHistoryInsert = Omit<TaskPhaseHistory, 'id' | 'created_at' | 'time_spent_minutes'>
+

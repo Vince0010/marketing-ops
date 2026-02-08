@@ -65,9 +65,28 @@ router.get('/:campaignId/execution', async (req: Request, res: Response) => {
 router.post('/:campaignId/tasks', async (req: Request, res: Response) => {
     try {
         const { campaignId } = req.params
-        const taskData = { ...req.body, campaign_id: campaignId }
 
-        console.log('[API] Creating task:', taskData.title)
+        // Only include columns that exist in the database
+        // This prevents 500 errors from unknown columns
+        const allowedColumns = [
+            'campaign_id', 'title', 'description', 'action_type', 'status',
+            'timestamp', 'metadata', 'created_by', 'phase_id',
+            'estimated_hours', 'started_at', 'completed_at', 'time_in_phase_minutes',
+            'delay_reason', 'due_date', 'priority', 'assignee'
+        ]
+
+        const taskData: Record<string, unknown> = { campaign_id: campaignId }
+        for (const key of allowedColumns) {
+            if (key in req.body && req.body[key] !== undefined) {
+                taskData[key] = req.body[key]
+            }
+        }
+
+        // Set defaults
+        if (!taskData.created_by) taskData.created_by = 'system'
+        if (!taskData.timestamp) taskData.timestamp = new Date().toISOString()
+
+        console.log('[API] Creating task:', taskData.title, 'with data:', JSON.stringify(taskData, null, 2))
 
         const { data, error } = await supabaseAdmin
             .from('marketer_actions')
@@ -75,7 +94,10 @@ router.post('/:campaignId/tasks', async (req: Request, res: Response) => {
             .select()
             .single()
 
-        if (error) throw error
+        if (error) {
+            console.error('[API] Supabase error:', error.message, error.details, error.hint)
+            throw error
+        }
 
         console.log('[API] Task created:', data.id)
 
@@ -85,7 +107,7 @@ router.post('/:campaignId/tasks', async (req: Request, res: Response) => {
         res.status(201).json(data)
     } catch (error) {
         console.error('[API] Error creating task:', error)
-        res.status(500).json({ error: 'Failed to create task' })
+        res.status(500).json({ error: 'Failed to create task', details: (error as Error).message })
     }
 })
 
@@ -128,21 +150,54 @@ router.patch('/:campaignId/tasks/:taskId', async (req: Request, res: Response) =
 router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Response) => {
     try {
         const { campaignId, taskId } = req.params
-        const { newPhaseId, oldPhaseId, phase, isLastPhase } = req.body
+        const { newPhaseId, oldPhaseId, phase, isLastPhase, delayReason } = req.body
 
         console.log('[API] Moving task:', {
             taskId,
             from: oldPhaseId || 'backlog',
-            to: newPhaseId || 'backlog'
+            to: newPhaseId || 'backlog',
+            hasDelayReason: !!delayReason
         })
 
-        const now = new Date().toISOString()
+        const now = new Date()
+        const nowIso = now.toISOString()
+
+        // Calculate completion timing for the old phase
+        let completionTiming: 'early' | 'on_time' | 'late' | null = null
+        if (oldPhaseId) {
+            // Get the old phase details for timing calculation
+            const { data: oldPhaseData } = await supabaseAdmin
+                .from('execution_phases')
+                .select('planned_end_date')
+                .eq('id', oldPhaseId)
+                .single()
+
+            if (oldPhaseData?.planned_end_date) {
+                const plannedEnd = new Date(oldPhaseData.planned_end_date)
+                // Compare dates (ignoring time for day-level comparison)
+                const plannedEndDay = new Date(plannedEnd.getFullYear(), plannedEnd.getMonth(), plannedEnd.getDate())
+                const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+                if (nowDay < plannedEndDay) {
+                    completionTiming = 'early'
+                } else if (nowDay.getTime() === plannedEndDay.getTime()) {
+                    completionTiming = 'on_time'
+                } else {
+                    completionTiming = 'late'
+                }
+            }
+        }
 
         // Close previous phase history entry if exists
         if (oldPhaseId) {
+            const historyUpdate: any = { exited_at: nowIso }
+            if (completionTiming) {
+                historyUpdate.completion_timing = completionTiming
+            }
+
             const { error: historyUpdateError } = await supabaseAdmin
                 .from('task_phase_history')
-                .update({ exited_at: now })
+                .update(historyUpdate)
                 .eq('action_id', taskId)
                 .is('exited_at', null)
 
@@ -157,7 +212,7 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
                 action_id: taskId,
                 phase_id: newPhaseId,
                 phase_name: phase.phase_name,
-                entered_at: now,
+                entered_at: nowIso,
             }
 
             const { error: historyError } = await supabaseAdmin
@@ -172,13 +227,18 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
         // Update the task
         const updates: any = {
             phase_id: newPhaseId,
-            started_at: now,
+            started_at: nowIso,
             time_in_phase_minutes: 0,
+        }
+
+        // Add delay_reason if provided
+        if (delayReason) {
+            updates.delay_reason = delayReason
         }
 
         if (isLastPhase) {
             updates.status = 'completed'
-            updates.completed_at = now
+            updates.completed_at = nowIso
         } else if (newPhaseId) {
             updates.status = 'in_progress'
         } else {
@@ -194,7 +254,10 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
 
         if (error) throw error
 
-        console.log('[API] Task moved successfully')
+        console.log('[API] Task moved successfully', {
+            completionTiming,
+            hasDelayReason: !!delayReason
+        })
 
         // Broadcast to SSE clients
         sseService.broadcast(campaignId, 'task-moved', data)

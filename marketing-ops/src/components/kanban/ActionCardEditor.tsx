@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { X, Plus, Loader2 } from 'lucide-react'
-import type { MarketerActionInsert, ActionType, ActionPriority } from '@/types/actions'
+import type { MarketerActionInsert, ActionPriority } from '@/types/actions'
 import { cn } from '@/lib/utils'
 
 interface ActionCardEditorProps {
@@ -11,17 +11,18 @@ interface ActionCardEditorProps {
     onCancel: () => void
 }
 
-const actionTypes: { value: ActionType; label: string }[] = [
-    { value: 'creative_asset', label: 'Creative Asset' },
-    { value: 'copy_review', label: 'Copy Review' },
-    { value: 'legal_approval', label: 'Legal Approval' },
-    { value: 'platform_setup', label: 'Platform Setup' },
-    { value: 'audience_targeting', label: 'Audience Targeting' },
-    { value: 'budget_allocation', label: 'Budget Allocation' },
-    { value: 'performance_review', label: 'Performance Review' },
-    { value: 'optimization', label: 'Optimization' },
-    { value: 'reporting', label: 'Reporting' },
-    { value: 'custom', label: 'Custom' },
+// Common action types as suggestions - users can also enter custom types
+const COMMON_ACTION_TYPES = [
+    'Creative Asset',
+    'Copy Review',
+    'Legal Approval',
+    'Platform Setup',
+    'Audience Targeting',
+    'Budget Allocation',
+    'Performance Review',
+    'Optimization',
+    'Reporting',
+    'Custom',
 ]
 
 const priorities: { value: ActionPriority; label: string; color: string }[] = [
@@ -34,9 +35,10 @@ const priorities: { value: ActionPriority; label: string; color: string }[] = [
 export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCancel }: ActionCardEditorProps) {
     const [title, setTitle] = useState('')
     const [description, setDescription] = useState('')
-    const [actionType, setActionType] = useState<ActionType>('custom')
+    const [actionType, setActionType] = useState('Custom')
     const [priority, setPriority] = useState<ActionPriority>('medium')
     const [assignee, setAssignee] = useState('')
+    const [dueDate, setDueDate] = useState('')
     const [isSaving, setIsSaving] = useState(false)
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -56,6 +58,7 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
                 phase_name: phaseName,
                 timestamp: new Date().toISOString(),
                 assignee: assignee.trim() || undefined,
+                due_date: dueDate ? new Date(dueDate).toISOString() : undefined,
             }
             await onSave(taskData)
         } finally {
@@ -103,11 +106,11 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
                 <div className="grid grid-cols-2 gap-2 mb-2">
                     <select
                         value={actionType}
-                        onChange={(e) => setActionType(e.target.value as ActionType)}
+                        onChange={(e) => setActionType(e.target.value)}
                         className="px-2 py-1.5 text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                        {actionTypes.map(type => (
-                            <option key={type.value} value={type.value}>{type.label}</option>
+                        {COMMON_ACTION_TYPES.map(type => (
+                            <option key={type} value={type}>{type}</option>
                         ))}
                     </select>
 
@@ -122,14 +125,22 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
                     </select>
                 </div>
 
-                {/* Assignee */}
-                <input
-                    type="text"
-                    value={assignee}
-                    onChange={(e) => setAssignee(e.target.value)}
-                    placeholder="Assignee (optional)..."
-                    className="w-full px-2 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                {/* Assignee & Due Date */}
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                    <input
+                        type="text"
+                        value={assignee}
+                        onChange={(e) => setAssignee(e.target.value)}
+                        placeholder="Assignee (optional)..."
+                        className="px-2 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                        type="date"
+                        value={dueDate}
+                        onChange={(e) => setDueDate(e.target.value)}
+                        className="px-2 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                </div>
 
                 {/* Actions */}
                 <div className="flex items-center justify-end gap-2">

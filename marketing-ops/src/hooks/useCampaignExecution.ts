@@ -19,7 +19,8 @@ interface UseCampaignExecutionReturn {
     moveTaskToPhase: (
         taskId: string,
         newPhaseId: string | null,
-        oldPhaseId: string | null
+        oldPhaseId: string | null,
+        delayReason?: string
     ) => Promise<MarketerAction>
     deleteTask: (taskId: string) => Promise<void>
     refetch: () => Promise<void>
@@ -139,7 +140,8 @@ export function useCampaignExecution(
     const moveTaskToPhase = useCallback(async (
         taskId: string,
         newPhaseId: string | null,
-        oldPhaseId: string | null
+        oldPhaseId: string | null,
+        delayReason?: string
     ): Promise<MarketerAction> => {
         if (!campaignId) throw new Error('No campaign ID')
 
@@ -159,6 +161,7 @@ export function useCampaignExecution(
                         status: optimisticStatus,
                         started_at: now,
                         time_in_phase_minutes: 0,
+                        delay_reason: delayReason || t.delay_reason,
                         ...(isLastPhase ? { completed_at: now } : {})
                     }
                     : t
@@ -195,7 +198,8 @@ export function useCampaignExecution(
                 phase || null,
                 oldPhaseId,
                 isLastPhase,
-                campaignId
+                campaignId,
+                delayReason
             )
 
             return updatedTask
