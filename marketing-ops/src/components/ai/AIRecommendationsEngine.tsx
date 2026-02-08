@@ -147,6 +147,63 @@ export default function AIRecommendationsEngine({
     setHasLoadedFromDb(true)
   }
 
+  const persistRecommendations = useCallback(async (recs: DisplayRecommendation[]) => {
+    try {
+      // Simple approach: Delete all 'suggested' status recommendations and insert fresh ones
+      // This ensures we always have the latest generated recommendations
+      // Keep other statuses (accepted, rejected, etc.) intact
+      const { error: deleteError } = await supabase
+        .from('recommendations')
+        .delete()
+        .eq('campaign_id', campaign.id)
+        .eq('status', 'suggested')
+
+      if (deleteError) {
+        console.error('Failed to delete old recommendations:', deleteError)
+      }
+
+      // Insert all new recommendations
+      const rows = recs.map(r => ({
+        campaign_id: campaign.id,
+        tier: r.tier,
+        category: r.category,
+        title: r.title,
+        description: r.description,
+        implementation_steps: r.implementationSteps,
+        estimated_effort: r.effort,
+        estimated_impact: r.impact,
+        confidence_score: r.confidence, // 0-100 integer
+        status: 'suggested' as const,
+        generated_by: 'system',
+        ai_model: r.aiModel || null,
+        ai_confidence: r.aiModel ? r.confidence / 100 : null, // ai_confidence might be decimal 0-1
+        implementation_notes: r.reasoning,
+      }))
+
+      const { data: insertedData, error: insertError } = await supabase
+        .from('recommendations')
+        .insert(rows)
+        .select('id')
+
+      if (insertError) {
+        console.error('Failed to insert recommendations:', insertError)
+        return
+      }
+
+      // Map DB IDs back to display recommendations
+      if (insertedData) {
+        const updatedRecs = recs.map((rec, i) => ({
+          ...rec,
+          dbId: insertedData[i]?.id || rec.dbId,
+        }))
+        setRecommendations(updatedRecs)
+        console.log(`✅ Persisted ${insertedData.length} recommendations to database`)
+      }
+    } catch (error) {
+      console.error('Failed to persist recommendations:', error)
+    }
+  }, [campaign.id])
+
   const generateAllRecommendations = useCallback(async () => {
     setLoading(true)
     setLoadingMessage('Analyzing campaign data...')
@@ -264,52 +321,7 @@ export default function AIRecommendationsEngine({
       setLoading(false)
       setLoadingMessage('')
     }
-  }, [campaign, phases, driftEvents])
-
-  const persistRecommendations = async (recs: DisplayRecommendation[]) => {
-    try {
-      // Delete old recommendations for this campaign before inserting new ones
-      await supabase
-        .from('recommendations')
-        .delete()
-        .eq('campaign_id', campaign.id)
-        .eq('status', 'suggested')
-
-      const rows = recs.map(r => ({
-        campaign_id: campaign.id,
-        tier: r.tier,
-        category: r.category,
-        title: r.title,
-        description: r.description,
-        implementation_steps: r.implementationSteps,
-        estimated_effort: r.effort,
-        estimated_impact: r.impact,
-        confidence_score: r.confidence,
-        status: 'suggested' as const,
-        generated_by: 'system',
-        ai_model: r.aiModel || null,
-        ai_confidence: r.aiModel ? r.confidence : null,
-        implementation_notes: r.reasoning,
-      }))
-
-      const { data } = await supabase
-        .from('recommendations')
-        .insert(rows)
-        .select('id')
-
-      // Map DB IDs back to display recommendations
-      if (data) {
-        setRecommendations(prev =>
-          prev.map((rec, i) => ({
-            ...rec,
-            dbId: data[i]?.id || rec.dbId,
-          }))
-        )
-      }
-    } catch (error) {
-      console.error('Failed to persist recommendations:', error)
-    }
-  }
+  }, [campaign, phases, driftEvents, persistRecommendations])
 
   const updateRecommendationStatus = async (
     recId: string,
@@ -513,6 +525,19 @@ export default function AIRecommendationsEngine({
             Groq API key not configured. Tactical and Strategic tiers require AI.
             Add <code className="bg-gray-100 px-1 rounded">VITE_GROQ_API_KEY</code> to your <code className="bg-gray-100 px-1 rounded">.env</code> file.
             Immediate recommendations still work using formula-based analysis.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Loaded from DB indicator */}
+      {hasLoadedFromDb && recommendations.length > 0 && lastUpdate && (
+        <Alert>
+          <CheckCircle className="h-4 w-4" />
+          <AlertTitle>Recommendations Loaded</AlertTitle>
+          <AlertDescription>
+            {recommendations.length} recommendation{recommendations.length > 1 ? 's' : ''} loaded from database.
+            Last generated: {lastUpdate.toLocaleString()}.
+            Click "Regenerate" to get fresh recommendations based on current campaign data.
           </AlertDescription>
         </Alert>
       )}

@@ -138,7 +138,26 @@ export async function generateTacticalRecommendations(
   const messages: AIMessage[] = [
     {
       role: 'system',
-      content: `You are a marketing operations analyst specializing in campaign execution optimization. Generate tactical recommendations — actionable fixes for the CURRENT campaign based on real data. Each recommendation must be specific, referencing actual numbers from the data provided. Return ONLY a valid JSON object with a "recommendations" array. Each item must have: title, description, category (one of: budget, creative, timeline, targeting, performance, risk), impact (high/medium/low), effort (low/medium/high), confidence (0-100), reasoning, implementationSteps (array of strings), estimatedOutcome.`,
+      content: `You are a marketing operations analyst specializing in campaign execution optimization. Generate tactical recommendations — actionable fixes for the CURRENT campaign based on real data. Each recommendation must be specific, referencing actual numbers from the data provided.
+
+RETURN ONLY VALID JSON in this EXACT format:
+{
+  "recommendations": [
+    {
+      "title": "string",
+      "description": "string",
+      "category": "budget|creative|timeline|targeting|performance|risk",
+      "impact": "high|medium|low",
+      "effort": "low|medium|high",
+      "confidence": 85,
+      "reasoning": "string",
+      "implementationSteps": ["step 1", "step 2", "step 3"],
+      "estimatedOutcome": "string"
+    }
+  ]
+}
+
+CRITICAL: implementationSteps must be a JSON array of strings, not a string.`,
     },
     {
       role: 'user',
@@ -196,7 +215,26 @@ export async function generateStrategicRecommendations(
   const messages: AIMessage[] = [
     {
       role: 'system',
-      content: `You are a marketing strategy advisor. Generate strategic recommendations — long-term improvements for FUTURE campaigns based on patterns observed in this campaign. Focus on process improvements, team workflow changes, and systemic fixes. Return ONLY a valid JSON object with a "recommendations" array. Each item must have: title, description, category (one of: budget, creative, timeline, targeting, performance, risk), impact (high/medium/low), effort (low/medium/high), confidence (0-100), reasoning, implementationSteps (array of strings), estimatedOutcome.`,
+      content: `You are a marketing strategy advisor. Generate strategic recommendations — long-term improvements for FUTURE campaigns based on patterns observed in this campaign. Focus on process improvements, team workflow changes, and systemic fixes.
+
+RETURN ONLY VALID JSON in this EXACT format:
+{
+  "recommendations": [
+    {
+      "title": "string",
+      "description": "string",
+      "category": "budget|creative|timeline|targeting|performance|risk",
+      "impact": "high|medium|low",
+      "effort": "low|medium|high",
+      "confidence": 85,
+      "reasoning": "string",
+      "implementationSteps": ["step 1", "step 2", "step 3"],
+      "estimatedOutcome": "string"
+    }
+  ]
+}
+
+CRITICAL: implementationSteps must be a JSON array of strings, not a string.`,
     },
     {
       role: 'user',
