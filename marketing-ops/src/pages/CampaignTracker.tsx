@@ -47,19 +47,24 @@ import {
   BarChart3,
   XCircle,
   Save,
+  Kanban,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
-import type { ExecutionPhase, DriftEvent } from '@/types/phase'
-import type { StakeholderAction } from '@/types/database'
-import { formatDate } from '@/utils/formatting'
-import AIRecommendationsEngine from '@/components/ai/AIRecommendationsEngine'
-import StrategicFailureDiagnosis from '@/components/diagnosis/StrategicFailureDiagnosis'
-import MetaAdsDashboard from '@/components/meta/MetaAdsDashboard'
+import type { DriftEvent } from '@/types/phase'
 import { ObservationModeBadge } from '@/components/ObservationModeBadge'
-// Seeded drift events for demo
+import { DemographicAlignmentTracker } from '@/components/demographics/DemographicAlignmentTracker'
+import { KanbanBoard } from '@/components/kanban'
+import { useCampaignExecution } from '@/hooks/useCampaignExecution'
 import { cn } from '@/lib/utils'
 import { saveTemplate } from '@/lib/templates'
+import {
+  DEMO_AGE_DATA,
+  DEMO_FIT_SCORE,
+  DEMO_STRONG_ALIGNMENT,
+  DEMO_ADJUSTMENT_AREAS,
+  DEMO_RECOMMENDED_ACTIONS,
+} from '@/lib/demographicData'
 
 const SEEDED_DRIFT_EVENTS: Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>[] = [
   {
@@ -116,16 +121,64 @@ const SEEDED_DRIFT_EVENTS: Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 
   },
 ]
 
+// For now use the seeded events as the runtime drift events list
+const driftEvents: (Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>)[] = SEEDED_DRIFT_EVENTS
+
 type DriftFilterValue = 'all' | 'positive' | 'negative' | 'neutral'
 
 type RecommendationActionState = 'pending' | 'accepted' | 'rejected' | 'completed'
 
+// AI Recommendations seed data
+const AI_RECOMMENDATIONS: {
+  tier: 'immediate' | 'tactical' | 'strategic'
+  title: string
+  description: string
+  category: string
+  impact: 'high' | 'medium' | 'low'
+  effort: 'high' | 'medium' | 'low'
+  icon: React.ReactNode
+}[] = [
+    {
+      tier: 'immediate',
+      title: 'Pause underperforming ad sets',
+      description: 'Ad sets with CTR below 0.5% are draining budget. Pause and reallocate.',
+      category: 'Budget Optimization',
+      impact: 'high',
+      effort: 'low',
+      icon: <AlertTriangle className="w-4 h-4" />,
+    },
+    {
+      tier: 'tactical',
+      title: 'A/B test new creative variants',
+      description: 'Current creatives showing fatigue. Test 3 new variants targeting 25-34 demo.',
+      category: 'Creative',
+      impact: 'high',
+      effort: 'medium',
+      icon: <Zap className="w-4 h-4" />,
+    },
+    {
+      tier: 'tactical',
+      title: 'Expand lookalike audiences',
+      description: 'Top 1% lookalike exhausted. Expand to 2-3% for fresh reach.',
+      category: 'Audience',
+      impact: 'medium',
+      effort: 'low',
+      icon: <TrendingUp className="w-4 h-4" />,
+    },
+    {
+      tier: 'strategic',
+      title: 'Consider channel diversification',
+      description: 'Heavy reliance on Meta. Evaluate TikTok/Google for audience expansion.',
+      category: 'Strategy',
+      impact: 'high',
+      effort: 'high',
+      icon: <BarChart3 className="w-4 h-4" />,
+    },
+  ]
+
 export default function CampaignTracker() {
   const { id } = useParams<{ id: string }>()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
-  const [phases, setPhases] = useState<ExecutionPhase[]>([])
-  const [driftEvents, setDriftEvents] = useState<DriftEvent[]>([])
-  const [stakeholderActions, setStakeholderActions] = useState<StakeholderAction[]>([])
   const [loading, setLoading] = useState(true)
   // Drift classification filter
   const [driftFilter, setDriftFilter] = useState<DriftFilterValue>('all')
@@ -133,30 +186,60 @@ export default function CampaignTracker() {
   const [saveTemplateEventIndex, setSaveTemplateEventIndex] = useState<number | null>(null)
   const [templateName, setTemplateName] = useState('')
   const [templateDescription, setTemplateDescription] = useState('')
+  // Recommendation action states
+  const [recommendationStates, setRecommendationStates] = useState<Record<string, RecommendationActionState>>({})
+  const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({})
 
-  const fetchData = useCallback(async () => {
+  // Get tasks from Kanban board for phase metrics
+  // Get execution data from hook
+  const execution = useCampaignExecution(id || '')
+  const {
+    phases,
+    tasks,
+    loading: executionLoading,
+    refetch: refetchExecution
+  } = execution
+
+  // Helper to get tasks for a specific phase
+  const getTasksForPhase = (phaseId: string | null) => {
+    return tasks.filter(t => t.phase_id === phaseId)
+  }
+
+  // Helper to calculate time in minutes for tasks
+  const calculateTotalTime = (phaseTasks: typeof tasks) => {
+    return phaseTasks.reduce((sum, task) => {
+      const minutes = task.time_in_phase_minutes || 0
+      if (task.started_at) {
+        const elapsed = Math.floor((Date.now() - new Date(task.started_at).getTime()) / 60000)
+        return sum + minutes + elapsed
+      }
+      return sum + minutes
+    }, 0)
+  }
+
+  // Format minutes to human readable
+  const formatTime = (minutes: number) => {
+    if (minutes < 60) return `${minutes}m`
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    return mins === 0 ? `${hours}h` : `${hours}h ${mins}m`
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [id])
+
+  const fetchData = async () => {
     try {
-      console.log('Fetching data for campaign ID:', id)
-      const [campaignRes, phasesRes, driftRes, stakeholderRes] = await Promise.all([
-        supabase.from('campaigns').select('*').eq('id', id).single(),
-        supabase.from('execution_phases').select('*').eq('campaign_id', id).order('phase_number'),
-        supabase.from('drift_events').select('*').eq('campaign_id', id).order('created_at', { ascending: false }),
-        supabase.from('stakeholder_actions').select('*').eq('campaign_id', id).order('requested_date', { ascending: false }),
-      ])
+      const { data, error } = await supabase.from('campaigns').select('*').eq('id', id).single()
 
-      console.log('Campaign response:', campaignRes)
-      console.log('Phases response:', phasesRes)
-
-      if (campaignRes.data) setCampaign(campaignRes.data)
-      if (phasesRes.data) setPhases(phasesRes.data)
-      if (driftRes.data) setDriftEvents(driftRes.data)
-      if (stakeholderRes.data) setStakeholderActions(stakeholderRes.data)
+      if (data) setCampaign(data)
     } catch (error) {
       console.error('Error:', error)
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }
 
   useEffect(() => {
     fetchData()
@@ -173,12 +256,8 @@ export default function CampaignTracker() {
         })
         .eq('id', phaseId)
 
-      // Update local state
-      setPhases((prev) =>
-        prev.map((p) =>
-          p.id === phaseId ? { ...p, status: 'in_progress', actual_start_date: now } : p
-        )
-      )
+      // Refresh execution data
+      await refetchExecution()
     } catch (error) {
       console.error('Error starting phase:', error)
     }
@@ -208,73 +287,8 @@ export default function CampaignTracker() {
         })
         .eq('id', phaseId)
 
-      // Create drift event if there's significant drift
-      if (Math.abs(driftDays) > 0) {
-        const driftEventData = {
-          campaign_id: campaign?.id || '',
-          phase_id: phaseId,
-          drift_days: driftDays,
-          drift_type: driftType,
-          phase_name: phase.phase_name,
-          planned_duration: phase.planned_duration_days,
-          actual_duration: actualDays,
-          reason: driftDays > 0 ? 'Timeline overrun' : 'Completed ahead of schedule',
-          impact_description: Math.abs(driftDays) > 2 ? 'Significant impact on subsequent phases' : 'Minor timeline adjustment',
-          lesson_learned: driftType === 'positive' ? 'Process optimization identified' : 'Timeline monitoring needed',
-          template_created: driftType === 'positive' && Math.abs(driftDays) > 1,
-        }
-
-        await supabase.from('drift_events').insert([driftEventData])
-
-        // Refresh drift events to show the new one
-        const { data: updatedDriftEvents } = await supabase
-          .from('drift_events')
-          .select('*')
-          .eq('campaign_id', campaign?.id)
-          .order('created_at', { ascending: false })
-        
-        if (updatedDriftEvents) setDriftEvents(updatedDriftEvents)
-
-        // Update campaign drift counters
-        const newDriftCount = (campaign?.drift_count || 0) + 1
-        const newPositiveDrift = driftType === 'positive' ? (campaign?.positive_drift_count || 0) + 1 : (campaign?.positive_drift_count || 0)
-        const newNegativeDrift = driftType === 'negative' ? (campaign?.negative_drift_count || 0) + 1 : (campaign?.negative_drift_count || 0)
-        
-        await supabase
-          .from('campaigns')
-          .update({
-            drift_count: newDriftCount,
-            positive_drift_count: newPositiveDrift,
-            negative_drift_count: newNegativeDrift,
-          })
-          .eq('id', campaign?.id)
-
-        // Update local campaign state
-        if (campaign) {
-          setCampaign({
-            ...campaign,
-            drift_count: newDriftCount,
-            positive_drift_count: newPositiveDrift,
-            negative_drift_count: newNegativeDrift,
-          })
-        }
-      }
-
-      // Update local phase state
-      setPhases((prev) =>
-        prev.map((p) =>
-          p.id === phaseId
-            ? {
-                ...p,
-                status: 'completed',
-                actual_end_date: now,
-                actual_duration_days: actualDays,
-                drift_days: driftDays,
-                drift_type: driftType,
-              }
-            : p
-        )
-      )
+      // Refresh execution data
+      await refetchExecution()
     } catch (error) {
       console.error('Error completing phase:', error)
     }
@@ -310,28 +324,28 @@ export default function CampaignTracker() {
   const calculateHealthIndicators = () => {
     const completedPhases = phases.filter(p => p.status === 'completed')
     const totalPhases = phases.length
-    
+
     // Operational Health: Based on phase completion rate and drift
     let operationalHealth = 100
     if (totalPhases > 0) {
       const completionRate = (completedPhases.length / totalPhases) * 100
-      const avgDrift = completedPhases.length > 0 
+      const avgDrift = completedPhases.length > 0
         ? Math.abs(completedPhases.reduce((acc, p) => acc + (p.drift_days || 0), 0) / completedPhases.length)
         : 0
-      
+
       // Reduce health based on drift (more than 2 days average is concerning)
       const driftPenalty = Math.min(avgDrift * 5, 30) // Max 30 point penalty
       operationalHealth = Math.max(completionRate - driftPenalty, 0)
     }
-    
+
     // Performance Health: Use campaign data or calculate from phases
-    const performanceHealth = campaign?.performance_health ?? 
-      (campaign?.status === 'completed' ? 85 : 
-       campaign?.status === 'in_progress' ? 75 : 90)
-    
+    const performanceHealth = campaign?.performance_health ??
+      (campaign?.status === 'completed' ? 85 :
+        campaign?.status === 'in_progress' ? 75 : 90)
+
     // Total drift calculation
     const totalDrift = completedPhases.reduce((acc, p) => acc + Math.abs(p.drift_days || 0), 0)
-    
+
     return {
       operational: Math.round(operationalHealth),
       performance: Math.round(performanceHealth),
@@ -386,7 +400,7 @@ export default function CampaignTracker() {
 
   // Calculate drift summary stats
   const driftSummary = {
-    avgDrift: phases.filter(p => p.drift_days != null).length > 0 
+    avgDrift: phases.filter(p => p.drift_days != null).length > 0
       ? Math.round(phases.filter(p => p.drift_days != null).reduce((sum, p) => sum + (p.drift_days || 0), 0) / phases.filter(p => p.drift_days != null).length * 10) / 10
       : 0,
     positiveCount: driftEvents.filter(d => d.drift_type === 'positive').length,
@@ -394,7 +408,7 @@ export default function CampaignTracker() {
     phasesOnTrack: phases.filter(p => Math.abs(p.drift_days || 0) <= 1).length
   }
 
-  if (loading) {
+  if (loading || executionLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-expedition-trail" />
@@ -518,40 +532,56 @@ export default function CampaignTracker() {
         </Card>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="execution" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="execution">Execution Timeline</TabsTrigger>
-          <TabsTrigger value="drift">Drift Analysis</TabsTrigger>
-          <TabsTrigger value="accountability">Accountability</TabsTrigger>
-          <TabsTrigger value="meta-ads">Meta Ads</TabsTrigger>
-          <TabsTrigger value="diagnosis">Failure Diagnosis</TabsTrigger>
-          <TabsTrigger value="recommendations">AI Recommendations</TabsTrigger>
-        </TabsList>
+      {/* Execution, Drift, Audience Insights, AI Recommendations */}
+      <div className="space-y-4">
+        <Tabs defaultValue="execution" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto flex-wrap gap-1 p-1">
+            <TabsTrigger value="execution" className="text-xs sm:text-sm py-2">Execution</TabsTrigger>
+            <TabsTrigger value="drift" className="text-xs sm:text-sm py-2">Drift Analysis</TabsTrigger>
+            <TabsTrigger value="audience" className="text-xs sm:text-sm py-2">Audience Insights</TabsTrigger>
+            <TabsTrigger value="recommendations" className="text-xs sm:text-sm py-2">AI Recommendations</TabsTrigger>
+          </TabsList>
 
-        {/* Execution Timeline Tab */}
-        <TabsContent value="execution" className="space-y-4">
-        {/* Horizontal Timeline View */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Phase Timeline</CardTitle>
-              <CardDescription>Click a phase to start or complete it</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {/* Horizontal scroll container */}
-              <div className="flex gap-4 overflow-x-auto pb-4">
-                {phases.map((phase, i) => (
-                  <div key={phase.id} className="flex items-center">
-                    <Card className={`min-w-[220px] border-2 ${getPhaseStatusColor(phase.status)}`}>
-                      <CardContent className="pt-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <Badge variant="outline" className="text-xs">
-                            Phase {phase.phase_number || i + 1}
-                          </Badge>
-                          {getPhaseStatusBadge(phase.status)}
-                        </div>
+          {/* Execution Timeline Tab */}
+          <TabsContent value="execution" className="space-y-4 mt-4">
+            {/* Horizontal Timeline View */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Phase Timeline</CardTitle>
+                <CardDescription>Click a phase to start or complete it</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* Horizontal scroll container */}
+                <div className="flex gap-4 overflow-x-auto pb-4">
+                  {phases.map((phase, i) => {
+                    const phaseTasks = getTasksForPhase(phase.id)
+                    const completedTasks = phaseTasks.filter(t => t.status === 'completed').length
+                    const totalTime = calculateTotalTime(phaseTasks)
 
-                        <h4 className="font-semibold text-sm">{phase.phase_name}</h4>
+                    return (
+                      <div key={phase.id} className="flex items-center">
+                        <Card
+                          className={cn(
+                            "min-w-[220px] border-2 cursor-pointer hover:shadow-md transition-all",
+                            getPhaseStatusColor(phase.status)
+                          )}
+                          onClick={() => {
+                            if (phase.status === 'pending' || !phase.status) {
+                              handleStartPhase(phase.id)
+                            } else if (phase.status === 'in_progress') {
+                              handleCompletePhase(phase.id)
+                            }
+                          }}
+                        >
+                          <CardContent className="pt-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                              {getPhaseStatusBadge(phase.status || 'pending')}
+                              <Badge variant="secondary" className="text-xs">
+                                {phaseTasks.length} tasks
+                              </Badge>
+                            </div>
+
+                            <h4 className="font-semibold text-sm">{phase.phase_name}</h4>
 
                         <div className="space-y-1 text-xs text-muted-foreground">
                           <div className="flex justify-between">
@@ -561,7 +591,7 @@ export default function CampaignTracker() {
                           {phase.actual_duration_days != null && (
                             <div className="flex justify-between">
                               <span>Actual</span>
-                              <span className={phase.drift_days > 0 ? 'text-expedition-checkpoint font-semibold' : phase.drift_days < 0 ? 'text-expedition-evergreen font-semibold' : ''}>
+                              <span className={phase.drift_days > 0 ? 'text-red-600 font-semibold' : phase.drift_days < 0 ? 'text-green-600 font-semibold' : ''}>
                                 {phase.actual_duration_days}d
                               </span>
                             </div>
@@ -576,7 +606,7 @@ export default function CampaignTracker() {
 
                         {/* Drift indicator */}
                         {phase.status === 'completed' && phase.drift_days !== 0 && (
-                          <div className={`flex items-center gap-1 text-xs font-semibold ${phase.drift_days > 0 ? 'text-expedition-checkpoint' : 'text-expedition-evergreen'}`}>
+                          <div className={`flex items-center gap-1 text-xs font-semibold ${phase.drift_days > 0 ? 'text-red-600' : 'text-green-600'}`}>
                             {phase.drift_days > 0 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
                             {Math.abs(phase.drift_days)}d {phase.drift_days > 0 ? 'over' : 'under'}
                           </div>
@@ -597,7 +627,7 @@ export default function CampaignTracker() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="w-full gap-1 border-expedition-evergreen/50 text-expedition-evergreen hover:bg-expedition-evergreen/10"
+                            className="w-full gap-1 border-green-300 text-green-700 hover:bg-green-50"
                             onClick={() => handleCompletePhase(phase.id)}
                           >
                             <CheckCircle2 className="w-3 h-3" />
@@ -607,34 +637,34 @@ export default function CampaignTracker() {
                       </CardContent>
                     </Card>
 
-                    {/* Connector arrow */}
-                    {i < phases.length - 1 && (
-                      <ArrowRight className="w-5 h-5 text-muted-foreground mx-1 shrink-0" />
-                    )}
-                  </div>
-                ))}
+                        {/* Connector arrow */}
+                        {i < phases.length - 1 && (
+                          <ArrowRight className="w-5 h-5 text-muted-foreground mx-1 shrink-0" />
+                        )}
+                      </div>
+                    )
+                  })}
 
-                {phases.length === 0 && (
-                  <div className="text-center w-full py-8 text-muted-foreground">
-                    No execution phases defined. Create phases in the campaign setup.
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  {phases.length === 0 && (
+                    <div className="text-center w-full py-8 text-muted-foreground">
+                      No execution phases defined. Create phases in the campaign setup.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* Phase Progress Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Phase Progress</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {phases.map((phase, i) => {
-                const progress =
-                  phase.status === 'completed'
-                    ? 100
-                    : phase.status === 'in_progress'
-                    ? 50
+            {/* Phase Progress Summary */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Task Progress by Phase</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {phases.map((phase, i) => {
+                  const phaseTasks = getTasksForPhase(phase.id)
+                  const completedTasks = phaseTasks.filter(t => t.status === 'completed').length
+                  const progress = phaseTasks.length > 0
+                    ? (completedTasks / phaseTasks.length) * 100
                     : 0
                 return (
                   <div key={phase.id}>
@@ -644,7 +674,7 @@ export default function CampaignTracker() {
                       </span>
                       <div className="flex items-center gap-2">
                         {phase.drift_days !== 0 && phase.status === 'completed' && (
-                          <Badge variant={phase.drift_days > 0 ? 'destructive' : phase.drift_days < 0 ? 'success' : 'default'}>
+                          <Badge variant={phase.drift_days > 0 ? 'destructive' : 'default'} className={phase.drift_days < 0 ? 'bg-green-600' : ''}>
                             {phase.drift_days > 0 ? '+' : ''}{phase.drift_days}d
                           </Badge>
                         )}
@@ -678,7 +708,7 @@ export default function CampaignTracker() {
                 <CardTitle className="text-sm font-medium">Average Drift</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${driftSummary.avgDrift > 0 ? 'text-expedition-checkpoint' : driftSummary.avgDrift < 0 ? 'text-expedition-evergreen' : 'text-muted-foreground'}`}>
+                <div className={`text-2xl font-bold ${driftSummary.avgDrift > 0 ? 'text-red-600' : driftSummary.avgDrift < 0 ? 'text-green-600' : 'text-gray-600'}`}>
                   {driftSummary.avgDrift > 0 ? '+' : ''}{driftSummary.avgDrift}d
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Per completed phase</p>
@@ -690,7 +720,7 @@ export default function CampaignTracker() {
                 <CardTitle className="text-sm font-medium">Positive Drifts</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-expedition-evergreen">{driftSummary.positiveCount}</div>
+                <div className="text-2xl font-bold text-green-600">{driftSummary.positiveCount}</div>
                 <p className="text-xs text-muted-foreground mt-1">Ahead of schedule</p>
               </CardContent>
             </Card>
@@ -700,7 +730,7 @@ export default function CampaignTracker() {
                 <CardTitle className="text-sm font-medium">Negative Drifts</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-expedition-checkpoint">{driftSummary.negativeCount}</div>
+                <div className="text-2xl font-bold text-red-600">{driftSummary.negativeCount}</div>
                 <p className="text-xs text-muted-foreground mt-1">Behind schedule</p>
               </CardContent>
             </Card>
@@ -710,7 +740,7 @@ export default function CampaignTracker() {
                 <CardTitle className="text-sm font-medium">On Track</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-muted-foreground">{driftSummary.phasesOnTrack}</div>
+                <div className="text-2xl font-bold text-gray-600">{driftSummary.phasesOnTrack}</div>
                 <p className="text-xs text-muted-foreground mt-1">Within ±1 day</p>
               </CardContent>
             </Card>
@@ -761,13 +791,13 @@ export default function CampaignTracker() {
                 return (
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium text-muted-foreground">Summary:</span>
-                    <Badge variant="outline" className="bg-expedition-evergreen/10 text-expedition-evergreen border-expedition-evergreen/40">
+                    <Badge variant="outline" className="bg-green-50 text-green-800 border-green-200">
                       🟢 {positiveCount} Positive
                     </Badge>
-                    <Badge variant="outline" className="bg-expedition-checkpoint/10 text-expedition-checkpoint border-expedition-checkpoint/40">
+                    <Badge variant="outline" className="bg-red-50 text-red-800 border-red-200">
                       🔴 {negativeCount} Negative
                     </Badge>
-                    <Badge variant="outline" className="bg-muted text-muted-foreground border-border">
+                    <Badge variant="outline" className="bg-gray-100 text-gray-700 border-gray-300">
                       ⚪ {neutralCount} Neutral
                     </Badge>
                   </div>
@@ -786,7 +816,7 @@ export default function CampaignTracker() {
                 <Button
                   size="sm"
                   variant={driftFilter === 'positive' ? 'default' : 'outline'}
-                  className={driftFilter === 'positive' ? 'bg-expedition-evergreen hover:bg-expedition-evergreen/90' : ''}
+                  className={driftFilter === 'positive' ? 'bg-green-600 hover:bg-green-700' : ''}
                   onClick={() => setDriftFilter('positive')}
                 >
                   🟢 Positive
@@ -794,7 +824,7 @@ export default function CampaignTracker() {
                 <Button
                   size="sm"
                   variant={driftFilter === 'negative' ? 'default' : 'outline'}
-                  className={driftFilter === 'negative' ? 'bg-expedition-checkpoint hover:bg-expedition-checkpoint/90' : ''}
+                  className={driftFilter === 'negative' ? 'bg-red-600 hover:bg-red-700' : ''}
                   onClick={() => setDriftFilter('negative')}
                 >
                   🔴 Negative
@@ -802,7 +832,7 @@ export default function CampaignTracker() {
                 <Button
                   size="sm"
                   variant={driftFilter === 'neutral' ? 'default' : 'outline'}
-                  className={driftFilter === 'neutral' ? 'bg-expedition-slate hover:bg-expedition-slate/90' : ''}
+                  className={driftFilter === 'neutral' ? 'bg-gray-600 hover:bg-gray-700' : ''}
                   onClick={() => setDriftFilter('neutral')}
                 >
                   ⚪ Neutral
@@ -817,25 +847,25 @@ export default function CampaignTracker() {
                   const isNegative = event.drift_type === 'negative'
                   const isNeutral = event.drift_type === 'neutral'
                   const cardBorder = isPositive
-                    ? 'border-expedition-evergreen/40 bg-expedition-evergreen/10'
+                    ? 'border-green-300 bg-green-50/50 dark:bg-green-950/20'
                     : isNegative
-                      ? 'border-expedition-checkpoint/40 bg-expedition-checkpoint/10'
-                      : 'border-border bg-muted/50'
+                      ? 'border-red-300 bg-red-50/30 dark:bg-red-950/20'
+                      : 'border-gray-200 bg-gray-50/50 dark:bg-gray-900/30'
                   return (
                     <div key={idx} className={cn('border-2 rounded-lg p-4 space-y-3', cardBorder)}>
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
                           {isNegative ? (
-                            <div className="w-8 h-8 rounded-full bg-expedition-checkpoint/20 flex items-center justify-center">
-                              <ArrowUp className="w-4 h-4 text-expedition-checkpoint" />
+                            <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                              <ArrowUp className="w-4 h-4 text-red-600" />
                             </div>
                           ) : isPositive ? (
-                            <div className="w-8 h-8 rounded-full bg-expedition-evergreen/20 flex items-center justify-center">
-                              <ArrowDown className="w-4 h-4 text-expedition-evergreen" />
+                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                              <ArrowDown className="w-4 h-4 text-green-600" />
                             </div>
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                              <Clock className="w-4 h-4 text-muted-foreground" />
+                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                              <Clock className="w-4 h-4 text-gray-600" />
                             </div>
                           )}
                           <div>
@@ -847,7 +877,7 @@ export default function CampaignTracker() {
                         </div>
                         <Badge
                           variant={isNegative ? 'destructive' : isPositive ? 'default' : 'secondary'}
-                          className={isPositive ? 'bg-expedition-evergreen' : ''}
+                          className={isPositive ? 'bg-green-600' : ''}
                         >
                           {event.drift_days > 0 ? '+' : ''}{event.drift_days}d
                           {isPositive && ' 🟢'}
@@ -856,43 +886,43 @@ export default function CampaignTracker() {
                         </Badge>
                       </div>
 
-                      <Separator />
+                        <Separator />
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Root Cause</span>
-                          <p className="font-medium">{event.root_cause || 'Not specified'}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Root Cause</span>
+                            <p className="font-medium">{event.root_cause}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Attribution</span>
+                            <p className="font-medium">{event.attribution}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Impact</span>
+                            <p className="font-medium">{event.impact_on_timeline}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Lesson Learned</span>
+                            <p className="font-medium">{event.lesson_learned}</p>
+                          </div>
                         </div>
-                        <div>
-                          <span className="text-muted-foreground">Attribution</span>
-                          <p className="font-medium">{event.attribution || 'Not specified'}</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Impact</span>
-                          <p className="font-medium">{event.impact_on_timeline || 'Timeline adjustment'}</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Lesson Learned</span>
-                          <p className="font-medium">{event.lesson_learned || 'N/A'}</p>
-                        </div>
-                      </div>
 
                       {event.actionable_insight && (
-                        <div className="bg-expedition-trail/10 p-3 rounded-lg border border-expedition-trail/20">
+                        <div className="bg-blue-50 p-3 rounded-lg dark:bg-blue-950/30">
                           <p className="text-sm">
-                            <Zap className="w-4 h-4 inline mr-1 text-expedition-trail" />
-                            <span className="font-medium text-expedition-navy dark:text-white">Insight:</span>{' '}
-                            <span className="text-foreground">{event.actionable_insight}</span>
+                            <Zap className="w-4 h-4 inline mr-1 text-blue-600" />
+                            <span className="font-medium text-blue-800 dark:text-blue-300">Insight:</span>{' '}
+                            <span className="text-blue-700 dark:text-blue-200">{event.actionable_insight}</span>
                           </p>
                         </div>
                       )}
 
                       {/* Save as Template - positive drift only */}
                       {isPositive && (
-                        <div className="bg-expedition-evergreen/10 p-3 rounded-lg border border-expedition-evergreen/20">
+                        <div className="bg-green-50 p-3 rounded-lg">
                           <p className="text-sm">
-                            <TrendingUp className="w-4 h-4 inline mr-1 text-expedition-evergreen" />
-                            <span className="font-medium text-expedition-evergreen">💡 Success Pattern Detected</span>
+                            <TrendingUp className="w-4 h-4 inline mr-1 text-green-600" />
+                            <span className="font-medium text-green-800">💡 Success Pattern Detected</span>
                           </p>
                           <Button 
                             size="sm" 
@@ -926,24 +956,24 @@ export default function CampaignTracker() {
               <div className="space-y-4">
                 {stakeholderActions.length === 0 ? (
                   <div className="text-center py-8">
-                    <Activity className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-foreground mb-2">No Stakeholder Actions Yet</h3>
-                    <p className="text-muted-foreground">Stakeholder actions and approvals will be tracked here.</p>
+                    <Activity className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Stakeholder Actions Yet</h3>
+                    <p className="text-gray-500">Stakeholder actions and approvals will be tracked here.</p>
                   </div>
                 ) : (
                   stakeholderActions.map((action) => {
                     const isOverdue = action.status === 'overdue' || (action.expected_date && new Date(action.expected_date) < new Date() && action.status !== 'completed')
                     const getActorColor = (type: string) => {
                       switch (type) {
-                        case 'client': return 'bg-expedition-summit/10 border-expedition-summit/30 text-expedition-navy dark:text-white'
-                        case 'agency': return 'bg-expedition-trail/10 border-expedition-trail/30 text-expedition-navy dark:text-white'
-                        case 'external': return 'bg-muted border-border text-foreground'
-                        default: return 'bg-muted border-border text-foreground'
+                        case 'client': return 'bg-purple-100 border-purple-200 text-purple-800'
+                        case 'agency': return 'bg-blue-100 border-blue-200 text-blue-800'
+                        case 'external': return 'bg-gray-100 border-gray-200 text-gray-800'
+                        default: return 'bg-gray-100 border-gray-200 text-gray-800'
                       }
                     }
 
                     return (
-                      <div key={action.id} className={`border rounded-lg p-4 space-y-3 ${isOverdue ? 'border-expedition-checkpoint/40 bg-expedition-checkpoint/10' : ''}`}>
+                      <div key={action.id} className={`border rounded-lg p-4 space-y-3 ${isOverdue ? 'border-red-200 bg-red-50' : ''}`}>
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-3">
                             <div className={`px-3 py-1 rounded-full text-sm border ${getActorColor(action.stakeholder_type)}`}>
@@ -961,7 +991,7 @@ export default function CampaignTracker() {
                               {action.status === 'completed' ? 'Completed' : isOverdue ? 'Overdue' : action.status}
                             </Badge>
                             {isOverdue && action.overdue_days && (
-                              <p className="text-xs text-expedition-checkpoint mt-1">
+                              <p className="text-xs text-red-600 mt-1">
                                 {action.overdue_days}d overdue
                               </p>
                             )}
@@ -990,7 +1020,7 @@ export default function CampaignTracker() {
                           {action.critical_path && (
                             <div>
                               <span className="text-muted-foreground">Critical Path</span>
-                              <Badge variant="warning" className="border-expedition-signal/40">
+                              <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-200">
                                 Critical
                               </Badge>
                             </div>
@@ -998,14 +1028,14 @@ export default function CampaignTracker() {
                         </div>
 
                         {action.delay_reason && (
-                          <div className="bg-expedition-signal/10 p-3 rounded-lg border border-expedition-signal/20">
+                          <div className="bg-yellow-50 p-3 rounded-lg">
                             <p className="text-sm">
-                              <AlertTriangle className="w-4 h-4 inline mr-1 text-expedition-signal" />
-                              <span className="font-medium text-expedition-signal">Delay Reason:</span>{' '}
-                              <span className="text-foreground">{action.delay_reason}</span>
+                              <AlertTriangle className="w-4 h-4 inline mr-1 text-yellow-600" />
+                              <span className="font-medium text-yellow-800">Delay Reason:</span>{' '}
+                              <span className="text-yellow-700">{action.delay_reason}</span>
                             </p>
                             {action.delay_attribution && (
-                              <p className="text-xs text-expedition-signal mt-1">
+                              <p className="text-xs text-yellow-600 mt-1">
                                 Attribution: {action.delay_attribution}
                               </p>
                             )}
@@ -1013,10 +1043,10 @@ export default function CampaignTracker() {
                         )}
 
                         {action.delay_impact && (
-                          <div className="bg-expedition-checkpoint/10 p-3 rounded-lg border border-expedition-checkpoint/20">
+                          <div className="bg-red-50 p-3 rounded-lg">
                             <p className="text-sm">
-                              <span className="font-medium text-expedition-checkpoint">Impact:</span>{' '}
-                              <span className="text-foreground">{action.delay_impact}</span>
+                              <span className="font-medium text-red-800">Impact:</span>{' '}
+                              <span className="text-red-700">{action.delay_impact}</span>
                             </p>
                           </div>
                         )}
@@ -1035,47 +1065,7 @@ export default function CampaignTracker() {
           </Card>
           </TabsContent>
 
-        {/* Meta Ads Dashboard Tab */}
-        <TabsContent value="meta-ads" className="space-y-4">
-          {campaign && (
-            <MetaAdsDashboard
-              campaign={campaign}
-              metaPixelId={campaign.meta_pixel_id}
-              metaAccountId={campaign.meta_ads_account_id}
-            />
-          )}
-        </TabsContent>
-
-        {/* Strategic Failure Diagnosis Tab */}
-        <TabsContent value="diagnosis" className="space-y-4">
-          {campaign && (
-            <StrategicFailureDiagnosis
-              campaign={campaign}
-              phases={phases}
-              driftEvents={driftEvents}
-              onCreateTemplate={(diagnosis) => {
-                console.log('Created failure prevention template:', diagnosis)
-                // In production, this would save the template to the database
-              }}
-            />
-          )}
-        </TabsContent>
-
-        {/* AI Recommendations Tab */}
-        <TabsContent value="recommendations" className="space-y-4">
-          {campaign && (
-            <AIRecommendationsEngine
-              campaign={campaign}
-              phases={phases}
-              driftEvents={driftEvents}
-              onApplyRecommendation={(recommendation) => {
-                console.log('Applied recommendation:', recommendation)
-                // In production, this would trigger actual campaign modifications
-              }}
-            />
-          )}
-        </TabsContent>
-      </Tabs>
+        </Tabs>
 
       {/* Save as Template dialog (from positive drift) */}
       <Dialog
@@ -1128,7 +1118,7 @@ export default function CampaignTracker() {
               Cancel
             </Button>
             <Button
-              className="bg-expedition-evergreen hover:bg-expedition-evergreen/90 gap-1.5"
+              className="bg-green-600 hover:bg-green-700 gap-1.5"
               onClick={() => {
                 const event = saveTemplateEventIndex != null ? SEEDED_DRIFT_EVENTS[saveTemplateEventIndex] : null
                 saveTemplate({

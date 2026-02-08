@@ -6,6 +6,16 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import {
   Brain,
   AlertTriangle,
   Target,
@@ -17,228 +27,392 @@ import {
   X,
   ArrowRight,
   Sparkles,
+  Shield,
+  TrendingUp,
+  ThumbsUp,
+  ThumbsDown,
+  Pause,
+  WifiOff,
 } from 'lucide-react'
 import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase, DriftEvent } from '@/types/phase'
+import type { Recommendation as DBRecommendation, PerformanceMetric, RiskScore } from '@/types/database'
+import { supabase } from '@/lib/supabase'
+import {
+  generateTacticalRecommendations,
+  generateStrategicRecommendations,
+  isApiKeyConfigured,
+} from '@/services/aiService'
+import { generateImmediateRecommendations } from '@/utils/immediateRecommendations'
 
-interface Recommendation {
+type Tier = 'immediate' | 'tactical' | 'strategic'
+
+interface DisplayRecommendation {
   id: string
+  dbId?: string // ID from database if persisted
   title: string
   description: string
-  category: 'Budget' | 'Creative' | 'Timeline' | 'Targeting' | 'Performance' | 'Risk'
-  priority: 'critical' | 'high' | 'medium' | 'low'
+  tier: Tier
+  category: string
   impact: 'high' | 'medium' | 'low'
   effort: 'low' | 'medium' | 'high'
-  confidence: number // 0-100
-  dataSource: string
+  confidence: number
   reasoning: string
-  actionRequired: boolean
-  estimatedOutcome?: string
-  implementationSteps?: string[]
-  icon: React.ReactNode
-  timestamp: string
+  implementationSteps: string[]
+  estimatedOutcome: string
+  status: 'suggested' | 'accepted' | 'rejected' | 'deferred' | 'completed'
+  aiModel?: string
+  createdAt: string
 }
 
 interface AIEngineProps {
   campaign: Campaign
   phases: ExecutionPhase[]
   driftEvents: DriftEvent[]
-  onApplyRecommendation?: (recommendation: Recommendation) => void
+  onApplyRecommendation?: (recommendation: DisplayRecommendation) => void
 }
 
-// DeepSeek AI simulation for demo (in production, this would call actual API)
-const generateAIRecommendations = async (
-  campaign: Campaign,
-  phases: ExecutionPhase[],
-  driftEvents: DriftEvent[]
-): Promise<Recommendation[]> => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 1200))
-  
-  const recommendations: Recommendation[] = []
-  const completedPhases = phases.filter(p => p.status === 'completed')
-  const avgDrift = completedPhases.length > 0 
-    ? completedPhases.reduce((acc, p) => acc + Math.abs(p.drift_days || 0), 0) / completedPhases.length
-    : 0
-
-  // Budget optimization based on performance
-  if (campaign.status === 'in_progress' && campaign.performance_health < 80) {
-    recommendations.push({
-      id: 'ai-budget-1',
-      title: 'Reallocate Budget to High-Performing Channels',
-      description: 'Facebook Feed is outperforming Instagram Stories by 340%. Recommend shifting 25% budget allocation.',
-      category: 'Budget',
-      priority: 'high',
-      impact: 'high',
-      effort: 'low',
-      confidence: 89,
-      dataSource: 'Meta Ads Performance Analytics',
-      reasoning: 'Facebook Feed CPL: $18.50 vs Instagram Stories CPL: $62.80. Clear performance differential detected.',
-      actionRequired: true,
-      estimatedOutcome: '+23% lead volume, -15% CPL',
-      implementationSteps: [
-        'Reduce Instagram Stories daily budget from $300 to $225',
-        'Increase Facebook Feed daily budget from $400 to $475',
-        'Monitor performance for 48 hours',
-        'Adjust further if trend continues'
-      ],
-      icon: <DollarSign className="w-4 h-4" />,
-      timestamp: new Date().toISOString(),
-    })
-  }
-
-  // Timeline management based on drift
-  if (avgDrift > 1.5) {
-    recommendations.push({
-      id: 'ai-timeline-1',
-      title: 'Extend Optimization Phase Duration',
-      description: `Average drift of ${avgDrift.toFixed(1)} days detected. Current ROAS trend suggests 3-day extension could yield 0.8x improvement.`,
-      category: 'Timeline',
-      priority: 'medium',
-      impact: 'high',
-      effort: 'low',
-      confidence: 76,
-      dataSource: 'Historical Performance Patterns + Drift Analysis',
-      reasoning: 'Similar campaigns with comparable drift patterns show 80% success rate when optimization phase extended by 2-4 days.',
-      actionRequired: false,
-      estimatedOutcome: '+0.8x ROAS improvement, +12% conversion rate',
-      implementationSteps: [
-        'Review current optimization phase end date',
-        'Negotiate 3-day extension with client',
-        'Implement advanced bidding strategies',
-        'Deploy additional creative variants'
-      ],
-      icon: <Clock className="w-4 h-4" />,
-      timestamp: new Date().toISOString(),
-    })
-  }
-
-  // Creative fatigue detection
-  if (campaign.status === 'in_progress') {
-    recommendations.push({
-      id: 'ai-creative-1',
-      title: 'Deploy Creative Refresh Strategy',
-      description: 'Ad fatigue detected on primary video creative (CTR declined 40% over 5 days). Immediate creative rotation recommended.',
-      category: 'Creative',
-      priority: 'critical',
-      impact: 'high',
-      effort: 'medium',
-      confidence: 94,
-      dataSource: 'Creative Performance Monitoring',
-      reasoning: 'Primary video creative CTR dropped from 3.2% to 1.9%. Frequency reached 4.8x, indicating saturation.',
-      actionRequired: true,
-      estimatedOutcome: '+180% CTR recovery, -30% CPC',
-      implementationSteps: [
-        'Pause current video creative immediately',
-        'Launch backup video creative B',
-        'Create 2 new static variants for A/B test',
-        'Implement dynamic creative rotation'
-      ],
-      icon: <Zap className="w-4 h-4" />,
-      timestamp: new Date().toISOString(),
-    })
-  }
-
-  // Targeting refinement based on performance data
-  if (campaign.campaign_type === 'lead_gen') {
-    recommendations.push({
-      id: 'ai-targeting-1',
-      title: 'Narrow Audience to High-Converting Segments',
-      description: 'Segment analysis reveals 25-34 urban professionals converting 3.4x better. Recommend audience refinement.',
-      category: 'Targeting',
-      priority: 'high',
-      impact: 'high',
-      effort: 'medium',
-      confidence: 87,
-      dataSource: 'Audience Performance Analytics',
-      reasoning: '25-34 urban segment: 12.3% conversion rate, $19 CPL vs overall average: 3.6% conversion, $48 CPL',
-      actionRequired: false,
-      estimatedOutcome: '+240% conversion efficiency, -60% CPL',
-      implementationSteps: [
-        'Create new ad set targeting 25-34 urban professionals',
-        'Gradually shift 40% of budget to high-performing segment',
-        'Exclude underperforming demographics',
-        'Create segment-specific ad copy'
-      ],
-      icon: <Target className="w-4 h-4" />,
-      timestamp: new Date().toISOString(),
-    })
-  }
-
-  // Risk mitigation
-  if (driftEvents.length > 2) {
-    recommendations.push({
-      id: 'ai-risk-1',
-      title: 'Implement Timeline Risk Controls',
-      description: `${driftEvents.length} drift events detected. Pattern suggests systematic timeline management issues.`,
-      category: 'Risk',
-      priority: 'medium',
-      impact: 'medium',
-      effort: 'medium',
-      confidence: 71,
-      dataSource: 'Drift Pattern Analysis',
-      reasoning: 'Recurring drift in creative development and approval phases suggests process bottlenecks.',
-      actionRequired: false,
-      estimatedOutcome: '-50% timeline drift probability',
-      implementationSteps: [
-        'Implement phase gate checkpoints',
-        'Add 20% buffer to creative development phases',
-        'Establish approval SLAs with stakeholders',
-        'Create escalation procedures for delays'
-      ],
-      icon: <AlertTriangle className="w-4 h-4" />,
-      timestamp: new Date().toISOString(),
-    })
-  }
-
-  return recommendations
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  budget: <DollarSign className="w-4 h-4" />,
+  creative: <Zap className="w-4 h-4" />,
+  timeline: <Clock className="w-4 h-4" />,
+  targeting: <Target className="w-4 h-4" />,
+  performance: <TrendingUp className="w-4 h-4" />,
+  risk: <Shield className="w-4 h-4" />,
 }
 
-export default function AIRecommendationsEngine({ 
-  campaign, 
-  phases, 
-  driftEvents, 
-  onApplyRecommendation 
+export default function AIRecommendationsEngine({
+  campaign,
+  phases,
+  driftEvents,
+  onApplyRecommendation,
 }: AIEngineProps) {
-  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
+  const [recommendations, setRecommendations] = useState<DisplayRecommendation[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingMessage, setLoadingMessage] = useState('')
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
-  const [activeTab, setActiveTab] = useState('all')
-  const [appliedRecommendations, setAppliedRecommendations] = useState<Set<string>>(new Set())
+  const [activeTier, setActiveTier] = useState<Tier | 'all'>('all')
+  const [aiAvailable, setAiAvailable] = useState(true)
+  const [hasLoadedFromDb, setHasLoadedFromDb] = useState(false)
 
-  const generateRecommendations = useCallback(async () => {
-    setLoading(true)
+  // Reject dialog state
+  const [rejectingId, setRejectingId] = useState<string | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+
+  // Feedback dialog state
+  const [completingId, setCompletingId] = useState<string | null>(null)
+  const [feedbackText, setFeedbackText] = useState('')
+  const [effectivenessRating, setEffectivenessRating] = useState(3)
+
+  // Load existing recommendations from database on mount
+  useEffect(() => {
+    loadExistingRecommendations()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaign.id])
+
+  const loadExistingRecommendations = async () => {
     try {
-      const newRecommendations = await generateAIRecommendations(campaign, phases, driftEvents)
-      setRecommendations(newRecommendations)
+      const { data } = await supabase
+        .from('recommendations')
+        .select('*')
+        .eq('campaign_id', campaign.id)
+        .order('created_at', { ascending: false })
+
+      if (data && data.length > 0) {
+        const mapped: DisplayRecommendation[] = data.map((r: DBRecommendation) => ({
+          id: r.id,
+          dbId: r.id,
+          title: r.title,
+          description: r.description,
+          tier: r.tier,
+          category: r.category || 'performance',
+          impact: (r.estimated_impact as 'high' | 'medium' | 'low') || 'medium',
+          effort: (r.estimated_effort as 'low' | 'medium' | 'high') || 'medium',
+          confidence: r.confidence_score ?? r.ai_confidence ?? 70,
+          reasoning: r.implementation_notes || '',
+          implementationSteps: r.implementation_steps || [],
+          estimatedOutcome: '',
+          status: r.status || 'suggested',
+          aiModel: r.ai_model || undefined,
+          createdAt: r.created_at,
+        }))
+        setRecommendations(mapped)
+        setLastUpdate(new Date(data[0].created_at))
+        setHasLoadedFromDb(true)
+        return
+      }
+    } catch (error) {
+      console.error('Failed to load recommendations from DB:', error)
+    }
+    setHasLoadedFromDb(true)
+  }
+
+  const persistRecommendations = useCallback(async (recs: DisplayRecommendation[]) => {
+    try {
+      // Simple approach: Delete all 'suggested' status recommendations and insert fresh ones
+      // This ensures we always have the latest generated recommendations
+      // Keep other statuses (accepted, rejected, etc.) intact
+      const { error: deleteError } = await supabase
+        .from('recommendations')
+        .delete()
+        .eq('campaign_id', campaign.id)
+        .eq('status', 'suggested')
+
+      if (deleteError) {
+        console.error('Failed to delete old recommendations:', deleteError)
+      }
+
+      // Insert all new recommendations
+      const rows = recs.map(r => ({
+        campaign_id: campaign.id,
+        tier: r.tier,
+        category: r.category,
+        title: r.title,
+        description: r.description,
+        implementation_steps: r.implementationSteps,
+        estimated_effort: r.effort,
+        estimated_impact: r.impact,
+        confidence_score: r.confidence, // 0-100 integer
+        status: 'suggested' as const,
+        generated_by: 'system',
+        ai_model: r.aiModel || null,
+        ai_confidence: r.aiModel ? r.confidence / 100 : null, // ai_confidence might be decimal 0-1
+        implementation_notes: r.reasoning,
+      }))
+
+      const { data: insertedData, error: insertError } = await supabase
+        .from('recommendations')
+        .insert(rows)
+        .select('id')
+
+      if (insertError) {
+        console.error('Failed to insert recommendations:', insertError)
+        return
+      }
+
+      // Map DB IDs back to display recommendations
+      if (insertedData) {
+        const updatedRecs = recs.map((rec, i) => ({
+          ...rec,
+          dbId: insertedData[i]?.id || rec.dbId,
+        }))
+        setRecommendations(updatedRecs)
+        console.log(`✅ Persisted ${insertedData.length} recommendations to database`)
+      }
+    } catch (error) {
+      console.error('Failed to persist recommendations:', error)
+    }
+  }, [campaign.id])
+
+  const generateAllRecommendations = useCallback(async () => {
+    setLoading(true)
+    setLoadingMessage('Analyzing campaign data...')
+
+    try {
+      // Fetch additional data from Supabase
+      const [metricsRes, riskRes] = await Promise.all([
+        supabase
+          .from('performance_metrics')
+          .select('*')
+          .eq('campaign_id', campaign.id)
+          .order('metric_date'),
+        supabase
+          .from('risk_scores')
+          .select('*')
+          .eq('campaign_id', campaign.id)
+          .order('created_at', { ascending: false })
+          .limit(1),
+      ])
+
+      const performanceMetrics: PerformanceMetric[] = metricsRes.data || []
+      const riskScore: RiskScore | null = riskRes.data?.[0] || null
+
+      // 1. Generate IMMEDIATE recommendations (formula-based, instant)
+      setLoadingMessage('Calculating immediate recommendations...')
+      const immediateRaw = generateImmediateRecommendations(
+        campaign,
+        phases,
+        driftEvents,
+        riskScore,
+      )
+      const immediateRecs: DisplayRecommendation[] = immediateRaw.map((r, i) => ({
+        id: `imm-${Date.now()}-${i}`,
+        title: r.title,
+        description: r.description,
+        tier: 'immediate' as Tier,
+        category: r.category,
+        impact: r.impact,
+        effort: r.effort,
+        confidence: r.confidence,
+        reasoning: r.reasoning,
+        implementationSteps: r.implementationSteps,
+        estimatedOutcome: r.estimatedOutcome,
+        status: 'suggested',
+        createdAt: new Date().toISOString(),
+      }))
+
+      // 2. Generate TACTICAL + STRATEGIC via AI (parallel)
+      let tacticalRecs: DisplayRecommendation[] = []
+      let strategicRecs: DisplayRecommendation[] = []
+
+      if (isApiKeyConfigured()) {
+        setLoadingMessage('Generating AI-powered tactical recommendations...')
+        const context = { campaign, phases, driftEvents, performanceMetrics, riskScore }
+
+        try {
+          const [tacticalRaw, strategicRaw] = await Promise.all([
+            generateTacticalRecommendations(context),
+            generateStrategicRecommendations(context),
+          ])
+
+          tacticalRecs = tacticalRaw.map((r, i) => ({
+            id: `tac-${Date.now()}-${i}`,
+            title: r.title,
+            description: r.description,
+            tier: 'tactical' as Tier,
+            category: r.category,
+            impact: r.impact,
+            effort: r.effort,
+            confidence: r.confidence,
+            reasoning: r.reasoning,
+            implementationSteps: r.implementationSteps,
+            estimatedOutcome: r.estimatedOutcome,
+            status: 'suggested',
+            aiModel: 'groq-llama-3.3',
+            createdAt: new Date().toISOString(),
+          }))
+
+          strategicRecs = strategicRaw.map((r, i) => ({
+            id: `str-${Date.now()}-${i}`,
+            title: r.title,
+            description: r.description,
+            tier: 'strategic' as Tier,
+            category: r.category,
+            impact: r.impact,
+            effort: r.effort,
+            confidence: r.confidence,
+            reasoning: r.reasoning,
+            implementationSteps: r.implementationSteps,
+            estimatedOutcome: r.estimatedOutcome,
+            status: 'suggested',
+            aiModel: 'groq-llama-3.3',
+            createdAt: new Date().toISOString(),
+          }))
+
+          setAiAvailable(true)
+        } catch (error) {
+          console.error('AI recommendations failed:', error)
+          setAiAvailable(false)
+        }
+      } else {
+        setAiAvailable(false)
+      }
+
+      const allRecs = [...immediateRecs, ...tacticalRecs, ...strategicRecs]
+      setRecommendations(allRecs)
       setLastUpdate(new Date())
+
+      // 3. Persist to database
+      setLoadingMessage('Saving recommendations...')
+      await persistRecommendations(allRecs)
     } catch (error) {
       console.error('Error generating recommendations:', error)
-      // Fallback to static recommendations
-      setRecommendations([])
     } finally {
       setLoading(false)
+      setLoadingMessage('')
     }
-  }, [campaign, phases, driftEvents])
+  }, [campaign, phases, driftEvents, persistRecommendations])
 
-  useEffect(() => {
-    generateRecommendations()
-  }, [generateRecommendations])
+  const updateRecommendationStatus = async (
+    recId: string,
+    dbId: string | undefined,
+    status: DisplayRecommendation['status'],
+    extra?: Record<string, unknown>,
+  ) => {
+    // Update local state
+    setRecommendations(prev =>
+      prev.map(r =>
+        r.id === recId ? { ...r, status } : r
+      )
+    )
 
-  const handleApplyRecommendation = (recommendation: Recommendation) => {
-    setAppliedRecommendations(prev => new Set(prev).add(recommendation.id))
-    onApplyRecommendation?.(recommendation)
+    // Update in database
+    if (dbId) {
+      try {
+        const updateData: Record<string, unknown> = { status, ...extra }
+        if (status === 'accepted') updateData.accepted_at = new Date().toISOString()
+        if (status === 'completed') updateData.completed_at = new Date().toISOString()
+
+        await supabase
+          .from('recommendations')
+          .update(updateData)
+          .eq('id', dbId)
+      } catch (error) {
+        console.error('Failed to update recommendation status:', error)
+      }
+    }
   }
 
-  const handleDismissRecommendation = (recommendationId: string) => {
-    setRecommendations(prev => prev.filter(r => r.id !== recommendationId))
+  const handleAccept = (rec: DisplayRecommendation) => {
+    updateRecommendationStatus(rec.id, rec.dbId, 'accepted')
+    onApplyRecommendation?.(rec)
+  }
+
+  const handleReject = (rec: DisplayRecommendation) => {
+    setRejectingId(rec.id)
+    setRejectReason('')
+  }
+
+  const confirmReject = () => {
+    if (!rejectingId) return
+    const rec = recommendations.find(r => r.id === rejectingId)
+    if (rec) {
+      updateRecommendationStatus(rec.id, rec.dbId, 'rejected', {
+        rejected_reason: rejectReason,
+      })
+    }
+    setRejectingId(null)
+    setRejectReason('')
+  }
+
+  const handleDefer = (rec: DisplayRecommendation) => {
+    updateRecommendationStatus(rec.id, rec.dbId, 'deferred')
+  }
+
+  const handleComplete = (rec: DisplayRecommendation) => {
+    setCompletingId(rec.id)
+    setFeedbackText('')
+    setEffectivenessRating(3)
+  }
+
+  const confirmComplete = () => {
+    if (!completingId) return
+    const rec = recommendations.find(r => r.id === completingId)
+    if (rec) {
+      updateRecommendationStatus(rec.id, rec.dbId, 'completed', {
+        outcome_feedback: feedbackText,
+        effectiveness_rating: effectivenessRating,
+      })
+    }
+    setCompletingId(null)
+    setFeedbackText('')
   }
 
   const getFilteredRecommendations = () => {
-    if (activeTab === 'all') return recommendations
-    if (activeTab === 'critical') return recommendations.filter(r => r.priority === 'critical')
-    return recommendations.filter(r => r.category.toLowerCase() === activeTab)
+    if (activeTier === 'all') return recommendations
+    return recommendations.filter(r => r.tier === activeTier)
   }
+
+  const tierCounts = {
+    all: recommendations.length,
+    immediate: recommendations.filter(r => r.tier === 'immediate').length,
+    tactical: recommendations.filter(r => r.tier === 'tactical').length,
+    strategic: recommendations.filter(r => r.tier === 'strategic').length,
+  }
+
+  const actionRequiredCount = recommendations.filter(
+    r => r.tier === 'immediate' && r.status === 'suggested'
+  ).length
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -265,8 +439,24 @@ export default function AIRecommendationsEngine({
     }
   }
 
-  const criticalCount = recommendations.filter(r => r.priority === 'critical').length
-  const actionRequiredCount = recommendations.filter(r => r.actionRequired).length
+  const getStatusBadge = (status: DisplayRecommendation['status']) => {
+    switch (status) {
+      case 'accepted':
+        return <Badge className="bg-green-600"><CheckCircle className="w-3 h-3 mr-1" />Accepted</Badge>
+      case 'rejected':
+        return <Badge variant="destructive"><X className="w-3 h-3 mr-1" />Rejected</Badge>
+      case 'deferred':
+        return <Badge variant="secondary"><Pause className="w-3 h-3 mr-1" />Deferred</Badge>
+      case 'completed':
+        return <Badge className="bg-green-700"><CheckCircle className="w-3 h-3 mr-1" />Completed</Badge>
+      default:
+        return null
+    }
+  }
+
+  const getCategoryIcon = (category: string) => {
+    return CATEGORY_ICONS[category.toLowerCase()] || <Sparkles className="w-4 h-4" />
+  }
 
   return (
     <div className="space-y-6">
@@ -281,19 +471,21 @@ export default function AIRecommendationsEngine({
               <div>
                 <CardTitle className="text-base">AI Recommendations Engine</CardTitle>
                 <CardDescription className="text-sm">
-                  Powered by DeepSeek AI • Real-time campaign optimization
+                  {aiAvailable
+                    ? 'Powered by Groq AI + Formula-Based Analysis'
+                    : 'Formula-Based Analysis (AI unavailable — add VITE_GROQ_API_KEY to .env)'}
                 </CardDescription>
               </div>
             </div>
             <Button
               variant="outline"
               size="sm"
-              onClick={generateRecommendations}
+              onClick={generateAllRecommendations}
               disabled={loading}
               className="gap-2"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
+              {hasLoadedFromDb && recommendations.length > 0 ? 'Regenerate' : 'Generate'}
             </Button>
           </div>
         </CardHeader>
@@ -316,7 +508,7 @@ export default function AIRecommendationsEngine({
               <div className="text-sm text-muted-foreground">Applied</div>
             </div>
           </div>
-          
+
           {lastUpdate && (
             <div className="mt-4 text-xs text-muted-foreground text-center">
               Last updated: {lastUpdate.toLocaleTimeString()}
@@ -325,30 +517,53 @@ export default function AIRecommendationsEngine({
         </CardContent>
       </Card>
 
-      {/* Critical Alerts */}
-      {criticalCount > 0 && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Critical Action Required</AlertTitle>
+      {/* AI Unavailable Warning */}
+      {!aiAvailable && hasLoadedFromDb && (
+        <Alert>
+          <WifiOff className="h-4 w-4" />
+          <AlertTitle>AI Recommendations Unavailable</AlertTitle>
           <AlertDescription>
-            {criticalCount} critical recommendation{criticalCount > 1 ? 's' : ''} require immediate attention to prevent performance degradation.
+            Groq API key not configured. Tactical and Strategic tiers require AI.
+            Add <code className="bg-gray-100 px-1 rounded">VITE_GROQ_API_KEY</code> to your <code className="bg-gray-100 px-1 rounded">.env</code> file.
+            Immediate recommendations still work using formula-based analysis.
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Recommendations Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-7">
-          <TabsTrigger value="all">All ({recommendations.length})</TabsTrigger>
-          <TabsTrigger value="critical">Critical ({criticalCount})</TabsTrigger>
-          <TabsTrigger value="budget">Budget</TabsTrigger>
-          <TabsTrigger value="creative">Creative</TabsTrigger>
-          <TabsTrigger value="targeting">Targeting</TabsTrigger>
-          <TabsTrigger value="timeline">Timeline</TabsTrigger>
-          <TabsTrigger value="risk">Risk</TabsTrigger>
+      {/* Loaded from DB indicator */}
+      {hasLoadedFromDb && recommendations.length > 0 && lastUpdate && (
+        <Alert>
+          <CheckCircle className="h-4 w-4" />
+          <AlertTitle>Recommendations Loaded</AlertTitle>
+          <AlertDescription>
+            {recommendations.length} recommendation{recommendations.length > 1 ? 's' : ''} loaded from database.
+            Last generated: {lastUpdate.toLocaleString()}.
+            Click "Regenerate" to get fresh recommendations based on current campaign data.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Action Required Alert */}
+      {actionRequiredCount > 0 && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Immediate Action Required</AlertTitle>
+          <AlertDescription>
+            {actionRequiredCount} immediate recommendation{actionRequiredCount > 1 ? 's' : ''} need attention to prevent performance degradation.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Tier Tabs */}
+      <Tabs value={activeTier} onValueChange={(v) => setActiveTier(v as Tier | 'all')} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="all">All ({tierCounts.all})</TabsTrigger>
+          <TabsTrigger value="immediate">Immediate ({tierCounts.immediate})</TabsTrigger>
+          <TabsTrigger value="tactical">Tactical ({tierCounts.tactical})</TabsTrigger>
+          <TabsTrigger value="strategic">Strategic ({tierCounts.strategic})</TabsTrigger>
         </TabsList>
 
-        <TabsContent value={activeTab} className="space-y-4">
+        <TabsContent value={activeTier} className="space-y-4">
           {loading ? (
             <Card>
               <CardContent className="py-12">
@@ -359,10 +574,10 @@ export default function AIRecommendationsEngine({
                   <div>
                     <h3 className="font-medium text-foreground">AI Analysis in Progress</h3>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Analyzing campaign data and generating recommendations...
+                      {loadingMessage || 'Analyzing campaign data and generating recommendations...'}
                     </p>
                   </div>
-                  <Progress value={75} className="w-64 mx-auto" />
+                  <Progress value={65} className="w-64 mx-auto" />
                 </div>
               </CardContent>
             </Card>
@@ -376,7 +591,9 @@ export default function AIRecommendationsEngine({
                   <div>
                     <h3 className="font-medium text-foreground">No Recommendations</h3>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Campaign is performing optimally. Check back later for new insights.
+                      {recommendations.length === 0
+                        ? 'Click "Generate" to analyze campaign data and produce recommendations.'
+                        : 'All recommendations in other tiers. Switch tabs to view them.'}
                     </p>
                   </div>
                 </div>
@@ -384,11 +601,11 @@ export default function AIRecommendationsEngine({
             </Card>
           ) : (
             <div className="space-y-4">
-              {getFilteredRecommendations().map((recommendation) => {
-                const isApplied = appliedRecommendations.has(recommendation.id)
-                
+              {getFilteredRecommendations().map((rec) => {
+                const isActioned = rec.status !== 'suggested'
+
                 return (
-                  <Card key={recommendation.id} className={`${isApplied ? 'opacity-60' : ''}`}>
+                  <Card key={rec.id} className={isActioned ? 'opacity-70' : ''}>
                     <CardContent className="pt-6 space-y-4">
                       {/* Header */}
                       <div className="flex items-start justify-between">
@@ -401,32 +618,35 @@ export default function AIRecommendationsEngine({
                               <h4 className="font-semibold text-sm">{recommendation.title}</h4>
                               {isApplied && <CheckCircle className="w-4 h-4 text-expedition-evergreen" />}
                             </div>
-                            <p className="text-sm text-muted-foreground">{recommendation.description}</p>
+                            <p className="text-sm text-muted-foreground">{rec.description}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className={getPriorityColor(recommendation.priority)}>
-                            {recommendation.priority}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge className={getTierColor(rec.tier)}>
+                            {rec.tier}
                           </Badge>
                         </div>
                       </div>
 
                       {/* Metrics */}
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 flex-wrap">
                         <div className="flex items-center gap-2">
-                          <Badge className={getImpactColor(recommendation.impact)}>
-                            {recommendation.impact} impact
+                          <Badge className={getImpactColor(rec.impact)}>
+                            {rec.impact} impact
                           </Badge>
-                          <Badge className={getEffortColor(recommendation.effort)}>
-                            {recommendation.effort} effort
+                          <Badge className={getEffortColor(rec.effort)}>
+                            {rec.effort} effort
                           </Badge>
                         </div>
                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Sparkles className="w-3 h-3" />
-                            {recommendation.confidence}% confidence
-                          </div>
+                          <Sparkles className="w-3 h-3" />
+                          {rec.confidence}% confidence
                         </div>
+                        {rec.aiModel && (
+                          <div className="text-xs text-muted-foreground">
+                            AI: {rec.aiModel}
+                          </div>
+                        )}
                       </div>
 
                       {/* AI Reasoning */}
@@ -438,7 +658,7 @@ export default function AIRecommendationsEngine({
                             Data source: {recommendation.dataSource}
                           </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* Expected Outcome */}
                       {recommendation.estimatedOutcome && (
@@ -451,11 +671,11 @@ export default function AIRecommendationsEngine({
                       )}
 
                       {/* Implementation Steps */}
-                      {recommendation.implementationSteps && (
+                      {rec.implementationSteps.length > 0 && (
                         <div className="space-y-2">
                           <h5 className="font-medium text-sm">Implementation Steps:</h5>
                           <ol className="text-sm text-muted-foreground space-y-1">
-                            {recommendation.implementationSteps.map((step, i) => (
+                            {rec.implementationSteps.map((step, i) => (
                               <li key={i} className="flex items-start gap-2">
                                 <span className="w-5 h-5 rounded-full bg-expedition-trail/10 text-expedition-trail text-xs flex items-center justify-center shrink-0 mt-0.5">
                                   {i + 1}
@@ -475,23 +695,33 @@ export default function AIRecommendationsEngine({
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          {!isApplied && (
+                          {rec.status === 'suggested' && (
                             <>
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleDismissRecommendation(recommendation.id)}
+                                onClick={() => handleDefer(rec)}
+                                className="gap-1"
                               >
-                                <X className="w-4 h-4 mr-1" />
-                                Dismiss
+                                <Pause className="w-3 h-3" />
+                                Defer
                               </Button>
                               <Button
                                 size="sm"
-                                onClick={() => handleApplyRecommendation(recommendation)}
+                                variant="outline"
+                                onClick={() => handleReject(rec)}
+                                className="gap-1 text-red-600 hover:text-red-700"
+                              >
+                                <ThumbsDown className="w-3 h-3" />
+                                Reject
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleAccept(rec)}
                                 className="gap-1"
                               >
-                                Apply Now
-                                <ArrowRight className="w-4 h-4" />
+                                <ThumbsUp className="w-3 h-3" />
+                                Accept
                               </Button>
                             </>
                           )}
@@ -511,6 +741,80 @@ export default function AIRecommendationsEngine({
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Reject Reason Dialog */}
+      <Dialog open={rejectingId !== null} onOpenChange={(open) => !open && setRejectingId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reject Recommendation</DialogTitle>
+            <DialogDescription>
+              Why are you rejecting this recommendation? This helps improve future suggestions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="reject-reason">Reason (optional)</Label>
+              <Textarea
+                id="reject-reason"
+                placeholder="e.g. Not applicable to our situation, already tried this..."
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectingId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmReject}>Reject</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Complete Feedback Dialog */}
+      <Dialog open={completingId !== null} onOpenChange={(open) => !open && setCompletingId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mark as Completed</DialogTitle>
+            <DialogDescription>
+              How effective was this recommendation? Your feedback improves future suggestions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Effectiveness (1-5)</Label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <Button
+                    key={n}
+                    variant={effectivenessRating === n ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setEffectivenessRating(n)}
+                    className="w-10 h-10"
+                  >
+                    {n}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="feedback">Outcome feedback (optional)</Label>
+              <Textarea
+                id="feedback"
+                placeholder="What was the result of implementing this recommendation?"
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCompletingId(null)}>Cancel</Button>
+            <Button className="bg-green-600 hover:bg-green-700" onClick={confirmComplete}>
+              Complete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
