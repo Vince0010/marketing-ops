@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Separator } from '@/components/ui/separator'
 import {
   Activity,
   TrendingUp,
@@ -38,6 +37,9 @@ import { detectStrategicFailure, createStrategicFailure } from '@/services/strat
 import { PerformanceCorrelation } from '@/components/correlation/PerformanceCorrelation'
 import { useWeeklyDataReports } from '@/hooks/useWeeklyDataReports'
 import type { AgeRow } from '@/components/demographics/DemographicAlignmentTracker'
+import { AccountabilityTimeline } from '@/components/accountability/AccountabilityTimeline'
+import { fetchStakeholderActions } from '@/services/accountabilityService'
+import type { StakeholderAction } from '@/types/database'
 
 // DriftEvent type for calculated drift events
 type CalculatedDriftEvent = Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'> & {
@@ -79,73 +81,8 @@ function transformCampaignDemographicsToAgeData(campaign: Campaign | null): AgeR
   })
 }
 
-interface StakeholderAction {
-  id: string
-  action_description: string
-  stakeholder_name: string
-  stakeholder_role: string
-  stakeholder_type: 'client' | 'agency' | 'external'
-  status: string
-  requested_date: string
-  expected_date?: string
-  actual_date?: string
-  overdue_days?: number
-  critical_path?: boolean
-  delay_reason?: string
-  delay_attribution?: string
-  delay_impact?: string
-  notes?: string
-}
-
-const SEEDED_STAKEHOLDER_ACTIONS: StakeholderAction[] = [
-  {
-    id: 'sa-001',
-    action_description: 'Approve final creative concepts',
-    stakeholder_name: 'Sarah Johnson',
-    stakeholder_role: 'Marketing Director',
-    stakeholder_type: 'client',
-    status: 'completed',
-    requested_date: '2026-01-15',
-    expected_date: '2026-01-18',
-    actual_date: '2026-01-20',
-    overdue_days: 2,
-    critical_path: true,
-    delay_reason: 'Stakeholder was on PTO, required additional review round',
-    delay_attribution: 'Client',
-    delay_impact: 'Pushed creative development phase by 2 days',
-    notes: 'Need to confirm stakeholder availability before scheduling reviews',
-  },
-  {
-    id: 'sa-002',
-    action_description: 'Provide brand guidelines update',
-    stakeholder_name: 'Mike Chen',
-    stakeholder_role: 'Brand Manager',
-    stakeholder_type: 'client',
-    status: 'completed',
-    requested_date: '2026-01-10',
-    expected_date: '2026-01-12',
-    actual_date: '2026-01-11',
-  },
-  {
-    id: 'sa-003',
-    action_description: 'Legal compliance sign-off',
-    stakeholder_name: 'Legal Team',
-    stakeholder_role: 'Compliance',
-    stakeholder_type: 'external',
-    status: 'overdue',
-    requested_date: '2026-01-25',
-    expected_date: '2026-01-28',
-    overdue_days: 3,
-    critical_path: true,
-    delay_reason: 'Regulatory concerns with ad copy language',
-    delay_attribution: 'External - Legal',
-    delay_impact: 'Blocking campaign launch',
-  },
-]
-
-const stakeholderActions: StakeholderAction[] = SEEDED_STAKEHOLDER_ACTIONS
-
 function formatDate(dateStr: string): string {
+  if (!dateStr) return 'N/A'
   return new Date(dateStr).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -166,6 +103,9 @@ export default function CampaignTracker() {
   const [dbDriftEvents, setDbDriftEvents] = useState<DriftEvent[]>([])
   // Strategic failure detection
   const [generatingDiagnosis, setGeneratingDiagnosis] = useState(false)
+  // Stakeholder actions for accountability tracking
+  const [stakeholderActions, setStakeholderActions] = useState<StakeholderAction[]>([])
+  const [loadingActions, setLoadingActions] = useState(true)
 
   // Get execution data from hook
   const execution = useCampaignExecution(id || '')
@@ -350,6 +290,28 @@ export default function CampaignTracker() {
     fetchData()
     fetchDriftEvents()
   }, [id, fetchData, fetchDriftEvents])
+
+  // Fetch stakeholder actions
+  const fetchActions = useCallback(async () => {
+    if (!id) return
+    setLoadingActions(true)
+    try {
+      const { data, error } = await fetchStakeholderActions(id)
+      if (error) {
+        console.error('[CampaignTracker] Error loading stakeholder actions:', error)
+      } else {
+        setStakeholderActions(data || [])
+      }
+    } catch (error) {
+      console.error('[CampaignTracker] Error:', error)
+    } finally {
+      setLoadingActions(false)
+    }
+  }, [id])
+
+  useEffect(() => {
+    fetchActions()
+  }, [fetchActions])
 
   // Refetch drift events whenever tasks change (after moves, status changes, etc.)
   useEffect(() => {
@@ -928,124 +890,23 @@ export default function CampaignTracker() {
 
           {/* Accountability Timeline Tab */}
           <TabsContent value="accountability" className="space-y-4 mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Accountability Timeline</CardTitle>
-                <CardDescription>
-                  Track stakeholder actions, approvals, and delay attribution
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {stakeholderActions.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Activity className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-foreground mb-2">No Stakeholder Actions Yet</h3>
-                      <p className="text-muted-foreground">Stakeholder actions and approvals will be tracked here.</p>
-                    </div>
-                  ) : (
-                    stakeholderActions.map((action) => {
-                      const isOverdue = action.status === 'overdue' || (action.expected_date && new Date(action.expected_date) < new Date() && action.status !== 'completed')
-                      const getActorColor = (type: string) => {
-                        switch (type) {
-                          case 'client': return 'bg-expedition-summit/10 border-expedition-summit/30 text-expedition-navy dark:text-white'
-                          case 'agency': return 'bg-expedition-trail/10 border-expedition-trail/30 text-expedition-navy dark:text-white'
-                          case 'external': return 'bg-muted border-border text-foreground'
-                          default: return 'bg-muted border-border text-foreground'
-                        }
-                      }
-
-                      return (
-                        <div key={action.id} className={`border rounded-lg p-4 space-y-3 ${isOverdue ? 'border-expedition-checkpoint/40 bg-expedition-checkpoint/10' : ''}`}>
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className={`px-3 py-1 rounded-full text-sm border ${getActorColor(action.stakeholder_type)}`}>
-                                {action.stakeholder_type.charAt(0).toUpperCase() + action.stakeholder_type.slice(1)}
-                              </div>
-                              <div>
-                                <p className="font-semibold">{action.action_description}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {action.stakeholder_name} ({action.stakeholder_role})
-                                </p>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <Badge variant={action.status === 'completed' ? 'default' : isOverdue ? 'destructive' : 'secondary'}>
-                                {action.status === 'completed' ? 'Completed' : isOverdue ? 'Overdue' : action.status}
-                              </Badge>
-                              {isOverdue && action.overdue_days && (
-                                <p className="text-xs text-expedition-checkpoint mt-1">
-                                  {action.overdue_days}d overdue
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <Separator />
-
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Requested</span>
-                              <p className="font-medium">{formatDate(action.requested_date)}</p>
-                            </div>
-                            {action.expected_date && (
-                              <div>
-                                <span className="text-muted-foreground">Expected</span>
-                                <p className="font-medium">{formatDate(action.expected_date)}</p>
-                              </div>
-                            )}
-                            {action.actual_date && (
-                              <div>
-                                <span className="text-muted-foreground">Completed</span>
-                                <p className="font-medium">{formatDate(action.actual_date)}</p>
-                              </div>
-                            )}
-                            {action.critical_path && (
-                              <div>
-                                <span className="text-muted-foreground">Critical Path</span>
-                                <Badge variant="warning" className="border-expedition-signal/40">
-                                  Critical
-                                </Badge>
-                              </div>
-                            )}
-                          </div>
-
-                          {action.delay_reason && (
-                            <div className="bg-expedition-signal/10 p-3 rounded-lg border border-expedition-signal/20">
-                              <p className="text-sm">
-                                <AlertTriangle className="w-4 h-4 inline mr-1 text-expedition-signal" />
-                                <span className="font-medium text-expedition-signal">Delay Reason:</span>{' '}
-                                <span className="text-foreground">{action.delay_reason}</span>
-                              </p>
-                              {action.delay_attribution && (
-                                <p className="text-xs text-expedition-signal mt-1">
-                                  Attribution: {action.delay_attribution}
-                                </p>
-                              )}
-                            </div>
-                          )}
-
-                          {action.delay_impact && (
-                            <div className="bg-expedition-checkpoint/10 p-3 rounded-lg border border-expedition-checkpoint/20">
-                              <p className="text-sm">
-                                <span className="font-medium text-expedition-checkpoint">Impact:</span>{' '}
-                                <span className="text-foreground">{action.delay_impact}</span>
-                              </p>
-                            </div>
-                          )}
-
-                          {action.notes && (
-                            <div className="text-sm text-muted-foreground">
-                              <span className="font-medium">Notes:</span> {action.notes}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            {loadingActions ? (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <span className="ml-3 text-muted-foreground">Loading accountability data...</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <AccountabilityTimeline
+                campaignId={id!}
+                actions={stakeholderActions}
+                onActionCreated={fetchActions}
+                onActionCompleted={fetchActions}
+              />
+            )}
           </TabsContent>
 
           {/* AI Recommendations Tab */}
