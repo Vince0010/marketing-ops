@@ -210,27 +210,33 @@ export default function CampaignCreate() {
 
       if (phasesError) throw phasesError
 
-      // Create ad deliverable tasks in Kanban backlog
+      // Create ad deliverable tasks in Kanban backlog via backend API
       if (adDeliverables.length > 0) {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
         const now = new Date().toISOString()
-        const taskInserts = adDeliverables.map((ad) => ({
-          campaign_id: campaign.id,
-          title: ad.title.trim() || `${ad.platform} ${ad.post_type}`,
-          description: ad.description.trim() || null,
-          action_type: 'Ad Deliverable',
-          status: 'planned',
-          priority: 'medium',
-          phase_id: null,
-          timestamp: now,
-          metadata: { platform: ad.platform, post_type: ad.post_type },
-        }))
 
-        const { error: tasksError } = await supabase
-          .from('marketer_actions')
-          .insert(taskInserts)
+        const results = await Promise.allSettled(
+          adDeliverables.map((ad) =>
+            fetch(`${apiUrl}/campaigns/${campaign.id}/tasks`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                title: ad.title.trim() || `${ad.platform} ${ad.post_type}`,
+                description: ad.description.trim() || null,
+                action_type: 'Ad Deliverable',
+                status: 'planned',
+                priority: 'medium',
+                phase_id: null,
+                timestamp: now,
+                metadata: { platform: ad.platform, post_type: ad.post_type },
+              }),
+            })
+          )
+        )
 
-        if (tasksError) {
-          console.error('Failed to create ad deliverable tasks:', tasksError)
+        const failures = results.filter((r) => r.status === 'rejected')
+        if (failures.length > 0) {
+          console.error('Failed to create some ad deliverable tasks:', failures)
         }
       }
 

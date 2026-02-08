@@ -72,7 +72,7 @@ router.post('/:campaignId/tasks', async (req: Request, res: Response) => {
             'campaign_id', 'title', 'description', 'action_type', 'status',
             'timestamp', 'metadata', 'created_by', 'phase_id',
             'estimated_hours', 'started_at', 'completed_at', 'time_in_phase_minutes',
-            'delay_reason', 'due_date', 'priority', 'assignee'
+            'delay_reason', 'due_date', 'priority', 'assignee', 'completed_phases'
         ]
 
         const taskData: Record<string, unknown> = { campaign_id: campaignId }
@@ -124,7 +124,7 @@ router.patch('/:campaignId/tasks/:taskId', async (req: Request, res: Response) =
             'title', 'description', 'action_type', 'status',
             'timestamp', 'metadata', 'phase_id',
             'estimated_hours', 'started_at', 'completed_at', 'time_in_phase_minutes',
-            'delay_reason', 'due_date', 'priority', 'assignee'
+            'delay_reason', 'due_date', 'priority', 'assignee', 'completed_phases'
         ]
 
         const updates: Record<string, unknown> = {}
@@ -164,13 +164,14 @@ router.patch('/:campaignId/tasks/:taskId', async (req: Request, res: Response) =
 router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Response) => {
     try {
         const { campaignId, taskId } = req.params
-        const { newPhaseId, oldPhaseId, phase, isLastPhase, delayReason } = req.body
+        const { newPhaseId, oldPhaseId, phase, isLastPhase, delayReason, restartPhase } = req.body
 
         console.log('[API] Moving task:', {
             taskId,
             from: oldPhaseId || 'backlog',
             to: newPhaseId || 'backlog',
-            hasDelayReason: !!delayReason
+            hasDelayReason: !!delayReason,
+            restartPhase: restartPhase || false
         })
 
         const now = new Date()
@@ -207,7 +208,7 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
             // Get the task's current time tracking to calculate total time in old phase
             const { data: currentTask } = await supabaseAdmin
                 .from('marketer_actions')
-                .select('started_at, time_in_phase_minutes')
+                .select('started_at, time_in_phase_minutes, completed_phases')
                 .eq('id', taskId)
                 .single()
 
@@ -261,10 +262,17 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
             }
         }
 
+        // Get the current task data (completed_phases and time tracking)
+        const { data: currentTaskData } = await supabaseAdmin
+            .from('marketer_actions')
+            .select('completed_phases')
+            .eq('id', taskId)
+            .single()
+
         // Look up previous time spent in the target phase (for carry-over on backward moves)
         let carryOverMinutes = 0
-        if (newPhaseId) {
-            const { data: prevHistory } = await supabaseAdmin
+        if (newPhaseId && !restartPhase) {
+            const { data: prevHistory, error: historyError } = await supabaseAdmin
                 .from('task_phase_history')
                 .select('time_spent_minutes')
                 .eq('action_id', taskId)
@@ -272,12 +280,24 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
                 .not('exited_at', 'is', null)
                 .order('exited_at', { ascending: false })
 
+            console.log('[API] Previous history query:', {
+                taskId,
+                newPhaseId,
+                found: prevHistory?.length || 0,
+                entries: prevHistory,
+                error: historyError
+            })
+
             if (prevHistory && prevHistory.length > 0) {
                 carryOverMinutes = prevHistory.reduce(
                     (sum: number, h: any) => sum + (h.time_spent_minutes || 0), 0
                 )
                 console.log('[API] Carrying over previous time:', carryOverMinutes, 'minutes for phase', newPhaseId)
+            } else {
+                console.log('[API] No previous history found for this phase')
             }
+        } else if (restartPhase) {
+            console.log('[API] Restarting phase from 0 (user selected "Start Fresh")')
         }
 
         // Update the task
@@ -292,6 +312,26 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
             updates.delay_reason = delayReason
         }
 
+        // Update completed_phases array
+        if (currentTaskData) {
+            const completedPhases = currentTaskData.completed_phases || []
+            
+            // If moving to a phase, remove it from completed (it's now in-progress)
+            if (newPhaseId && completedPhases.includes(newPhaseId)) {
+                updates.completed_phases = completedPhases.filter((id: string) => id !== newPhaseId)
+                console.log('[API] Removing phase from completed (now in-progress):', newPhaseId)
+            }
+            // If leaving a phase, mark it as completed
+            else if (oldPhaseId && !completedPhases.includes(oldPhaseId)) {
+                updates.completed_phases = [...completedPhases, oldPhaseId]
+                console.log('[API] Marking phase as completed:', oldPhaseId)
+            }
+            // No change needed
+            else if (!updates.completed_phases) {
+                updates.completed_phases = completedPhases
+            }
+        }
+
         if (isLastPhase) {
             updates.status = 'completed'
             updates.completed_at = nowIso
@@ -301,12 +341,16 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
             updates.status = 'planned'
         }
 
+        console.log('[API] Updates object before database update:', JSON.stringify(updates, null, 2))
+
         const { data, error } = await supabaseAdmin
             .from('marketer_actions')
             .update(updates)
             .eq('id', taskId)
             .select()
             .single()
+
+        console.log('[API] Database response after update:', JSON.stringify(data, null, 2))
 
         if (error) throw error
 

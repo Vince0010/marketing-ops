@@ -52,7 +52,18 @@ function calculateTimeInPhase(task: MarketerAction): number {
         const now = new Date()
         const elapsedMs = now.getTime() - startedAt.getTime()
         const elapsedMinutes = Math.floor(elapsedMs / 60000)
-        return storedMinutes + elapsedMinutes
+        const total = storedMinutes + elapsedMinutes
+        // Debug logging
+        if (storedMinutes > 0) {
+            console.log('[ActionCard] Time calc:', { 
+                taskId: task.id, 
+                stored: storedMinutes, 
+                elapsed: elapsedMinutes, 
+                total,
+                started_at: task.started_at 
+            })
+        }
+        return total
     }
     return storedMinutes
 }

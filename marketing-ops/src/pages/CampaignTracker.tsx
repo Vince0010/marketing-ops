@@ -68,9 +68,14 @@ import { PerformanceCorrelation } from '@/components/correlation/PerformanceCorr
 import { useWeeklyDataReports } from '@/hooks/useWeeklyDataReports'
 
 // DriftEvent type for calculated drift events
-type CalculatedDriftEvent = Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>
+type CalculatedDriftEvent = Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'> & {
+  status: 'completed' | 'in_progress'
+  projected?: boolean
+  elapsed_days?: number
+  remaining_days?: number
+}
 
-type DriftFilterValue = 'all' | 'positive' | 'negative' | 'neutral'
+type DriftFilterValue = 'all' | 'positive' | 'negative' | 'neutral' | 'projected'
 
 interface StakeholderAction {
   id: string
@@ -152,6 +157,8 @@ export default function CampaignTracker() {
   const [loading, setLoading] = useState(true)
   // Drift classification filter
   const [driftFilter, setDriftFilter] = useState<DriftFilterValue>('all')
+  // Tick state for live drift recalculation (every 60s)
+  const [driftTick, setDriftTick] = useState(0)
   // Save as Template (positive drift)
   const [saveTemplateEventIndex, setSaveTemplateEventIndex] = useState<number | null>(null)
   const [templateName, setTemplateName] = useState('')
@@ -168,27 +175,34 @@ export default function CampaignTracker() {
     refetch: refetchExecution
   } = execution
 
-  // Calculate drift events dynamically from phases and tasks
+  // Tick every 60s for live drift updates when phases are in progress
+  useEffect(() => {
+    const hasInProgress = phases.some(p => p.status === 'in_progress' && p.actual_start_date)
+    if (!hasInProgress) return
+    const interval = setInterval(() => setDriftTick(t => t + 1), 60_000)
+    return () => clearInterval(interval)
+  }, [phases])
+
+  // Calculate drift events dynamically from phases and tasks (including live projected drift)
   const driftEvents = useMemo((): CalculatedDriftEvent[] => {
-    // Calculate impact description based on drift days
+    void driftTick // read to trigger recalculation on tick
+
     const calculateImpact = (driftDays: number): string => {
       if (driftDays > 0) return `Delayed timeline by ${driftDays} days`
       if (driftDays < 0) return `Recovered ${Math.abs(driftDays)} days`
       return 'No change to timeline'
     }
 
-    // Get drift events from all phases that have drift data (completed phases)
-    const phaseBasedDrifts = phases
-      .filter(phase => phase.status === 'completed' || phase.drift_days !== 0)
+    // Pass 1: Completed phases (existing logic)
+    const completedDrifts: CalculatedDriftEvent[] = phases
+      .filter(phase => phase.status === 'completed' || (phase.status !== 'in_progress' && phase.drift_days !== 0))
       .map(phase => {
-        // Get tasks for this phase to aggregate delay reasons
         const phaseTasks = tasks.filter(t => t.phase_id === phase.id)
         const delayReasons = phaseTasks
           .map(t => t.delay_reason)
           .filter(Boolean)
           .join('; ')
 
-        // Determine drift type from the phase or calculate it
         const driftDays = phase.drift_days || 0
         const driftType = phase.drift_type ||
           (driftDays > 1 ? 'negative' : driftDays < -1 ? 'positive' : 'neutral')
@@ -205,11 +219,56 @@ export default function CampaignTracker() {
           lesson_learned: phase.drift_reason || delayReasons || 'No lesson recorded',
           actionable_insight: undefined,
           template_worthy: driftType === 'positive',
+          status: 'completed' as const,
+          projected: false,
         }
       })
 
-    return phaseBasedDrifts
-  }, [phases, tasks])
+    // Pass 2: In-progress phases (projected drift — live)
+    const inProgressDrifts: CalculatedDriftEvent[] = phases
+      .filter(phase => phase.status === 'in_progress' && phase.actual_start_date)
+      .map(phase => {
+        const now = new Date()
+        const startDate = new Date(phase.actual_start_date!)
+        const elapsedDays = Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+        const projectedDriftDays = elapsedDays - phase.planned_duration_days
+        const driftType = projectedDriftDays > 1 ? 'negative'
+          : projectedDriftDays < -1 ? 'positive'
+          : 'neutral'
+
+        const phaseTasks = tasks.filter(t => t.phase_id === phase.id)
+        const delayReasons = phaseTasks
+          .map(t => t.delay_reason)
+          .filter(Boolean)
+          .join('; ')
+
+        return {
+          drift_type: driftType,
+          drift_days: projectedDriftDays,
+          phase_name: phase.phase_name,
+          planned_duration: phase.planned_duration_days,
+          actual_duration: elapsedDays,
+          root_cause: delayReasons || 'Phase still in progress',
+          attribution: phase.owner || 'Not specified',
+          impact_on_timeline: projectedDriftDays > 0
+            ? `Projected delay of ${projectedDriftDays} days`
+            : projectedDriftDays < 0
+            ? `${Math.abs(projectedDriftDays)} days ahead of schedule`
+            : 'On track',
+          lesson_learned: 'Phase in progress',
+          actionable_insight: projectedDriftDays > 0
+            ? 'Consider reallocating resources to prevent further delay'
+            : undefined,
+          template_worthy: false,
+          status: 'in_progress' as const,
+          projected: true,
+          elapsed_days: elapsedDays,
+          remaining_days: phase.planned_duration_days - elapsedDays,
+        }
+      })
+
+    return [...completedDrifts, ...inProgressDrifts]
+  }, [phases, tasks, driftTick])
 
   // Get weekly data reports and correlation insights
   // Note: driftEvents is passed as empty array initially, correlation uses phases/tasks directly
@@ -333,31 +392,48 @@ export default function CampaignTracker() {
     }
   }
 
-  // Calculate real health indicators based on campaign data
+  // Calculate real health indicators based on campaign data (includes projected drift)
   const calculateHealthIndicators = () => {
     const completedPhases = phases.filter(p => p.status === 'completed')
+    const inProgressPhases = phases.filter(p => p.status === 'in_progress' && p.actual_start_date)
     const totalPhases = phases.length
 
     let operationalHealth = 100
     if (totalPhases > 0) {
-      const completionRate = (completedPhases.length / totalPhases) * 100
-      const avgDrift = completedPhases.length > 0
-        ? Math.abs(completedPhases.reduce((acc, p) => acc + (p.drift_days || 0), 0) / completedPhases.length)
-        : 0
+      // Count in-progress phases as partial (0.5) completion
+      const progressRate = ((completedPhases.length + inProgressPhases.length * 0.5) / totalPhases) * 100
+
+      // Drift from completed phases
+      const completedDrift = completedPhases.reduce((acc, p) => acc + Math.abs(p.drift_days || 0), 0)
+
+      // Projected drift from in-progress phases (only penalize overdue)
+      const projectedDrift = inProgressPhases.reduce((acc, p) => {
+        const elapsedDays = Math.ceil((Date.now() - new Date(p.actual_start_date!).getTime()) / 86400000)
+        return acc + Math.max(0, elapsedDays - p.planned_duration_days)
+      }, 0)
+
+      const activeCount = completedPhases.length + inProgressPhases.length || 1
+      const avgDrift = (completedDrift + projectedDrift) / activeCount
       const driftPenalty = Math.min(avgDrift * 5, 30)
-      operationalHealth = Math.max(completionRate - driftPenalty, 0)
+      operationalHealth = Math.max(progressRate - driftPenalty, 0)
     }
 
     const performanceHealth = campaign?.performance_health ??
       (campaign?.status === 'completed' ? 85 :
         campaign?.status === 'in_progress' ? 75 : 90)
 
-    const totalDrift = completedPhases.reduce((acc, p) => acc + Math.abs(p.drift_days || 0), 0)
+    // Total drift includes both completed and projected
+    const completedDrift = completedPhases.reduce((acc, p) => acc + Math.abs(p.drift_days || 0), 0)
+    const projectedDrift = inProgressPhases.reduce((acc, p) => {
+      if (!p.actual_start_date) return acc
+      const elapsedDays = Math.ceil((Date.now() - new Date(p.actual_start_date).getTime()) / 86400000)
+      return acc + Math.max(0, elapsedDays - p.planned_duration_days)
+    }, 0)
 
     return {
       operational: Math.round(operationalHealth),
       performance: Math.round(performanceHealth),
-      totalDrift
+      totalDrift: completedDrift + projectedDrift
     }
   }
 
@@ -531,8 +607,11 @@ export default function CampaignTracker() {
           <CardContent>
             <div className="text-2xl font-bold">{driftEvents.length}</div>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs text-expedition-checkpoint">{driftEvents.filter(d => d.drift_type === 'negative').length} delays</span>
+              <span className="text-xs text-expedition-checkpoint">{driftEvents.filter(d => d.drift_type === 'negative' && !d.projected).length} delays</span>
               <span className="text-xs text-expedition-evergreen">{driftEvents.filter(d => d.drift_type === 'positive').length} ahead</span>
+              {driftEvents.some(d => d.projected) && (
+                <span className="text-xs text-blue-500">{driftEvents.filter(d => d.projected).length} projected</span>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -694,6 +773,7 @@ export default function CampaignTracker() {
                   const positiveCount = driftEvents.filter((e) => e.drift_type === 'positive').length
                   const negativeCount = driftEvents.filter((e) => e.drift_type === 'negative').length
                   const neutralCount = driftEvents.filter((e) => e.drift_type === 'neutral').length
+                  const projectedCount = driftEvents.filter((e) => e.projected).length
                   return (
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium text-muted-foreground">Summary:</span>
@@ -706,6 +786,11 @@ export default function CampaignTracker() {
                       <Badge variant="outline" className="bg-muted text-muted-foreground border-border">
                         {neutralCount} Neutral
                       </Badge>
+                      {projectedCount > 0 && (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-400/40 dark:bg-blue-950/30 dark:text-blue-400">
+                          {projectedCount} Live
+                        </Badge>
+                      )}
                     </div>
                   )
                 })()}
@@ -743,25 +828,42 @@ export default function CampaignTracker() {
                   >
                     Neutral
                   </Button>
+                  {driftEvents.some(d => d.projected) && (
+                    <Button
+                      size="sm"
+                      variant={driftFilter === 'projected' ? 'default' : 'outline'}
+                      className={driftFilter === 'projected' ? 'bg-blue-500 hover:bg-blue-600' : ''}
+                      onClick={() => setDriftFilter('projected')}
+                    >
+                      Live ({driftEvents.filter(d => d.projected).length})
+                    </Button>
+                  )}
                 </div>
 
                 <div className="space-y-4">
                   {driftEvents.filter(
-                    (event) => driftFilter === 'all' || event.drift_type === driftFilter
+                    (event) => driftFilter === 'all' || event.drift_type === driftFilter || (driftFilter === 'projected' && event.projected)
                   ).map((event, idx) => {
                     const isPositive = event.drift_type === 'positive'
                     const isNegative = event.drift_type === 'negative'
                     const isNeutral = event.drift_type === 'neutral'
-                    const cardBorder = isPositive
-                      ? 'border-expedition-evergreen/40 bg-expedition-evergreen/10'
-                      : isNegative
-                        ? 'border-expedition-checkpoint/40 bg-expedition-checkpoint/10'
-                        : 'border-border bg-muted/50'
+                    const isProjected = event.projected
+                    const cardBorder = isProjected
+                      ? 'border-dashed border-blue-400/50 bg-blue-50/30 dark:bg-blue-950/20'
+                      : isPositive
+                        ? 'border-expedition-evergreen/40 bg-expedition-evergreen/10'
+                        : isNegative
+                          ? 'border-expedition-checkpoint/40 bg-expedition-checkpoint/10'
+                          : 'border-border bg-muted/50'
                     return (
                       <div key={idx} className={cn('border-2 rounded-lg p-4 space-y-3', cardBorder)}>
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-2">
-                            {isNegative ? (
+                            {isProjected ? (
+                              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                <Activity className="w-4 h-4 text-blue-500" />
+                              </div>
+                            ) : isNegative ? (
                               <div className="w-8 h-8 rounded-full bg-expedition-checkpoint/20 flex items-center justify-center">
                                 <ArrowUp className="w-4 h-4 text-expedition-checkpoint" />
                               </div>
@@ -775,28 +877,52 @@ export default function CampaignTracker() {
                               </div>
                             )}
                             <div>
-                              <p className="font-semibold text-sm">{event.phase_name}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="font-semibold text-sm">{event.phase_name}</p>
+                                {isProjected && (
+                                  <Badge variant="outline" className="text-blue-600 border-blue-400 text-xs dark:text-blue-400 dark:border-blue-500">
+                                    <Clock className="w-3 h-3 mr-1" /> Live
+                                  </Badge>
+                                )}
+                              </div>
                               <p className="text-xs text-muted-foreground">
-                                Planned: {event.planned_duration}d | Actual: {event.actual_duration}d
+                                Planned: {event.planned_duration}d | {isProjected ? 'Elapsed' : 'Actual'}: {event.actual_duration}d
                               </p>
                             </div>
                           </div>
-                          <Badge
-                            variant={isNegative ? 'destructive' : isPositive ? 'default' : 'secondary'}
-                            className={isPositive ? 'bg-expedition-evergreen' : ''}
-                          >
-                            {event.drift_days > 0 ? '+' : ''}{event.drift_days}d
-                            {isPositive && ' ahead'}
-                            {isNegative && ' behind'}
-                            {isNeutral && ' on time'}
-                          </Badge>
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge
+                              variant={isProjected ? 'outline' : isNegative ? 'destructive' : isPositive ? 'default' : 'secondary'}
+                              className={cn(
+                                isPositive && !isProjected && 'bg-expedition-evergreen',
+                                isProjected && isNegative && 'text-red-600 border-red-400 dark:text-red-400',
+                                isProjected && isPositive && 'text-green-600 border-green-400 dark:text-green-400',
+                                isProjected && isNeutral && 'text-blue-600 border-blue-400 dark:text-blue-400',
+                              )}
+                            >
+                              {event.drift_days > 0 ? '+' : ''}{event.drift_days}d
+                              {isPositive && ' ahead'}
+                              {isNegative && ' behind'}
+                              {isNeutral && ' on time'}
+                            </Badge>
+                            {isProjected && event.remaining_days !== undefined && (
+                              <span className={cn(
+                                "text-xs",
+                                event.remaining_days > 0 ? "text-blue-500" : "text-red-500"
+                              )}>
+                                {event.remaining_days > 0
+                                  ? `${event.remaining_days}d remaining`
+                                  : `${Math.abs(event.remaining_days)}d over budget`}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         <Separator />
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                           <div>
-                            <span className="text-muted-foreground">Root Cause</span>
+                            <span className="text-muted-foreground">{isProjected ? 'Delay Reasons' : 'Root Cause'}</span>
                             <p className="font-medium">{event.root_cause}</p>
                           </div>
                           <div>
@@ -804,27 +930,34 @@ export default function CampaignTracker() {
                             <p className="font-medium">{event.attribution}</p>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Impact</span>
+                            <span className="text-muted-foreground">{isProjected ? 'Projected Impact' : 'Impact'}</span>
                             <p className="font-medium">{event.impact_on_timeline}</p>
                           </div>
-                          <div>
-                            <span className="text-muted-foreground">Lesson Learned</span>
-                            <p className="font-medium">{event.lesson_learned}</p>
-                          </div>
+                          {!isProjected && (
+                            <div>
+                              <span className="text-muted-foreground">Lesson Learned</span>
+                              <p className="font-medium">{event.lesson_learned}</p>
+                            </div>
+                          )}
                         </div>
 
                         {event.actionable_insight && (
-                          <div className="bg-expedition-trail/10 p-3 rounded-lg border border-expedition-trail/20">
+                          <div className={cn(
+                            "p-3 rounded-lg border",
+                            isProjected
+                              ? "bg-blue-50/50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
+                              : "bg-expedition-trail/10 border-expedition-trail/20"
+                          )}>
                             <p className="text-sm">
-                              <Zap className="w-4 h-4 inline mr-1 text-expedition-trail" />
+                              <Zap className={cn("w-4 h-4 inline mr-1", isProjected ? "text-blue-500" : "text-expedition-trail")} />
                               <span className="font-medium text-expedition-navy dark:text-white">Insight:</span>{' '}
                               <span className="text-foreground">{event.actionable_insight}</span>
                             </p>
                           </div>
                         )}
 
-                        {/* Save as Template - positive drift only */}
-                        {isPositive && (
+                        {/* Save as Template - positive completed drift only */}
+                        {isPositive && !isProjected && (
                           <div className="bg-expedition-evergreen/10 p-3 rounded-lg border border-expedition-evergreen/20">
                             <p className="text-sm">
                               <TrendingUp className="w-4 h-4 inline mr-1 text-expedition-evergreen" />
@@ -889,7 +1022,7 @@ export default function CampaignTracker() {
             <StrategicFailureDiagnosis
               campaign={campaign}
               phases={phases}
-              driftEvents={driftEvents as DriftEvent[]}
+              driftEvents={driftEvents as unknown as DriftEvent[]}
               onCreateTemplate={(_diagnosis: any) => {
                 console.log('Created failure prevention template:', _diagnosis)
               }}
@@ -1023,7 +1156,7 @@ export default function CampaignTracker() {
             <AIRecommendationsEngine
               campaign={campaign}
               phases={phases}
-              driftEvents={driftEvents as DriftEvent[]}
+              driftEvents={driftEvents as unknown as DriftEvent[]}
             />
           </TabsContent>
 

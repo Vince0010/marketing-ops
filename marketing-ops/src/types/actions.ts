@@ -30,6 +30,9 @@ export interface MarketerAction {
     phase_id: string | null
     phase_name?: string
 
+    // Phase completion tracking
+    completed_phases?: string[]
+
     // Timing
     timestamp: string
     due_date?: string

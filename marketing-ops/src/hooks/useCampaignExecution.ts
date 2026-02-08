@@ -20,7 +20,8 @@ interface UseCampaignExecutionReturn {
         taskId: string,
         newPhaseId: string | null,
         oldPhaseId: string | null,
-        delayReason?: string
+        delayReason?: string,
+        restartPhase?: boolean
     ) => Promise<MarketerAction>
     deleteTask: (taskId: string) => Promise<void>
     refetch: () => Promise<void>
@@ -141,7 +142,8 @@ export function useCampaignExecution(
         taskId: string,
         newPhaseId: string | null,
         oldPhaseId: string | null,
-        delayReason?: string
+        delayReason?: string,
+        restartPhase?: boolean
     ): Promise<MarketerAction> => {
         if (!campaignId) throw new Error('No campaign ID')
 
@@ -153,15 +155,18 @@ export function useCampaignExecution(
             const now = new Date().toISOString()
             const optimisticStatus = isLastPhase ? 'completed' : (newPhaseId ? 'in_progress' : 'planned')
 
-            // Calculate carry-over time if moving back to a previous phase
+            // Calculate carry-over time if moving back to a previous phase (unless restarting)
+            // Note: This is optimistic - server will recalculate from actual database history
             let carryOverMinutes = 0
-            if (newPhaseId) {
+            if (newPhaseId && !restartPhase) {
                 const prevEntries = history.filter(
                     h => h.action_id === taskId && h.phase_id === newPhaseId && h.exited_at !== null
                 )
                 carryOverMinutes = prevEntries.reduce((sum, h) => sum + (h.time_spent_minutes || 0), 0)
+                console.log('[Hook] Optimistic carry-over:', carryOverMinutes, 'minutes for phase', newPhaseId)
             }
 
+            // Optimistically update local state first
             setTasks(prev => prev.map(t =>
                 t.id === taskId
                     ? {
@@ -221,8 +226,20 @@ export function useCampaignExecution(
                 oldPhaseId,
                 isLastPhase,
                 campaignId,
-                delayReason
+                delayReason,
+                restartPhase
             )
+
+            console.log('[Hook] Server response for task move:', {
+                taskId: updatedTask.id,
+                time_in_phase_minutes: updatedTask.time_in_phase_minutes,
+                started_at: updatedTask.started_at,
+                phase_id: updatedTask.phase_id,
+                restartPhase
+            })
+
+            // Update with server response to ensure accuracy
+            setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t))
 
             return updatedTask
         } catch (err) {

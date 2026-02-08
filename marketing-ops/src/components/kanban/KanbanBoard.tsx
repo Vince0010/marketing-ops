@@ -16,7 +16,7 @@ import { KanbanColumn } from './KanbanColumn'
 import { ActionCard } from './ActionCard'
 import { TaskEditModal } from './TaskEditModal'
 import { DelayReasonModal } from './DelayReasonModal'
-import { cn } from '@/lib/utils'
+import { BackwardMoveModal } from './BackwardMoveModal'
 
 /**
  * External data interface to share state with parent component
@@ -29,7 +29,7 @@ interface ExternalExecutionData {
     error: string | null
     createTask: (taskData: MarketerActionInsert) => Promise<MarketerAction>
     updateTask: (taskId: string, updates: Partial<MarketerAction>) => Promise<MarketerAction>
-    moveTaskToPhase: (taskId: string, newPhaseId: string | null, oldPhaseId: string | null, delayReason?: string) => Promise<MarketerAction>
+    moveTaskToPhase: (taskId: string, newPhaseId: string | null, oldPhaseId: string | null, delayReason?: string, restartPhase?: boolean) => Promise<MarketerAction>
     deleteTask: (taskId: string) => Promise<void>
     refetch: () => Promise<void>
 }
@@ -75,6 +75,7 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
     const [activeTask, setActiveTask] = useState<MarketerAction | null>(null)
     const [editingTask, setEditingTask] = useState<{ task: MarketerAction; phase: ExecutionPhase | null } | null>(null)
     const [isDelayModalOpen, setIsDelayModalOpen] = useState(false)
+    const [isBackwardMoveModalOpen, setIsBackwardMoveModalOpen] = useState(false)
     const [pendingMove, setPendingMove] = useState<{
         taskId: string,
         newPhaseId: string | null,
@@ -82,6 +83,14 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
         taskTitle: string,
         daysLate: number,
         overByTime?: string,
+    } | null>(null)
+    const [pendingBackwardMove, setPendingBackwardMove] = useState<{
+        taskId: string,
+        newPhaseId: string | null,
+        oldPhaseId: string | null,
+        taskTitle: string,
+        phaseName: string,
+        previousTime: string,
     } | null>(null)
 
     // Use own hook if no external data provided
@@ -181,6 +190,29 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
 
         const movingForward = isForwardMove(oldPhaseId, newPhaseId)
 
+        // Check if moving BACKWARD to a previously completed phase
+        if (!movingForward && newPhaseId && task.completed_phases?.includes(newPhaseId)) {
+            // Get the phase name and previous time spent
+            const newPhase = phases.find(p => p.id === newPhaseId)
+            const prevTimeEntries = history.filter(
+                h => h.action_id === taskId && h.phase_id === newPhaseId && h.exited_at !== null
+            )
+            const totalPreviousMinutes = prevTimeEntries.reduce((sum, h) => sum + (h.time_spent_minutes || 0), 0)
+
+            if (totalPreviousMinutes > 0 && newPhase) {
+                setPendingBackwardMove({
+                    taskId,
+                    newPhaseId,
+                    oldPhaseId,
+                    taskTitle: task.title,
+                    phaseName: newPhase.phase_name,
+                    previousTime: formatTime(totalPreviousMinutes),
+                })
+                setIsBackwardMoveModalOpen(true)
+                return
+            }
+        }
+
         // Only gate forward moves — check time budget overdue
         if (movingForward && oldPhaseId) {
             const oldPhase = phases.find(p => p.id === oldPhaseId)
@@ -245,6 +277,46 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
         } finally {
             setIsDelayModalOpen(false)
             setPendingMove(null)
+        }
+    }
+
+    const handleBackwardMoveResume = async () => {
+        if (!pendingBackwardMove) return
+
+        try {
+            // Resume with previous time (restartPhase = false, which is default)
+            await moveTaskToPhase(
+                pendingBackwardMove.taskId,
+                pendingBackwardMove.newPhaseId,
+                pendingBackwardMove.oldPhaseId,
+                undefined,
+                false // Don't restart, carry over time
+            )
+        } catch (err) {
+            console.error('Failed to move task backward (resume):', err)
+        } finally {
+            setIsBackwardMoveModalOpen(false)
+            setPendingBackwardMove(null)
+        }
+    }
+
+    const handleBackwardMoveRestart = async () => {
+        if (!pendingBackwardMove) return
+
+        try {
+            // Start fresh (restartPhase = true)
+            await moveTaskToPhase(
+                pendingBackwardMove.taskId,
+                pendingBackwardMove.newPhaseId,
+                pendingBackwardMove.oldPhaseId,
+                undefined,
+                true // Restart from 0
+            )
+        } catch (err) {
+            console.error('Failed to move task backward (restart):', err)
+        } finally {
+            setIsBackwardMoveModalOpen(false)
+            setPendingBackwardMove(null)
         }
     }
 
@@ -374,6 +446,19 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
                 taskTitle={pendingMove?.taskTitle || ''}
                 daysLate={pendingMove?.daysLate || 0}
                 overByTime={pendingMove?.overByTime}
+            />
+
+            <BackwardMoveModal
+                isOpen={isBackwardMoveModalOpen}
+                onClose={() => {
+                    setIsBackwardMoveModalOpen(false)
+                    setPendingBackwardMove(null)
+                }}
+                onResume={handleBackwardMoveResume}
+                onRestart={handleBackwardMoveRestart}
+                taskTitle={pendingBackwardMove?.taskTitle || ''}
+                phaseName={pendingBackwardMove?.phaseName || ''}
+                previousTime={pendingBackwardMove?.previousTime || '0m'}
             />
 
             {/* Empty state */}

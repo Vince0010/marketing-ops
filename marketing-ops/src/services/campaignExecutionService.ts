@@ -77,12 +77,13 @@ export const campaignExecutionService = {
         oldPhaseId: string | null,
         isLastPhase: boolean,
         campaignId: string,
-        delayReason?: string
+        delayReason?: string,
+        restartPhase?: boolean
     ): Promise<MarketerAction> {
         const response = await fetch(`${API_URL}/campaigns/${campaignId}/tasks/${taskId}/move`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ newPhaseId, oldPhaseId, phase, isLastPhase, delayReason })
+            body: JSON.stringify({ newPhaseId, oldPhaseId, phase, isLastPhase, delayReason, restartPhase })
         })
 
         if (!response.ok) {
