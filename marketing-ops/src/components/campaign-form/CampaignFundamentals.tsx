@@ -1,8 +1,24 @@
+import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
+import { ChoiceCards } from '@/components/ui/choice-cards'
 import type { CampaignType } from '@/types/campaign'
+
+const CAMPAIGN_TYPES: { value: CampaignType; label: string; description?: string }[] = [
+  { value: 'new_product_launch', label: 'New Product Launch', description: 'Launching a new product or service' },
+  { value: 'seasonal_promo', label: 'Seasonal Promotion', description: 'Time-bound sales or seasonal campaigns' },
+  { value: 'brand_awareness', label: 'Brand Awareness', description: 'Reach and recognition' },
+  { value: 'lead_gen', label: 'Lead Generation', description: 'Capture leads and sign-ups' },
+  { value: 'retargeting', label: 'Retargeting', description: 'Re-engage past visitors or customers' },
+  { value: 'event_based', label: 'Event-Based', description: 'Tied to an event or milestone' },
+]
 
 interface CampaignFundamentalsData {
   name: string
@@ -20,8 +36,10 @@ interface Props {
 }
 
 export default function CampaignFundamentals({ data, onChange }: Props) {
+  const [detailsOpen, setDetailsOpen] = useState(false)
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="name">Campaign Name *</Label>
         <Input
@@ -32,36 +50,14 @@ export default function CampaignFundamentals({ data, onChange }: Props) {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="type">Campaign Type *</Label>
-          <Select
-            value={data.campaign_type}
-            onValueChange={(v) => onChange({ campaign_type: v as CampaignType })}
-          >
-            <SelectTrigger id="type">
-              <SelectValue placeholder="Select type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="new_product_launch">New Product Launch</SelectItem>
-              <SelectItem value="seasonal_promo">Seasonal Promotion</SelectItem>
-              <SelectItem value="brand_awareness">Brand Awareness</SelectItem>
-              <SelectItem value="lead_gen">Lead Generation</SelectItem>
-              <SelectItem value="retargeting">Retargeting</SelectItem>
-              <SelectItem value="event_based">Event-Based</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="industry">Industry / Vertical</Label>
-          <Input
-            id="industry"
-            placeholder="e.g. Healthcare, SaaS, E-commerce"
-            value={data.industry}
-            onChange={(e) => onChange({ industry: e.target.value })}
-          />
-        </div>
+      <div className="space-y-2">
+        <Label>Campaign Type *</Label>
+        <ChoiceCards
+          value={data.campaign_type}
+          options={CAMPAIGN_TYPES}
+          onChange={(v) => onChange({ campaign_type: v })}
+          columns={3}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -97,16 +93,34 @@ export default function CampaignFundamentals({ data, onChange }: Props) {
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="description">Description</Label>
-        <Textarea
-          id="description"
-          placeholder="Describe your campaign goals and strategy"
-          rows={3}
-          value={data.description}
-          onChange={(e) => onChange({ description: e.target.value })}
-        />
-      </div>
+      <Accordion type="single" collapsible value={detailsOpen ? 'details' : ''} onValueChange={(v) => setDetailsOpen(v === 'details')}>
+        <AccordionItem value="details" className="border rounded-lg px-4">
+          <AccordionTrigger className="text-sm font-medium text-muted-foreground hover:no-underline hover:text-foreground">
+            More details (industry, description)
+          </AccordionTrigger>
+          <AccordionContent className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label htmlFor="industry">Industry / Vertical</Label>
+              <Input
+                id="industry"
+                placeholder="e.g. Healthcare, SaaS, E-commerce"
+                value={data.industry}
+                onChange={(e) => onChange({ industry: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                placeholder="Describe your campaign goals and strategy"
+                rows={3}
+                value={data.description}
+                onChange={(e) => onChange({ description: e.target.value })}
+              />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   )
 }

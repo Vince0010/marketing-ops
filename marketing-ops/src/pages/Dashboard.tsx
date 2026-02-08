@@ -28,6 +28,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Progress } from '@/components/ui/progress'
 import { formatCurrency } from '@/utils/formatting'
+import { getGateDecision } from '@/utils/calculations'
+import { DecisionStatusBadge } from '@/components/DecisionStatusBadge'
+import { ObservationModeBadge } from '@/components/ObservationModeBadge'
 
 interface Stats {
   total: number
@@ -295,12 +298,28 @@ export default function Dashboard() {
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <CardTitle className="text-base truncate">{campaign.name}</CardTitle>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <CardTitle className="text-base truncate">{campaign.name}</CardTitle>
+                            {(campaign.status === 'planning' || campaign.status === 'validated') && (
+                              <DecisionStatusBadge
+                                decision={
+                                  campaign.gate_decision ??
+                                  getGateDecision(campaign.risk_score ?? 0)
+                                }
+                              />
+                            )}
+                          </div>
                           <CardDescription className="mt-1">
                             {campaign.campaign_type?.replace(/_/g, ' ')}
                           </CardDescription>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {campaign.gate_overridden && (
+                            <ObservationModeBadge
+                              riskScore={campaign.risk_score}
+                              campaignStatus={campaign.status}
+                            />
+                          )}
                           {getStatusBadge(campaign.status)}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
