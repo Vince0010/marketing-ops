@@ -1,5 +1,6 @@
 import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase } from '@/types/phase'
+import type { PerformanceMetric, OverrideEvent } from '@/types/database'
 
 // --- Detailed Risk Assessment ---
 
@@ -178,16 +179,22 @@ export function calculateDetailedRiskScore(
 export function calculateRiskScore(campaign: Record<string, unknown>): number {
   let score = 100
 
-  // Budget risk
-  if (campaign.total_budget < 1000) score -= 20
+  // Budget risk - safely check with type guard
+  const totalBudget = campaign.total_budget as number | undefined
+  if (totalBudget && totalBudget < 1000) score -= 20
 
-  // Timeline risk
-  const duration = new Date(campaign.end_date).getTime() - new Date(campaign.start_date).getTime()
-  const durationDays = duration / (1000 * 60 * 60 * 24)
-  if (durationDays < 14) score -= 15
+  // Timeline risk - safely check with type guard
+  const startDate = campaign.start_date as string | undefined
+  const endDate = campaign.end_date as string | undefined
+  if (startDate && endDate) {
+    const duration = new Date(endDate).getTime() - new Date(startDate).getTime()
+    const durationDays = duration / (1000 * 60 * 60 * 24)
+    if (durationDays < 14) score -= 15
+  }
 
-  // First campaign risk
-  if (!campaign.historical_context?.similar_campaigns?.length) score -= 10
+  // First campaign risk - safely check with type guard
+  const historicalContext = campaign.historical_context as { similar_campaigns?: unknown[] } | undefined
+  if (!historicalContext?.similar_campaigns?.length) score -= 10
 
   return Math.max(0, Math.min(100, score))
 }
@@ -331,3 +338,177 @@ export function calculateOperationsHealthFromTaskFlow(
   }
 }
 
+// --- Campaign Completion & Performance Evaluation ---
+
+export interface CampaignOutcome {
+  success: 'success' | 'failure' | 'partial_success'
+  finalMetricValue: number
+  targetValue: number
+  achievementRate: number
+  explanation: string
+}
+
+/**
+ * Calculates final campaign performance by aggregating performance_metrics
+ * and determining success based on primary KPI achievement
+ */
+export function calculateFinalPerformance(
+  campaign: Campaign,
+  performanceMetrics: PerformanceMetric[]
+): CampaignOutcome {
+  if (performanceMetrics.length === 0) {
+    return {
+      success: 'failure',
+      finalMetricValue: 0,
+      targetValue: campaign.target_value,
+      achievementRate: 0,
+      explanation: 'No performance data available to evaluate campaign outcome'
+    }
+  }
+
+  // Get the latest or aggregate metric based on primary KPI
+  const kpi = campaign.primary_kpi
+  const targetValue = campaign.target_value
+  let finalMetricValue: number
+
+  // For most metrics, use the latest value
+  // For cumulative metrics (ROAS, conversions), could average or sum
+  const latestMetric = performanceMetrics[performanceMetrics.length - 1]
+
+  switch (kpi) {
+    case 'ROAS':
+      // Average ROAS across all metrics (or use latest)
+      finalMetricValue = performanceMetrics.reduce((sum, m) => sum + (m.roas || 0), 0) / performanceMetrics.length
+      break
+    case 'CPA':
+      // Average CPA (lower is better)
+      finalMetricValue = performanceMetrics.reduce((sum, m) => sum + (m.cpa || 0), 0) / performanceMetrics.length
+      break
+    case 'CPL':
+      // Average CPL (lower is better) - use CPA as proxy
+      finalMetricValue = performanceMetrics.reduce((sum, m) => sum + (m.cpa || 0), 0) / performanceMetrics.length
+      break
+    case 'CTR':
+      // Average CTR
+      finalMetricValue = performanceMetrics.reduce((sum, m) => sum + (m.ctr || 0), 0) / performanceMetrics.length
+      break
+    case 'engagement_rate':
+      finalMetricValue = performanceMetrics.reduce((sum, m) => sum + (m.engagement_rate || 0), 0) / performanceMetrics.length
+      break
+    case 'reach':
+      // Use latest reach (or max)
+      finalMetricValue = latestMetric.reach || 0
+      break
+    case 'video_views':
+      // Sum total video views
+      finalMetricValue = performanceMetrics.reduce((sum, m) => sum + (m.video_views || 0), 0)
+      break
+    default:
+      // Default to latest ROAS
+      finalMetricValue = latestMetric.roas || 0
+  }
+
+  // Calculate achievement rate (handle inverse metrics like CPA/CPL)
+  let achievementRate: number
+  if (kpi === 'CPA' || kpi === 'CPL') {
+    // For cost metrics, lower is better: achievement = (target / actual) * 100
+    achievementRate = targetValue > 0 ? (targetValue / finalMetricValue) * 100 : 0
+  } else {
+    // For performance metrics, higher is better: achievement = (actual / target) * 100
+    achievementRate = targetValue > 0 ? (finalMetricValue / targetValue) * 100 : 0
+  }
+
+  // Determine success level with 80% threshold for partial success
+  let success: 'success' | 'failure' | 'partial_success'
+  let explanation: string
+
+  if (achievementRate >= 100) {
+    success = 'success'
+    explanation = `Campaign exceeded target ${kpi} of ${targetValue} with actual ${finalMetricValue.toFixed(2)} (${achievementRate.toFixed(1)}% achievement)`
+  } else if (achievementRate >= 80) {
+    success = 'partial_success'
+    explanation = `Campaign achieved ${achievementRate.toFixed(1)}% of target ${kpi}, reaching ${finalMetricValue.toFixed(2)} vs target ${targetValue}`
+  } else {
+    success = 'failure'
+    explanation = `Campaign underperformed target ${kpi} of ${targetValue}, achieving only ${finalMetricValue.toFixed(2)} (${achievementRate.toFixed(1)}%)`
+  }
+
+  return {
+    success,
+    finalMetricValue,
+    targetValue,
+    achievementRate,
+    explanation
+  }
+}
+
+// --- Override Learning System ---
+
+export interface OverrideOutcome {
+  outcome: 'success' | 'failure' | 'partial_success'
+  outcome_explanation: string
+  lesson_learned: string
+  system_was_correct: boolean
+}
+
+/**
+ * Evaluates whether an override decision was justified based on campaign outcome
+ */
+export function evaluateOverrideOutcome(
+  campaign: Campaign,
+  overrideEvent: OverrideEvent,
+  campaignOutcome: CampaignOutcome
+): OverrideOutcome {
+  const { original_recommendation, user_action, risk_score_at_time } = overrideEvent
+  const { success, achievementRate, explanation } = campaignOutcome
+
+  let outcome_explanation: string
+  let lesson_learned: string
+  let system_was_correct: boolean
+
+  // Determine if the override was justified
+  if (original_recommendation === 'pause' && user_action === 'proceed') {
+    // User proceeded despite system recommending pause
+    if (success === 'success') {
+      system_was_correct = false
+      outcome_explanation = `User correctly overrode the pause recommendation. ${explanation}`
+      lesson_learned = `High risk score (${risk_score_at_time || 'N/A'}) did not prevent success. User's contextual judgment about ${overrideEvent.reason} was valid. Consider adjusting risk thresholds or adding context factors.`
+    } else if (success === 'partial_success') {
+      system_was_correct = false // User was partially right
+      outcome_explanation = `Override led to acceptable results despite risks. ${explanation}`
+      lesson_learned = `Risk indicators were valid but not critical. Campaign achieved ${achievementRate.toFixed(1)}% of target despite concerns about ${overrideEvent.reason}. Some risk tolerance is acceptable.`
+    } else {
+      system_was_correct = true
+      outcome_explanation = `System recommendation to pause was correct. ${explanation}`
+      lesson_learned = `Risk assessment accurately predicted failure. Risk score of ${risk_score_at_time || 'N/A'} was justified. User's reasoning (${overrideEvent.reason}) did not offset structural risks.`
+    }
+  } else if (original_recommendation === 'adjust' && user_action === 'proceed') {
+    // User proceeded without adjustments
+    if (success === 'success') {
+      system_was_correct = false
+      outcome_explanation = `Campaign succeeded without required adjustments. ${explanation}`
+      lesson_learned = `Adjustment recommendation was overly cautious. User's confidence in ${overrideEvent.reason} was well-founded. System may have overweighted certain risk factors.`
+    } else {
+      system_was_correct = true
+      outcome_explanation = `Campaign would have benefited from recommended adjustments. ${explanation}`
+      lesson_learned = `Ignoring adjustment recommendation led to underperformance. User's reasoning (${overrideEvent.reason}) did not compensate for identified gaps. Enforce adjustment gates more strictly.`
+    }
+  } else if (original_recommendation === 'proceed' && (user_action === 'pause' || user_action === 'adjust')) {
+    // User was more conservative than system
+    system_was_correct = false // User chose caution (unclear if necessary)
+    outcome_explanation = `User chose to ${user_action} despite system clearance. Outcome: ${success}`
+    lesson_learned = `User exercised additional caution beyond system recommendation. Reasoning: ${overrideEvent.reason}. This may indicate missing risk factors in assessment.`
+  } else {
+    // User agreed with system (not really an override scenario)
+    system_was_correct = true
+    outcome_explanation = `User agreed with system recommendation. Campaign outcome: ${success}`
+    lesson_learned = `No override conflict. System and user aligned.`
+  }
+
+  return {
+    outcome: success,
+    outcome_explanation,
+    lesson_learned,
+    system_was_correct
+  }
+}

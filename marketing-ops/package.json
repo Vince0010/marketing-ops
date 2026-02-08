@@ -10,7 +10,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "seed:phase-tasks": "tsx scripts/seed-phase-tasks.ts"
+    "seed:phase-tasks": "tsx scripts/seed-phase-tasks.ts",
+    "test:override-learning": "node --import tsx scripts/test-override-learning.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

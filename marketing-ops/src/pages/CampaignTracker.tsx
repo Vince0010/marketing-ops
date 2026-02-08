@@ -20,10 +20,12 @@ import {
 import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
 import type { DriftEvent } from '@/types/phase'
+import type { PerformanceMetric } from '@/types/database'
 import { ObservationModeBadge } from '@/components/ObservationModeBadge'
 import { DemographicAlignmentTracker } from '@/components/demographics/DemographicAlignmentTracker'
 import { useCampaignExecution } from '@/hooks/useCampaignExecution'
 import { cn } from '@/lib/utils'
+import { campaignCompletionService } from '@/services/campaignCompletionService'
 import {
   DEMO_AGE_DATA,
   DEMO_FIT_SCORE,
@@ -128,6 +130,7 @@ export default function CampaignTracker() {
   const { id } = useParams<{ id: string }>()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [loading, setLoading] = useState(true)
+  const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetric[]>([])
   // Tick state for live drift recalculation (every 60s)
   const [driftTick, setDriftTick] = useState(0)
   // Override event for learning loop
@@ -268,6 +271,15 @@ export default function CampaignTracker() {
       if (data) {
         setCampaign(data)
 
+        // Fetch performance metrics for observation mode
+        const { data: metrics } = await supabase
+          .from('performance_metrics')
+          .select('*')
+          .eq('campaign_id', id)
+          .order('metric_date', { ascending: true })
+        
+        if (metrics) setPerformanceMetrics(metrics)
+
         // Fetch override event if campaign has override
         if (data.gate_overridden) {
           const { data: override } = await supabase
@@ -349,6 +361,9 @@ export default function CampaignTracker() {
     const driftDays = actualDays - phase.planned_duration_days
     const driftType = driftDays > 1 ? 'negative' : driftDays < -1 ? 'positive' : 'neutral'
 
+    // Check if this is the last phase
+    const isLastPhase = phase.phase_number === Math.max(...phases.map(p => p.phase_number))
+
     try {
       await supabase
         .from('execution_phases')
@@ -360,7 +375,22 @@ export default function CampaignTracker() {
           drift_type: driftType,
         })
         .eq('id', phaseId)
+      
       await refetchExecution()
+
+      // If this is the last phase, trigger campaign completion processing
+      if (isLastPhase && campaign) {
+        console.log('[CampaignTracker] Last phase completed, triggering campaign completion')
+        try {
+          await campaignCompletionService.processCampaignCompletion(campaign.id)
+          console.log('[CampaignTracker] Campaign completion processing successful')
+          // Refetch campaign data to update UI
+          await refetchExecution()
+        } catch (completionError) {
+          console.error('[CampaignTracker] Error processing campaign completion:', completionError)
+          // Don't block the UI - completion processing can be retried
+        }
+      }
     } catch (error) {
       console.error('Error completing phase:', error)
     }
@@ -487,6 +517,10 @@ export default function CampaignTracker() {
             <ObservationModeBadge
               riskScore={campaign.risk_score}
               campaignStatus={campaign?.status}
+              performanceHealth={campaign?.performance_health}
+              targetValue={campaign?.target_value}
+              currentValue={performanceMetrics.length > 0 ? performanceMetrics[performanceMetrics.length - 1].roas : undefined}
+              primaryKPI={campaign?.primary_kpi}
             />
           )}
           <Badge variant="default" className="gap-2 bg-expedition-trail">
@@ -572,9 +606,6 @@ export default function CampaignTracker() {
           <TabsList className="grid w-full grid-cols-3 sm:grid-cols-9 h-auto flex-wrap gap-1 p-1">
             <TabsTrigger value="execution" className="text-xs sm:text-sm py-2">Execution</TabsTrigger>
             <TabsTrigger value="drift" className="text-xs sm:text-sm py-2">Drift Analysis</TabsTrigger>
-            {campaign?.gate_overridden && (
-              <TabsTrigger value="override" className="text-xs sm:text-sm py-2">Override Learning</TabsTrigger>
-            )}
             <TabsTrigger value="correlation" className="text-xs sm:text-sm py-2">Correlations</TabsTrigger>
             <TabsTrigger value="audience" className="text-xs sm:text-sm py-2">Audience Insights</TabsTrigger>
             <TabsTrigger value="meta-ads" className="text-xs sm:text-sm py-2">Meta Ads</TabsTrigger>
@@ -592,6 +623,10 @@ export default function CampaignTracker() {
                 campaignStatus={campaign.status}
                 startDate={campaign.start_date}
                 endDate={campaign.end_date}
+                performanceHealth={campaign.performance_health}
+                targetValue={campaign.target_value}
+                currentValue={performanceMetrics.length > 0 ? performanceMetrics[performanceMetrics.length - 1].roas : undefined}
+                primaryKPI={campaign.primary_kpi}
                 showFullAlert={true}
               />
             )}
@@ -612,19 +647,6 @@ export default function CampaignTracker() {
               </CardContent>
             </Card>
           </TabsContent>
-
-          {/* Override Learning Tab */}
-          {campaign?.gate_overridden && (
-            <TabsContent value="override" className="space-y-4 mt-4">
-              {/* <OverrideOutcomeAnalysis
-                campaign={campaign}
-                overrideEvent={overrideEvent}
-              /> */}
-              <div className="text-center py-8 text-muted-foreground">
-                Override analysis component temporarily disabled
-              </div>
-            </TabsContent>
-          )}
 
           {/* Drift Analysis Tab */}
           <TabsContent value="drift" className="space-y-4 mt-4">

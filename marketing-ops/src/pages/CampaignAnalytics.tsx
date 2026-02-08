@@ -37,9 +37,10 @@ import {
 import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase } from '@/types/phase'
-import type { PerformanceMetric, StakeholderAction } from '@/types/database'
+import type { PerformanceMetric, StakeholderAction, OverrideEvent } from '@/types/database'
 import { formatCurrency } from '@/utils/formatting'
 import { DemographicAlignmentTracker } from '@/components/demographics/DemographicAlignmentTracker'
+import { OverrideOutcomeAnalysis } from '@/components/diagnosis/OverrideOutcomeAnalysis'
 
 // Seeded phase drift data for BarChart
 const PHASE_DRIFT_DATA = [
@@ -199,6 +200,7 @@ export default function CampaignAnalytics() {
   const [phases, setPhases] = useState<ExecutionPhase[]>([])
   const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetric[]>([])
   const [stakeholderActions, setStakeholderActions] = useState<StakeholderAction[]>([])
+  const [overrideEvent, setOverrideEvent] = useState<OverrideEvent | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -219,6 +221,20 @@ export default function CampaignAnalytics() {
       if (phasesRes.data) setPhases(phasesRes.data)
       if (metricsRes.data) setPerformanceMetrics(metricsRes.data)
       if (stakeholderRes.data) setStakeholderActions(stakeholderRes.data)
+
+      // Fetch override event if campaign was overridden
+      if (campaignRes.data?.gate_overridden) {
+        const overrideRes = await supabase
+          .from('override_events')
+          .select('*')
+          .eq('campaign_id', id)
+          .eq('override_type', 'gate_decision')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+        
+        if (overrideRes.data) setOverrideEvent(overrideRes.data)
+      }
     } catch (error) {
       console.error('Error:', error)
     } finally {
@@ -312,6 +328,14 @@ export default function CampaignAnalytics() {
         </TabsList>
 
         <TabsContent value="performance" className="space-y-4">
+          {/* Override Outcome Analysis - Show if campaign was completed with an override */}
+          {campaign?.status === 'completed' && campaign?.gate_overridden && overrideEvent && (
+            <OverrideOutcomeAnalysis 
+              campaign={campaign} 
+              overrideEvent={overrideEvent} 
+            />
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Performance Summary</CardTitle>

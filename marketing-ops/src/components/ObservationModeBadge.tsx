@@ -6,7 +6,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Eye, Calendar } from 'lucide-react'
+import { Eye, Calendar, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ObservationModeBadgeProps {
@@ -17,6 +17,14 @@ interface ObservationModeBadgeProps {
   /** Campaign start and end dates for milestone calculation */
   startDate?: string
   endDate?: string
+  /** Performance health score (0-100) for trend indication */
+  performanceHealth?: number
+  /** Target value for comparison */
+  targetValue?: number
+  /** Current metric value (e.g., ROAS, CPA) */
+  currentValue?: number
+  /** Primary KPI name */
+  primaryKPI?: string
   className?: string
   /** Show full monitoring alert instead of just badge */
   showFullAlert?: boolean
@@ -27,6 +35,10 @@ export function ObservationModeBadge({
   campaignStatus,
   startDate,
   endDate,
+  performanceHealth,
+  targetValue,
+  currentValue,
+  primaryKPI,
   className,
   showFullAlert = false,
 }: ObservationModeBadgeProps) {
@@ -48,18 +60,47 @@ export function ObservationModeBadge({
     const daysRemaining = Math.max(0, totalDays - daysPassed)
     const progressPercent = Math.min(100, Math.round((daysPassed / totalDays) * 100))
 
+    // Determine milestone checkpoints (Day 3, 7, 14, etc.)
+    let nextMilestone: number | null = null
+    const milestones = [3, 7, 14, 21, 28]
+    for (const m of milestones) {
+      if (daysPassed < m && m <= totalDays) {
+        nextMilestone = m
+        break
+      }
+    }
+
     return {
       daysPassed,
       totalDays,
       daysRemaining,
       progressPercent,
+      nextMilestone,
+    }
+  }
+
+  // Determine performance trend
+  const getPerformanceTrend = () => {
+    if (!currentValue || !targetValue) return null
+
+    const achievementRate = (currentValue / targetValue) * 100
+    
+    if (achievementRate >= 90) {
+      return { status: 'on-track', icon: TrendingUp, color: 'text-green-600', message: 'On track to meet target' }
+    } else if (achievementRate >= 70) {
+      return { status: 'moderate', icon: Minus, color: 'text-yellow-600', message: 'Moderate performance' }
+    } else {
+      return { status: 'at-risk', icon: TrendingDown, color: 'text-red-600', message: 'Below expected trajectory' }
     }
   }
 
   const milestone = getMilestoneInfo()
+  const trend = getPerformanceTrend()
 
   // If showing full alert with milestone checkpoints
   if (showFullAlert && isActive) {
+    const TrendIcon = trend?.icon
+
     return (
       <Alert className="border-blue-300 bg-blue-50">
         <Eye className="h-4 w-4 text-blue-600" />
@@ -75,14 +116,34 @@ export function ObservationModeBadge({
             Performance data is being tracked to validate the override decision.
           </p>
           {milestone && (
-            <div className="flex items-center gap-2 pt-2 border-t border-blue-200">
-              <Calendar className="w-4 h-4" />
-              <span className="font-medium">
-                Day {milestone.daysPassed} of {milestone.totalDays}
-              </span>
-              <span className="text-blue-600">
-                ({milestone.daysRemaining} days remaining, {milestone.progressPercent}% complete)
-              </span>
+            <div className="space-y-2 pt-2 border-t border-blue-200">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                <span className="font-medium">
+                  Day {milestone.daysPassed} of {milestone.totalDays}
+                </span>
+                <span className="text-blue-600">
+                  ({milestone.daysRemaining} days remaining, {milestone.progressPercent}% complete)
+                </span>
+              </div>
+              
+              {/* Performance trend indicator */}
+              {trend && TrendIcon && currentValue && primaryKPI && (
+                <div className="flex items-center gap-2">
+                  <TrendIcon className={cn('w-4 h-4', trend.color)} />
+                  <span className="font-medium">{primaryKPI} Performance:</span>
+                  <span className={trend.color}>
+                    {currentValue.toFixed(2)} / {targetValue?.toFixed(2)} ({trend.message})
+                  </span>
+                </div>
+              )}
+
+              {/* Milestone checkpoint message */}
+              {milestone.nextMilestone && (
+                <p className="text-sm text-blue-600 italic">
+                  Next checkpoint: Day {milestone.nextMilestone} review
+                </p>
+              )}
             </div>
           )}
         </AlertDescription>

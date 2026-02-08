@@ -162,7 +162,20 @@ export function useCampaignExecution(
         if (!campaignId) throw new Error('No campaign ID')
 
         try {
-            const phase = newPhaseId ? phases.find(p => p.id === newPhaseId) : null
+            // Find phase and task using functional updates to avoid stale closures
+            let phase: ExecutionPhase | null = null
+            let isLastPhase = false
+            
+            setPhases(currentPhases => {
+                if (newPhaseId) {
+                    const foundPhase = currentPhases.find(p => p.id === newPhaseId)
+                    if (foundPhase) {
+                        phase = foundPhase
+                        isLastPhase = foundPhase.phase_number === Math.max(...currentPhases.map(p => p.phase_number))
+                    }
+                }
+                return currentPhases // No change
+            })
             
             // Debug logging
             console.log('[Hook] Moving task:', {
@@ -170,29 +183,28 @@ export function useCampaignExecution(
                 newPhaseId,
                 oldPhaseId,
                 foundPhase: phase?.phase_name || 'null',
-                availablePhases: phases.map(p => ({ id: p.id, name: p.phase_name }))
             })
             
             if (newPhaseId && !phase) {
-                console.error('[Hook] Phase not found! newPhaseId:', newPhaseId, 'Available phases:', phases)
-                throw new Error(`Phase ${newPhaseId} not found in phases array`)
+                console.error('[Hook] Phase not found! newPhaseId:', newPhaseId)
+                throw new Error(`Phase ${newPhaseId} not found`)
             }
             
-            const isLastPhase = phase ? phase.phase_number === Math.max(...phases.map(p => p.phase_number)) : false
-
             // Optimistically update local state first
             const now = new Date().toISOString()
             const optimisticStatus = isLastPhase ? 'completed' : (newPhaseId ? 'in_progress' : 'planned')
 
             // Calculate carry-over time if moving back to a previous phase (unless restarting)
-            // Note: This is optimistic - server will recalculate from actual database history
             let carryOverMinutes = 0
             if (newPhaseId && !restartPhase) {
-                const prevEntries = history.filter(
-                    h => h.action_id === taskId && h.phase_id === newPhaseId && h.exited_at !== null
-                )
-                carryOverMinutes = prevEntries.reduce((sum, h) => sum + (h.time_spent_minutes || 0), 0)
-                console.log('[Hook] Optimistic carry-over:', carryOverMinutes, 'minutes for phase', newPhaseId)
+                setHistory(currentHistory => {
+                    const prevEntries = currentHistory.filter(
+                        h => h.action_id === taskId && h.phase_id === newPhaseId && h.exited_at !== null
+                    )
+                    carryOverMinutes = prevEntries.reduce((sum, h) => sum + (h.time_spent_minutes || 0), 0)
+                    console.log('[Hook] Optimistic carry-over:', carryOverMinutes, 'minutes for phase', newPhaseId)
+                    return currentHistory // No change
+                })
             }
 
             // Optimistically update local state first
@@ -214,14 +226,16 @@ export function useCampaignExecution(
             if (oldPhaseId) {
                 setHistory(prev => prev.map(h => {
                     if (h.action_id === taskId && h.exited_at === null) {
-                        // Calculate time spent ONLY for this session (elapsed since started_at)
-                        // Do NOT include time_in_phase_minutes as it may contain carry-over
-                        const task = tasks.find(t => t.id === taskId)
+                        // Calculate time spent ONLY for this session
                         let timeSpent = 0
-                        if (task?.started_at) {
-                            const elapsed = Math.floor((Date.now() - new Date(task.started_at).getTime()) / 60000)
-                            timeSpent = elapsed
-                        }
+                        setTasks(currentTasks => {
+                            const task = currentTasks.find(t => t.id === taskId)
+                            if (task?.started_at) {
+                                const elapsed = Math.floor((Date.now() - new Date(task.started_at).getTime()) / 60000)
+                                timeSpent = elapsed
+                            }
+                            return currentTasks // No change
+                        })
                         return { ...h, exited_at: now, time_spent_minutes: timeSpent }
                     }
                     return h
@@ -273,7 +287,7 @@ export function useCampaignExecution(
             fetchData()
             throw err
         }
-    }, [campaignId, phases, fetchData])
+    }, [campaignId, fetchData])
 
     // Delete task with immediate local update
     const deleteTask = useCallback(async (taskId: string): Promise<void> => {
