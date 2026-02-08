@@ -1,6 +1,7 @@
 import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase, DriftEvent } from '@/types/phase'
 import type { PerformanceMetric, RiskScore } from '@/types/database'
+import { supabase } from '@/lib/supabase'
 
 export interface AIContext {
   campaign: Campaign
@@ -63,6 +64,30 @@ async function callAI(messages: AIMessage[]): Promise<string> {
 
   const data = await response.json()
   return data.choices?.[0]?.message?.content || ''
+}
+
+async function fetchPastRejections(campaignId: string): Promise<string> {
+  try {
+    const { data } = await supabase
+      .from('recommendations')
+      .select('title, description, category, rejected_reason, created_at')
+      .eq('campaign_id', campaignId)
+      .eq('status', 'rejected')
+      .not('rejected_reason', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(5)
+    
+    if (!data || data.length === 0) {
+      return 'No previously rejected recommendations for this campaign.'
+    }
+
+    return data.map((rec, i) => 
+      `${i + 1}. "${rec.title}" (${rec.category})\n   Why rejected: ${rec.rejected_reason}`
+    ).join('\n\n')
+  } catch (error) {
+    console.error('Failed to fetch past rejections:', error)
+    return 'Unable to fetch rejection history.'
+  }
 }
 
 function parseRecommendations(raw: string): AIRecommendationResponse[] {
@@ -135,6 +160,9 @@ export async function generateTacticalRecommendations(
   const { campaign, phases, driftEvents, performanceMetrics, riskScore } = context
   const daysRemaining = calculateDaysRemaining(campaign)
 
+  // Fetch past rejected recommendations to learn from them
+  const pastRejections = await fetchPastRejections(campaign.id)
+
   const messages: AIMessage[] = [
     {
       role: 'system',
@@ -181,7 +209,10 @@ ${buildDriftSummary(driftEvents)}
 Performance Metrics:
 ${buildPerformanceSummary(performanceMetrics, campaign)}
 
-Generate recommendations that directly address issues visible in the data above. Be specific — reference actual phase names, drift numbers, and metrics. Return ONLY valid JSON.`,
+Previously Rejected Recommendations (DO NOT repeat these):
+${pastRejections}
+
+Generate NEW recommendations that directly address issues visible in the data above. Be specific — reference actual phase names, drift numbers, and metrics. Do NOT suggest anything similar to the rejected recommendations above. Return ONLY valid JSON.`,
     },
   ]
 
@@ -212,10 +243,15 @@ export async function generateStrategicRecommendations(
   const positiveDrifts = driftEvents.filter(d => d.drift_type === 'positive')
   const negativeDrifts = driftEvents.filter(d => d.drift_type === 'negative')
 
+  // Fetch past rejected recommendations to learn from them
+  const pastRejections = await fetchPastRejections(campaign.id)
+
   const messages: AIMessage[] = [
     {
       role: 'system',
       content: `You are a marketing strategy advisor. Generate strategic recommendations — long-term improvements for FUTURE campaigns based on patterns observed in this campaign. Focus on process improvements, team workflow changes, and systemic fixes.
+
+IMPORTANT: The user has rejected certain recommendations for this campaign. Learn from these rejections and avoid suggesting similar strategic approaches.
 
 RETURN ONLY VALID JSON in this EXACT format:
 {
@@ -258,7 +294,10 @@ ${negativeDrifts.length > 0 ? negativeDrifts.map(d => `- ${d.phase_name}: delaye
 Performance Summary:
 ${buildPerformanceSummary(performanceMetrics, campaign)}
 
-Generate recommendations that would improve future campaigns of this type. Focus on systemic process changes, not one-time fixes. Return ONLY valid JSON.`,
+Previously Rejected Recommendations (DO NOT repeat these patterns):
+${pastRejections}
+
+Generate NEW strategic recommendations that would improve future campaigns of this type. Focus on systemic process changes, not one-time fixes. Avoid suggesting approaches similar to the rejected recommendations above. Return ONLY valid JSON.`,
     },
   ]
 

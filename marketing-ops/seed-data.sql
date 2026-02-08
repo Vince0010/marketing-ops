@@ -490,10 +490,10 @@ BEGIN
     target_audience, competitive_context,
     meta_pixel_id, meta_ads_account_id,
     operational_health, performance_health, drift_count, positive_drift_count, negative_drift_count,
-    risk_score, gate_status, gate_overridden, override_reason
+    risk_score, gate_status
   ) VALUES (
     'GreenHome Eco Products Launch',
-    'New product launch where system recommended pause but user overrode to proceed — outcome validates the override',
+    'New product launch where AI recommended pausing high-CPA ad sets, but user kept them running — outcome validates the override',
     'Eco-Friendly Home',
     'completed',
     '2026-01-25', '2026-02-15', 18000.00,
@@ -501,8 +501,8 @@ BEGIN
     '{"demographics": {"age_range": ["25-44"], "locations": ["US"]}, "psychographics": {"interests": ["sustainability", "eco-friendly"], "behaviors": ["green_consumers"]}}',
     '{"market_saturation": "low", "competitor_count": 3, "price_position": "mid_range", "seasonality": "neutral", "market_trends": "growing"}',
     '444555666', '556677889900',
-    82, 78, 2, 0, 2,
-    72, 'proceed', true, 'Market trend data shows growing eco consumer segment — first mover advantage justifies risk'
+    82, 88, 2, 0, 2,
+    45, 'proceed'
   ) RETURNING id INTO camp4_id;
 
   -- Story 4 Phases (some delays)
@@ -525,13 +525,17 @@ BEGIN
     (camp4_id, p2_id, 1, 'negative', 'Extra revision round for eco-messaging accuracy', 'Minor 1-day delay, launch shifted by 1 day', 'Eco claims require additional fact-checking time', 'Creative Development', 5, 6, 'Sustainability claim verification', 'Lisa Park'),
     (camp4_id, p3_id, 1, 'negative', 'Late start due to creative delay cascade', 'Campaign started 1 day late', 'Build buffer time for sustainability messaging compliance', 'Launch & Optimize', 14, 13, 'Cascading delay from creative phase', 'Sarah Chen');
 
-  -- Story 4 Risk Score (system recommended pause)
+  -- Story 4 Risk Score (moderate risk, proceeded)
   INSERT INTO risk_scores (campaign_id, overall_score, risk_level, timeline_risk, budget_risk, resource_risk, performance_risk, risk_factors, mitigation_suggestions, gate_recommendation, gate_reason, calculated_by)
-  VALUES (camp4_id, 72, 'high', 55, 60, 30, 80, ARRAY['New market with limited historical data','Compressed timeline','First eco-product campaign for team','Sustainability claims require extra compliance'], ARRAY['Start with 30% test budget','Prepare pivot strategy','Set strict day-5 performance gate'], 'pause', 'High uncertainty in new market segment with no historical benchmarks — recommend pausing to gather more market intelligence', 'system');
+  VALUES (camp4_id, 45, 'medium', 35, 40, 20, 55, ARRAY['New market with limited historical data','First eco-product campaign for team','Sustainability claims require extra compliance'], ARRAY['Start with 30% test budget','Monitor CPA daily','Set strict day-7 performance gate'], 'proceed', 'Moderate risk profile — proceed with close monitoring and testing budget allocation', 'system');
 
-  -- Story 4 Override Event (user overrode system pause recommendation)
-  INSERT INTO override_events (campaign_id, override_type, original_recommendation, user_action, reason, system_confidence, risk_score_at_time, outcome, outcome_explanation, lesson_learned, system_was_correct, overridden_by)
-  VALUES (camp4_id, 'gate_decision', 'pause', 'proceed', 'Market trend data shows growing eco consumer segment — first mover advantage justifies risk. Team has sustainability expertise from personal projects.', 72, 72, 'success', 'Campaign achieved 2.8x ROAS (93% of target) despite being first eco campaign. Early mover advantage captured growing segment. System overestimated risk for trending market segments.', 'System risk models should weight market trend momentum higher — growing segments reduce effective risk even without historical data', false, 'James Wilson');
+  -- Story 4 AI Recommendation (to be rejected by user)
+  INSERT INTO recommendations (campaign_id, recommendation_type, tier, category, title, description, implementation_steps, implementation_notes, impact, effort, confidence, expected_outcome, status, accepted_at, rejected_reason, ai_model, generated_by)
+  VALUES (camp4_id, 'tactical', 'tactical', 'budget', 'Pause High-CPA Ad Sets', 'Ad sets targeting 45-54 age group show CPA of $48 (60% above target). Recommend pausing these ad sets and reallocating budget to better-performing 25-34 demographic.', ARRAY['Pause ad sets: GreenHome_45-54_Feed','Reallocate $3,200 to GreenHome_25-34_Stories','Monitor for 48 hours','Re-enable if market data changes'], 'System detected sustained high CPA in older demographic after 5 days of optimization. Statistical confidence: 87%.', 'medium', 'low', 87, 'Reduce overall CPA by $8-12, improve ROAS from 2.1 to 2.6', 'rejected', NULL, 'I see the high CPA, but market research shows 45-54 eco-consumers have 3x higher lifetime value. Early CPA will normalize as we build brand awareness in this premium segment. Keeping ad sets running.', 'llama-3.3-70b-versatile', 'AI Engine') RETURNING id INTO rec4_id;
+
+  -- Story 4 Override Event (user rejected AI recommendation to pause ad sets)
+  INSERT INTO override_events (campaign_id, recommendation_id, override_type, original_recommendation, user_action, reason, system_confidence, risk_score_at_time, outcome, outcome_explanation, lesson_learned, system_was_correct, overridden_by)
+  VALUES (camp4_id, rec4_id, 'ai_recommendation', 'pause', 'proceed', 'Market research shows 45-54 eco-consumers have 3x higher lifetime value despite higher CPA. Early brand awareness phase — expect CPA to normalize after initial exposure. This demographic drives premium product sales.', 87, 45, 'success', 'User was correct: After 10 days, 45-54 demographic CPA dropped to $28 (12% better than target) as brand awareness built. This segment drove 42% of total revenue with 3.8x ROAS vs 2.6x for 25-34. Higher initial CPA reflected learning phase, not poor targeting.', 'AI should factor in lifetime value and learning phase duration when evaluating CPA performance. Early high CPA in premium segments may indicate quality audience, not poor targeting. Consider segment-specific success metrics beyond immediate CPA.', false, 'James Wilson');
 
   -- ========================================================================
   -- STORY 5: ACCOUNTABILITY EXAMPLE (Client Delay Tracking)

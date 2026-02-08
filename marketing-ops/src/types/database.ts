@@ -83,8 +83,9 @@ export interface StakeholderAction {
 export interface OverrideEvent {
   id: string
   campaign_id: string
+  recommendation_id?: string // Link to the AI recommendation that was overridden
   created_at: string
-  override_type: 'gate_decision' | 'timeline' | 'budget' | 'resource'
+  override_type: 'ai_recommendation' | 'gate_decision' | 'timeline' | 'budget' | 'resource'
   original_recommendation: 'proceed' | 'adjust' | 'pause'
   user_action: 'proceed' | 'adjust' | 'pause'
   reason: string

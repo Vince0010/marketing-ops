@@ -62,6 +62,8 @@ import { KanbanBoard } from '@/components/kanban'
 import AIRecommendationsEngine from '@/components/ai/AIRecommendationsEngine'
 import MetaAdsDashboard from '@/components/meta/MetaAdsDashboard'
 import StrategicFailureDiagnosis from '@/components/diagnosis/StrategicFailureDiagnosis'
+import { OverrideOutcomeAnalysis } from '@/components/diagnosis/OverrideOutcomeAnalysis'
+import type { OverrideEvent } from '@/types/database'
 
 const SEEDED_DRIFT_EVENTS: Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>[] = [
   {
@@ -207,6 +209,8 @@ export default function CampaignTracker() {
   const [saveTemplateEventIndex, setSaveTemplateEventIndex] = useState<number | null>(null)
   const [templateName, setTemplateName] = useState('')
   const [templateDescription, setTemplateDescription] = useState('')
+  // Override event for learning loop
+  const [overrideEvent, setOverrideEvent] = useState<OverrideEvent | null>(null)
 
   // Get execution data from hook
   const execution = useCampaignExecution(id || '')
@@ -229,7 +233,22 @@ export default function CampaignTracker() {
   const fetchData = async () => {
     try {
       const { data } = await supabase.from('campaigns').select('*').eq('id', id).single()
-      if (data) setCampaign(data)
+      if (data) {
+        setCampaign(data)
+        
+        // Fetch override event if campaign has override
+        if (data.gate_overridden) {
+          const { data: override } = await supabase
+            .from('override_events')
+            .select('*')
+            .eq('campaign_id', id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single()
+          
+          if (override) setOverrideEvent(override as OverrideEvent)
+        }
+      }
     } catch (error) {
       console.error('Error:', error)
     } finally {
@@ -515,9 +534,12 @@ export default function CampaignTracker() {
       {/* Main Tabs */}
       <div className="space-y-4">
         <Tabs defaultValue="execution" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-7 h-auto flex-wrap gap-1 p-1">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-8 h-auto flex-wrap gap-1 p-1">
             <TabsTrigger value="execution" className="text-xs sm:text-sm py-2">Execution</TabsTrigger>
             <TabsTrigger value="drift" className="text-xs sm:text-sm py-2">Drift Analysis</TabsTrigger>
+            {campaign?.gate_overridden && (
+              <TabsTrigger value="override" className="text-xs sm:text-sm py-2">Override Learning</TabsTrigger>
+            )}
             <TabsTrigger value="audience" className="text-xs sm:text-sm py-2">Audience Insights</TabsTrigger>
             <TabsTrigger value="meta-ads" className="text-xs sm:text-sm py-2">Meta Ads</TabsTrigger>
             <TabsTrigger value="diagnosis" className="text-xs sm:text-sm py-2">Failure Diagnosis</TabsTrigger>
@@ -527,6 +549,17 @@ export default function CampaignTracker() {
 
           {/* Execution Timeline Tab */}
           <TabsContent value="execution" className="space-y-4 mt-4">
+            {/* Observation Mode Alert */}
+            {campaign?.gate_overridden && campaign.status === 'in_progress' && (
+              <ObservationModeBadge
+                riskScore={campaign.risk_score}
+                campaignStatus={campaign.status}
+                startDate={campaign.start_date}
+                endDate={campaign.end_date}
+                showFullAlert={true}
+              />
+            )}
+            
             {/* Task Board (Kanban) */}
             <Card>
               <CardHeader>
@@ -543,6 +576,16 @@ export default function CampaignTracker() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Override Learning Tab */}
+          {campaign?.gate_overridden && (
+            <TabsContent value="override" className="space-y-4 mt-4">
+              <OverrideOutcomeAnalysis
+                campaign={campaign}
+                overrideEvent={overrideEvent}
+              />
+            </TabsContent>
+          )}
 
           {/* Drift Analysis Tab */}
           <TabsContent value="drift" className="space-y-4 mt-4">
@@ -826,8 +869,8 @@ export default function CampaignTracker() {
               campaign={campaign}
               phases={phases}
               driftEvents={driftEvents as DriftEvent[]}
-              onCreateTemplate={(diagnosis) => {
-                console.log('Created failure prevention template:', diagnosis)
+              onCreateTemplate={(_diagnosis: any) => {
+                console.log('Created failure prevention template:', _diagnosis)
               }}
             />
           </TabsContent>

@@ -253,11 +253,12 @@ CREATE TABLE recommendations (
 CREATE TABLE override_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  recommendation_id UUID REFERENCES recommendations(id) ON DELETE SET NULL, -- Link to the AI recommendation that was overridden
   created_at TIMESTAMPTZ DEFAULT NOW(),
   
   -- Override Details
-  override_type TEXT NOT NULL, -- 'gate_decision', 'recommendation', 'timeline', etc.
-  original_recommendation TEXT NOT NULL, -- What the system recommended
+  override_type TEXT NOT NULL, -- 'ai_recommendation', 'gate_decision', 'timeline', etc.
+  original_recommendation TEXT NOT NULL, -- What the system/AI recommended
   user_action TEXT NOT NULL, -- What the user decided to do instead
   reason TEXT NOT NULL, -- User's reason for override
   
@@ -266,15 +267,15 @@ CREATE TABLE override_events (
   risk_score_at_time INTEGER, -- Risk score when override happened
   
   -- Outcome Analysis (filled in post-campaign)
-  outcome TEXT CHECK (outcome IN ('success', 'failure', 'mixed', 'pending')),
+  outcome TEXT CHECK (outcome IN ('success', 'failure', 'partial_success')),
   outcome_explanation TEXT,
   lesson_learned TEXT,
   system_was_correct BOOLEAN, -- Learning for future recommendations
   
   -- User Info
   overridden_by TEXT NOT NULL,
-  reviewed_by TEXT,
-  reviewed_at TIMESTAMPTZ
+  reviewed_at TIMESTAMPTZ,
+  reviewer_notes TEXT
 );
 
 -- ============================================================================
