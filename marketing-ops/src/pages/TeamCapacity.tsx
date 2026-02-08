@@ -98,7 +98,7 @@ export default function TeamCapacity() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Team Capacity</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Expedition Team</h1>
           <p className="text-muted-foreground">Loading team capacity data...</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -117,8 +117,8 @@ export default function TeamCapacity() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Team Capacity Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Monitor team bandwidth and resource allocation</p>
+        <h1 className="text-3xl font-bold">Expedition Team</h1>
+        <p className="text-muted-foreground mt-1">Crew roles, bandwidth, and resource allocation</p>
       </div>
 
       {/* Overload Alert */}

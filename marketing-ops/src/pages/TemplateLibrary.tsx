@@ -23,9 +23,9 @@ export default function TemplateLibrary() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Template Library</h1>
-          <p className="text-muted-foreground mt-1">
-            Reusable campaign templates saved from positive drift and successful campaigns
+          <h1 className="text-3xl font-bold">Supply Cache</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Templates and saved configurations for future expeditions
           </p>
         </div>
         <Button asChild>

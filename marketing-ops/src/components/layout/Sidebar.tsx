@@ -17,10 +17,12 @@ import {
   Settings,
   LogOut,
   Bell,
-  Zap,
+  Mountain,
   FileText,
   Sun,
   Moon,
+  Package,
+  Radio,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -55,10 +57,10 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   }, [dark])
 
   const navLinks: NavLink[] = [
-    { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-    { name: 'New Campaign', href: '/campaigns/new', icon: <PlusCircle className="w-5 h-5" /> },
-    { name: 'Templates', href: '/templates', icon: <FileText className="w-5 h-5" /> },
-    { name: 'Team', href: '/team', icon: <Users className="w-5 h-5" /> },
+    { name: 'Summit Control Center', href: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+    { name: 'Begin Ascent', href: '/campaigns/new', icon: <PlusCircle className="w-5 h-5" /> },
+    { name: 'Supply Cache', href: '/templates', icon: <Package className="w-5 h-5" /> },
+    { name: 'Expedition Team', href: '/team', icon: <Users className="w-5 h-5" /> },
   ]
 
   const isActive = (href: string) => {
@@ -67,33 +69,35 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   }
 
   return (
-    <aside className={`w-64 bg-expedition-navy border-r border-white/10 fixed left-0 top-0 bottom-0 flex flex-col z-50 transition-transform duration-300 ease-in-out ${
+    <aside className={`w-64 bg-expedition-summitSky border-r border-white/10 fixed left-0 top-0 bottom-0 flex flex-col z-50 transition-transform duration-300 ease-in-out ${
       isOpen ? 'translate-x-0' : '-translate-x-full'
     } md:translate-x-0`}>
-      {/* Logo */}
-      <div className="p-6">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-expedition-trail rounded-lg flex items-center justify-center">
-            <Zap className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xl font-bold text-white">
-            MarketingOps<span className="text-expedition-summit">.ai</span>
-          </span>
-        </Link>
+      {/* Header gradient + Logo */}
+      <div className="bg-expedition-header border-b border-white/10">
+        <div className="p-6">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-expedition-camp-1">
+              <Mountain className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xl font-bold text-expedition-snowCap">
+              MarketingOps<span className="text-primary">.ai</span>
+            </span>
+          </Link>
+        </div>
       </div>
 
       <Separator className="bg-white/10" />
 
       {/* Theme switch: Light / Dark */}
       <div className="p-4">
-        <p className="text-xs font-medium text-white/60 mb-2">Theme</p>
+        <p className="text-xs font-medium text-white/60 mb-2 weather-updates">Weather Station</p>
         <div className="flex rounded-lg border border-white/10 bg-white/5 p-0.5">
           <button
             type="button"
             onClick={() => setDark(false)}
             className={cn(
               'flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors',
-              !dark ? 'bg-expedition-trail text-white shadow-sm' : 'text-white/70 hover:text-white'
+              !dark ? 'bg-primary text-primary-foreground shadow-sm' : 'text-white/70 hover:text-white'
             )}
             aria-pressed={!dark}
             aria-label="Light mode"
@@ -106,7 +110,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             onClick={() => setDark(true)}
             className={cn(
               'flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors',
-              dark ? 'bg-expedition-trail text-white shadow-sm' : 'text-white/70 hover:text-white'
+              dark ? 'bg-primary text-primary-foreground shadow-sm' : 'text-white/70 hover:text-white'
             )}
             aria-pressed={dark}
             aria-label="Dark mode"
@@ -119,15 +123,15 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
       <Separator className="bg-white/10" />
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
+      {/* Base Camp Menu */}
+      <nav className="flex-1 p-4 space-y-1" aria-label="Base Camp Menu">
         {navLinks.map((link) => (
           <Link key={link.name} to={link.href} onClick={() => onClose?.()}>
             <Button
               variant="ghost"
               className={cn(
                 'w-full justify-start gap-3 text-white/90 hover:text-white hover:bg-white/10',
-                isActive(link.href) && 'bg-expedition-trail text-white hover:bg-expedition-trail/90'
+                isActive(link.href) && 'bg-primary text-primary-foreground hover:bg-primary/90'
               )}
             >
               {link.icon}
@@ -142,9 +146,9 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       {/* Bottom section: notifications + user */}
       <div className="p-4 space-y-3">
         <Button variant="ghost" className="w-full justify-start gap-3 relative text-white/90 hover:text-white hover:bg-white/10">
-          <Bell className="w-5 h-5" />
-          Notifications
-          <Badge className="ml-auto h-5 w-5 flex items-center justify-center p-0 text-[10px] bg-expedition-checkpoint text-white border-0">
+          <Radio className="w-5 h-5" />
+          Weather Alerts
+          <Badge className="ml-auto h-5 w-5 flex items-center justify-center p-0 text-[10px] bg-destructive text-white border-0">
             3
           </Badge>
         </Button>
@@ -152,8 +156,8 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="w-full justify-start gap-3 text-white/90 hover:text-white hover:bg-white/10">
-              <div className="w-8 h-8 bg-expedition-trail/30 rounded-full flex items-center justify-center">
-                <User className="w-4 h-4 text-expedition-trail" />
+              <div className="w-8 h-8 bg-primary/30 rounded-full flex items-center justify-center">
+                <User className="w-4 h-4 text-primary" />
               </div>
               <span className="text-sm">Demo User</span>
             </Button>
@@ -174,7 +178,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               Switch to {dark ? 'light' : 'dark'} mode
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-expedition-checkpoint">
+            <DropdownMenuItem className="text-destructive">
               <LogOut className="w-4 h-4 mr-2" />
               Sign Out
             </DropdownMenuItem>

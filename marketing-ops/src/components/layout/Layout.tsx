@@ -11,7 +11,7 @@ export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background expedition-bg">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
       {/* Overlay for mobile */}
@@ -35,7 +35,7 @@ export default function Layout({ children }: LayoutProps) {
           </Button>
         </div>
         
-        <main className="px-8 py-8">
+        <main className="px-8 py-8 relative z-10">
           {children}
         </main>
       </div>

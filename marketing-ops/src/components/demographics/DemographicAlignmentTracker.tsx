@@ -39,26 +39,33 @@ export function DemographicAlignmentTracker({
   variant,
   compact = false,
 }: DemographicAlignmentTrackerProps) {
+  const getTerrainLabel = (diff: number) => {
+    if (diff >= 5) return { label: 'Summit', emoji: '🏔️' }
+    if (diff >= 0) return { label: 'Steep', emoji: '⛰️' }
+    if (diff >= -5) return { label: 'Base', emoji: '🏕️' }
+    return { label: 'Volcanic', emoji: '🌋' }
+  }
+
   return (
-    <Card className={cn(compact && 'border-border')}>
+    <Card className={cn(compact && 'border-border', 'shadow-expedition-camp-1')}>
       <CardHeader className={compact ? 'py-3' : ''}>
         <CardTitle className={cn('flex items-center gap-2', compact && 'text-base')}>
           <Target className="w-4 h-4" />
-          Audience Insights
+          Target Audience Map
         </CardTitle>
         <CardDescription>
           {variant === 'preliminary'
             ? 'Preliminary demographic alignment (first 7+ days)'
             : variant === 'final'
               ? 'Final demographic alignment'
-              : 'Target vs actual audience delivery'}
+              : 'Planned vs actual audience terrain'}
         </CardDescription>
       </CardHeader>
       <CardContent className={cn('space-y-4', compact && 'space-y-3')}>
-        {/* Age distribution: TARGET vs ACTUAL on same 0–100% scale */}
+        {/* Age distribution: Planned vs Actual with terrain */}
         <div>
           <p className="text-sm font-medium mb-2">
-            Age distribution: target vs actual
+            Age range · Planned vs actual · Terrain
           </p>
           <div className="space-y-3">
             {ageData.map((row) => {
@@ -69,6 +76,7 @@ export function DemographicAlignmentTracker({
                 <div key={row.range} className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-medium w-12">{row.range}</span>
+                    <span className="text-muted-foreground">{getTerrainLabel(row.diff).emoji} {getTerrainLabel(row.diff).label}</span>
                     <span
                       className={cn(
                         'w-14 text-right',
@@ -111,6 +119,9 @@ export function DemographicAlignmentTracker({
               )
             })}
           </div>
+          <p className="text-[10px] text-muted-foreground mt-2">
+            Terrain key: 🏔️ Strong · ⛰️ Moderate · 🏕️ Weak · 🌋 Critical
+          </p>
         </div>
 
         {/* Audience Fit Score */}

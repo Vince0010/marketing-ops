@@ -425,11 +425,11 @@ export default function CampaignTracker() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Expedition Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Campaign Execution Tracker</h1>
-          <p className="text-muted-foreground mt-1">{campaign?.name || `Campaign ${id}`}</p>
+          <h1 className="text-3xl font-bold text-foreground">Summit Tracker</h1>
+          <p className="text-muted-foreground mt-1">{campaign?.name || `Expedition ${id}`}</p>
         </div>
         <div className="flex items-center gap-2">
           {campaign?.gate_overridden && (
@@ -438,23 +438,23 @@ export default function CampaignTracker() {
               campaignStatus={campaign?.status}
             />
           )}
-          <Badge variant="default" className="gap-2 bg-expedition-trail">
+          <Badge variant="default" className="gap-2 bg-primary">
             <Activity className="w-4 h-4" />
-            In Progress
+            Ascent in progress
           </Badge>
         </div>
       </div>
 
-      {/* Health Metrics */}
+      {/* Altitude & Expedition Weather Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+        <Card className="shadow-expedition-camp-1">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Operational Health</CardTitle>
+            <CardTitle className="text-sm font-medium weather-updates">Altitude (Operational)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between mb-2">
-              <span className={`text-2xl font-bold ${operationalHealth >= 80 ? 'text-expedition-evergreen' : operationalHealth >= 60 ? 'text-expedition-signal' : 'text-expedition-checkpoint'}`}>
-                {operationalHealth}%
+              <span className={`altitude-readings ${operationalHealth >= 80 ? 'text-expedition-evergreen' : operationalHealth >= 60 ? 'text-expedition-signal' : 'text-expedition-checkpoint'}`}>
+                ▲ {operationalHealth}%
               </span>
               <TrendingUp className={`w-5 h-5 ${operationalHealth >= 80 ? 'text-expedition-evergreen' : 'text-expedition-signal'}`} />
             </div>
@@ -462,14 +462,14 @@ export default function CampaignTracker() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-expedition-camp-1">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Performance Health</CardTitle>
+            <CardTitle className="text-sm font-medium weather-updates">Performance</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between mb-2">
-              <span className={`text-2xl font-bold ${performanceHealth >= 80 ? 'text-expedition-evergreen' : performanceHealth >= 60 ? 'text-expedition-signal' : 'text-expedition-checkpoint'}`}>
-                {performanceHealth}%
+              <span className={`altitude-readings ${performanceHealth >= 80 ? 'text-expedition-evergreen' : performanceHealth >= 60 ? 'text-expedition-signal' : 'text-expedition-checkpoint'}`}>
+                ▲ {performanceHealth}%
               </span>
               <BarChart3 className="w-5 h-5 text-expedition-signal" />
             </div>
@@ -477,13 +477,13 @@ export default function CampaignTracker() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-expedition-camp-1">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Timeline Drift</CardTitle>
+            <CardTitle className="text-sm font-medium weather-updates">Timeline Drift</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between mb-2">
-              <span className={`text-2xl font-bold ${totalDrift > 0 ? 'text-expedition-checkpoint' : totalDrift < 0 ? 'text-expedition-evergreen' : 'text-muted-foreground'}`}>
+              <span className={`altitude-readings ${totalDrift > 0 ? 'text-expedition-checkpoint' : totalDrift < 0 ? 'text-expedition-evergreen' : 'text-muted-foreground'}`}>
                 {totalDrift > 0 ? '+' : ''}{totalDrift}d
               </span>
               {totalDrift > 0 ? (
@@ -493,17 +493,17 @@ export default function CampaignTracker() {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              {phases.filter((p) => p.status === 'completed').length}/{phases.length} phases complete
+              Base camps: {phases.filter((p) => p.status === 'completed').length}/{phases.length} complete
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-expedition-camp-1">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Drift Events</CardTitle>
+            <CardTitle className="text-sm font-medium weather-updates">Weather Events</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{driftEvents.length}</div>
+            <div className="altitude-readings">{driftEvents.length}</div>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-xs text-expedition-checkpoint">{driftEvents.filter(d => d.drift_type === 'negative').length} delays</span>
               <span className="text-xs text-expedition-evergreen">{driftEvents.filter(d => d.drift_type === 'positive').length} ahead</span>
@@ -544,10 +544,11 @@ export default function CampaignTracker() {
             </Card>
           </TabsContent>
 
-          {/* Drift Analysis Tab */}
+          {/* Drift Analysis Tab — Expedition Weather Report */}
           <TabsContent value="drift" className="space-y-4 mt-4">
+            <p className="text-sm text-muted-foreground weather-updates">Expedition Weather Report: risk and timeline conditions</p>
             {totalDrift > 2 && (
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="animate-risk-pulse">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Significant Timeline Drift</AlertTitle>
                 <AlertDescription>
