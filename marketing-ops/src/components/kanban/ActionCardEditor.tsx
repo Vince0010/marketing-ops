@@ -39,6 +39,7 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
     const [priority, setPriority] = useState<ActionPriority>('medium')
     const [assignee, setAssignee] = useState('')
     const [dueDate, setDueDate] = useState('')
+    const [estimatedHours, setEstimatedHours] = useState('')
     const [isSaving, setIsSaving] = useState(false)
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -59,6 +60,7 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
                 timestamp: new Date().toISOString(),
                 assignee: assignee.trim() || undefined,
                 due_date: dueDate ? new Date(dueDate).toISOString() : undefined,
+                estimated_hours: estimatedHours ? parseFloat(estimatedHours) : undefined,
             }
             await onSave(taskData)
         } finally {
@@ -126,7 +128,7 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
                 </div>
 
                 {/* Assignee & Due Date */}
-                <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="grid grid-cols-2 gap-2 mb-2">
                     <input
                         type="text"
                         value={assignee}
@@ -139,6 +141,19 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
                         value={dueDate}
                         onChange={(e) => setDueDate(e.target.value)}
                         className="px-2 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                </div>
+
+                {/* Estimated Hours */}
+                <div className="mb-3">
+                    <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        value={estimatedHours}
+                        onChange={(e) => setEstimatedHours(e.target.value)}
+                        placeholder="Estimated hours (optional)..."
+                        className="w-full px-2 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                 </div>
 

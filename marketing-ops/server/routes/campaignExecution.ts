@@ -118,7 +118,21 @@ router.post('/:campaignId/tasks', async (req: Request, res: Response) => {
 router.patch('/:campaignId/tasks/:taskId', async (req: Request, res: Response) => {
     try {
         const { campaignId, taskId } = req.params
-        const updates = req.body
+
+        // Only include columns that exist in the database
+        const allowedColumns = [
+            'title', 'description', 'action_type', 'status',
+            'timestamp', 'metadata', 'phase_id',
+            'estimated_hours', 'started_at', 'completed_at', 'time_in_phase_minutes',
+            'delay_reason', 'due_date', 'priority', 'assignee'
+        ]
+
+        const updates: Record<string, unknown> = {}
+        for (const key of allowedColumns) {
+            if (key in req.body) {
+                updates[key] = req.body[key]
+            }
+        }
 
         console.log('[API] Updating task:', taskId, updates)
 
@@ -139,7 +153,7 @@ router.patch('/:campaignId/tasks/:taskId', async (req: Request, res: Response) =
         res.json(data)
     } catch (error) {
         console.error('[API] Error updating task:', error)
-        res.status(500).json({ error: 'Failed to update task' })
+        res.status(500).json({ error: 'Failed to update task', details: (error as Error).message })
     }
 })
 

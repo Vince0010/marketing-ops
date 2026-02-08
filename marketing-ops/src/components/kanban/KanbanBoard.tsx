@@ -14,6 +14,7 @@ import type { ExecutionPhase } from '@/types/phase'
 import type { MarketerAction, MarketerActionInsert, TaskPhaseHistory } from '@/types/actions'
 import { KanbanColumn } from './KanbanColumn'
 import { ActionCard } from './ActionCard'
+import { TaskEditModal } from './TaskEditModal'
 import { DelayReasonModal } from './DelayReasonModal'
 import { cn } from '@/lib/utils'
 
@@ -27,7 +28,9 @@ interface ExternalExecutionData {
     loading: boolean
     error: string | null
     createTask: (taskData: MarketerActionInsert) => Promise<MarketerAction>
+    updateTask: (taskId: string, updates: Partial<MarketerAction>) => Promise<MarketerAction>
     moveTaskToPhase: (taskId: string, newPhaseId: string | null, oldPhaseId: string | null) => Promise<MarketerAction>
+    deleteTask: (taskId: string) => Promise<void>
     refetch: () => Promise<void>
 }
 
@@ -38,6 +41,7 @@ interface KanbanBoardProps {
 
 export default function KanbanBoard({ campaignId, externalData }: KanbanBoardProps) {
     const [activeTask, setActiveTask] = useState<MarketerAction | null>(null)
+    const [editingTask, setEditingTask] = useState<{ task: MarketerAction; phase: ExecutionPhase | null } | null>(null)
     const [isDelayModalOpen, setIsDelayModalOpen] = useState(false)
     const [pendingMove, setPendingMove] = useState<{
         taskId: string,
@@ -58,7 +62,9 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
         loading: executionLoading,
         error: executionError,
         createTask,
+        updateTask,
         moveTaskToPhase,
+        deleteTask,
         refetch,
     } = externalData || ownHook
 
@@ -202,6 +208,24 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
         }
     }
 
+    const handleEditTask = (task: MarketerAction, phase: ExecutionPhase | null) => {
+        setEditingTask({ task, phase })
+    }
+
+    const handleSaveEdit = async (taskId: string, updates: Partial<MarketerAction>) => {
+        await updateTask(taskId, updates)
+    }
+
+    const handleDeleteTask = async (task: MarketerAction) => {
+        if (window.confirm(`Delete task "${task.title}"?`)) {
+            try {
+                await deleteTask(task.id)
+            } catch (err) {
+                console.error('Failed to delete task:', err)
+            }
+        }
+    }
+
     const handleCreateTask = async (taskData: MarketerActionInsert) => {
         await createTask(taskData)
     }
@@ -260,6 +284,8 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
                         tasks={tasksByPhase.get('backlog') || []}
                         campaignId={campaignId}
                         onCreateTask={handleCreateTask}
+                        onEditTask={handleEditTask}
+                        onDeleteTask={handleDeleteTask}
                         isBacklog
                     />
 
@@ -271,6 +297,8 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
                             tasks={tasksByPhase.get(phase.id) || []}
                             campaignId={campaignId}
                             onCreateTask={handleCreateTask}
+                            onEditTask={handleEditTask}
+                            onDeleteTask={handleDeleteTask}
                             completedCount={completedByPhase.get(phase.id) || 0}
                         />
                     ))}
@@ -285,6 +313,16 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
                     ) : null}
                 </DragOverlay>
             </DndContext>
+
+            {/* Task Edit Modal */}
+            {editingTask && (
+                <TaskEditModal
+                    task={editingTask.task}
+                    phase={editingTask.phase}
+                    onSave={handleSaveEdit}
+                    onClose={() => setEditingTask(null)}
+                />
+            )}
 
             <DelayReasonModal
                 isOpen={isDelayModalOpen}

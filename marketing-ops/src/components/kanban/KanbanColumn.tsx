@@ -15,6 +15,8 @@ interface KanbanColumnProps {
     campaignId: string
     onCreateTask: (task: MarketerActionInsert) => Promise<void>
     onTaskClick?: (task: MarketerAction, phase: ExecutionPhase | null) => void
+    onEditTask?: (task: MarketerAction, phase: ExecutionPhase | null) => void
+    onDeleteTask?: (task: MarketerAction) => void
     completedCount?: number // Number of tasks that have completed this phase
     isBacklog?: boolean
 }
@@ -23,6 +25,8 @@ interface SortableTaskProps {
     task: MarketerAction
     phase: ExecutionPhase | null
     onTaskClick?: (task: MarketerAction, phase: ExecutionPhase | null) => void
+    onEditTask?: (task: MarketerAction, phase: ExecutionPhase | null) => void
+    onDeleteTask?: (task: MarketerAction) => void
 }
 
 /**
@@ -55,7 +59,7 @@ function formatTime(minutes: number): string {
     return `${hours}h ${remainingMins}m`
 }
 
-function SortableTask({ task, phase, onTaskClick }: SortableTaskProps) {
+function SortableTask({ task, phase, onTaskClick, onEditTask, onDeleteTask }: SortableTaskProps) {
     const {
         attributes,
         listeners,
@@ -76,6 +80,16 @@ function SortableTask({ task, phase, onTaskClick }: SortableTaskProps) {
         }
     }
 
+    const handleEdit = (e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (onEditTask) onEditTask(task, phase)
+    }
+
+    const handleDelete = (e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (onDeleteTask) onDeleteTask(task)
+    }
+
     return (
         <div
             ref={setNodeRef}
@@ -88,12 +102,14 @@ function SortableTask({ task, phase, onTaskClick }: SortableTaskProps) {
                 phase={phase}
                 onClick={handleClick}
                 isDragging={isDragging}
+                onEdit={onEditTask ? handleEdit : undefined}
+                onDelete={onDeleteTask ? handleDelete : undefined}
             />
         </div>
     )
 }
 
-export function KanbanColumn({ phase, tasks, campaignId, onCreateTask, onTaskClick, completedCount = 0, isBacklog }: KanbanColumnProps) {
+export function KanbanColumn({ phase, tasks, campaignId, onCreateTask, onTaskClick, onEditTask, onDeleteTask, completedCount = 0, isBacklog }: KanbanColumnProps) {
     const [isAddingTask, setIsAddingTask] = useState(false)
 
     const columnId = phase?.id || 'backlog'
@@ -218,6 +234,8 @@ export function KanbanColumn({ phase, tasks, campaignId, onCreateTask, onTaskCli
                             task={task}
                             phase={phase}
                             onTaskClick={onTaskClick}
+                            onEditTask={onEditTask}
+                            onDeleteTask={onDeleteTask}
                         />
                     ))}
                 </SortableContext>

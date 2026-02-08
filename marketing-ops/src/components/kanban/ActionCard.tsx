@@ -1,4 +1,4 @@
-import { Clock, CheckCircle2, Circle, Timer, AlertCircle, XCircle, AlertTriangle } from 'lucide-react'
+import { Clock, CheckCircle2, Circle, Timer, AlertCircle, XCircle, AlertTriangle, User, Calendar, Pencil, Trash2 } from 'lucide-react'
 import type { MarketerAction } from '@/types/actions'
 import type { ExecutionPhase } from '@/types/phase'
 import { cn } from '@/lib/utils'
@@ -8,6 +8,8 @@ interface ActionCardProps {
     phase?: ExecutionPhase | null
     onClick?: () => void
     isDragging?: boolean
+    onEdit?: (e: React.MouseEvent) => void
+    onDelete?: (e: React.MouseEvent) => void
 }
 
 const statusIcons = {
@@ -27,6 +29,13 @@ const actionTypeColors: Record<string, string> = {
     placement_change: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
     posting_schedule_change: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300',
     other: 'bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-300',
+}
+
+const priorityColors: Record<string, string> = {
+    low: 'bg-slate-200 dark:bg-slate-700',
+    medium: 'bg-blue-200 dark:bg-blue-800',
+    high: 'bg-amber-200 dark:bg-amber-800',
+    critical: 'bg-red-200 dark:bg-red-800',
 }
 
 /**
@@ -86,7 +95,20 @@ function isTaskOverdue(task: MarketerAction, phase?: ExecutionPhase | null): boo
     return totalMinutesInPhase > plannedMinutes
 }
 
-export function ActionCard({ task, phase, onClick, isDragging }: ActionCardProps) {
+function formatDueDate(dateStr: string): string {
+    const date = new Date(dateStr)
+    const now = new Date()
+    now.setHours(0, 0, 0, 0)
+    date.setHours(0, 0, 0, 0)
+    const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+
+    if (diffDays < 0) return `${Math.abs(diffDays)}d overdue`
+    if (diffDays === 0) return 'Due today'
+    if (diffDays === 1) return 'Due tomorrow'
+    return `Due in ${diffDays}d`
+}
+
+export function ActionCard({ task, phase, onClick, isDragging, onEdit, onDelete }: ActionCardProps) {
     const StatusIcon = statusIcons[task.status] || Circle
     const isOverdue = isTaskOverdue(task, phase)
 
@@ -100,11 +122,14 @@ export function ActionCard({ task, phase, onClick, isDragging }: ActionCardProps
         ? Math.round((timeInPhaseMinutes / estimatedMinutes) * 100)
         : null
 
+    // Check if due date is past
+    const isDueDateOverdue = task.due_date ? new Date(task.due_date) < new Date() && task.status !== 'completed' : false
+
     return (
         <div
             onClick={onClick}
             className={cn(
-                "p-3 rounded-lg border transition-all",
+                "p-3 rounded-lg border transition-all group",
                 "hover:shadow-md cursor-grab",
                 isDragging && "opacity-50 rotate-2 shadow-xl",
                 // Overdue styling - red border and background
@@ -121,25 +146,59 @@ export function ActionCard({ task, phase, onClick, isDragging }: ActionCardProps
                 </div>
             )}
 
-            {/* Header */}
+            {/* Header with edit/delete buttons */}
             <div className="flex items-start justify-between gap-2 mb-2">
                 <h4 className={cn(
-                    "text-sm font-medium line-clamp-2",
+                    "text-sm font-medium line-clamp-2 flex-1",
                     isOverdue
                         ? "text-red-900 dark:text-red-200"
                         : "text-slate-900 dark:text-slate-100"
                 )}>
                     {task.title}
                 </h4>
+                {(onEdit || onDelete) && (
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                        {onEdit && (
+                            <button
+                                onClick={onEdit}
+                                className="p-1 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
+                                title="Edit task"
+                            >
+                                <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                        )}
+                        {onDelete && (
+                            <button
+                                onClick={onDelete}
+                                className="p-1 text-slate-400 hover:text-red-500 dark:hover:text-red-400 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
+                                title="Delete task"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
 
-            {/* Type badge */}
-            <span className={cn(
-                "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium mb-2",
-                actionTypeColors[task.action_type] || actionTypeColors.other
-            )}>
-                {task.action_type.replace(/_/g, ' ')}
-            </span>
+            {/* Priority indicator + Type badge */}
+            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                {task.priority && task.priority !== 'medium' && (
+                    <span className={cn(
+                        "inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium",
+                        task.priority === 'critical' && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+                        task.priority === 'high' && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                        task.priority === 'low' && "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400",
+                    )}>
+                        {task.priority}
+                    </span>
+                )}
+                <span className={cn(
+                    "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
+                    actionTypeColors[task.action_type] || actionTypeColors.other
+                )}>
+                    {task.action_type.replace(/_/g, ' ')}
+                </span>
+            </div>
 
             {/* Description preview */}
             {task.description && (
@@ -148,7 +207,36 @@ export function ActionCard({ task, phase, onClick, isDragging }: ActionCardProps
                 </p>
             )}
 
-            {/* Time in phase indicator */}
+            {/* Assignee */}
+            {task.assignee && (
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-2">
+                    <User className="w-3 h-3" />
+                    <span>{task.assignee}</span>
+                </div>
+            )}
+
+            {/* Due date */}
+            {task.due_date && (
+                <div className={cn(
+                    "flex items-center gap-1.5 text-xs mb-2",
+                    isDueDateOverdue
+                        ? "text-red-600 dark:text-red-400 font-medium"
+                        : "text-slate-500 dark:text-slate-400"
+                )}>
+                    <Calendar className="w-3 h-3" />
+                    <span>{formatDueDate(task.due_date)}</span>
+                </div>
+            )}
+
+            {/* Estimated hours (always show if set, even without phase) */}
+            {task.estimated_hours && !task.phase_id && (
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium mb-2 bg-slate-50 text-slate-600 dark:bg-slate-700/50 dark:text-slate-400">
+                    <Timer className="w-3.5 h-3.5" />
+                    <span>Est: {task.estimated_hours}h</span>
+                </div>
+            )}
+
+            {/* Time in phase indicator (for tasks assigned to a phase) */}
             {task.phase_id && (
                 <div className={cn(
                     "flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium mb-2",
@@ -179,21 +267,25 @@ export function ActionCard({ task, phase, onClick, isDragging }: ActionCardProps
                 </div>
             )}
 
-            {/* Footer: Status */}
+            {/* Footer: Status + priority dot */}
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                 <div className="flex items-center gap-2">
                     <StatusIcon className="w-3.5 h-3.5" />
                     <span className="capitalize">{task.status.replace(/_/g, ' ')}</span>
                 </div>
 
-                {/* Show completed_at if completed */}
-                {task.status === 'completed' && task.completed_at && (
-                    <span className="text-green-600 dark:text-green-400">
-                        ✓ Done
-                    </span>
-                )}
+                <div className="flex items-center gap-2">
+                    {/* Priority dot */}
+                    <span className={cn("w-2 h-2 rounded-full", priorityColors[task.priority] || priorityColors.medium)} />
+
+                    {/* Show completed_at if completed */}
+                    {task.status === 'completed' && task.completed_at && (
+                        <span className="text-green-600 dark:text-green-400">
+                            ✓ Done
+                        </span>
+                    )}
+                </div>
             </div>
         </div>
     )
 }
-
