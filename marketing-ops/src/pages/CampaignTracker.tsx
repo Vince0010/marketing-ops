@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -64,64 +64,11 @@ import MetaAdsDashboard from '@/components/meta/MetaAdsDashboard'
 import StrategicFailureDiagnosis from '@/components/diagnosis/StrategicFailureDiagnosis'
 import { OverrideOutcomeAnalysis } from '@/components/diagnosis/OverrideOutcomeAnalysis'
 import type { OverrideEvent } from '@/types/database'
+import { PerformanceCorrelation } from '@/components/correlation/PerformanceCorrelation'
+import { useWeeklyDataReports } from '@/hooks/useWeeklyDataReports'
 
-const SEEDED_DRIFT_EVENTS: Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>[] = [
-  {
-    drift_type: 'negative',
-    drift_days: 3,
-    phase_name: 'Creative Development',
-    planned_duration: 5,
-    actual_duration: 8,
-    root_cause: 'Design revisions requested by stakeholders',
-    attribution: 'Mike Chen',
-    impact_on_timeline: 'Delayed launch by 2 days',
-    lesson_learned: 'Build in stakeholder review buffer',
-    actionable_insight: 'Add a stakeholder review checkpoint after initial concepts',
-    template_worthy: true,
-  },
-  {
-    drift_type: 'positive',
-    drift_days: -1,
-    phase_name: 'Campaign Setup',
-    planned_duration: 3,
-    actual_duration: 2,
-    root_cause: 'Reused template from previous campaign',
-    attribution: 'Emily Davis',
-    impact_on_timeline: 'Recovered 1 day',
-    lesson_learned: 'Maintain campaign templates for recurring types',
-    actionable_insight: 'Create a template library for common campaign setups',
-    template_worthy: true,
-  },
-  {
-    drift_type: 'negative',
-    drift_days: 2,
-    phase_name: 'Compliance Review',
-    planned_duration: 2,
-    actual_duration: 4,
-    root_cause: 'Legal team flagged ad copy for regulatory concerns',
-    attribution: 'Legal Team',
-    impact_on_timeline: 'Added 2 days to pre-launch',
-    lesson_learned: 'Submit compliance review earlier in process',
-    actionable_insight: 'Run parallel compliance reviews during creative phase',
-    template_worthy: false,
-  },
-  {
-    drift_type: 'neutral',
-    drift_days: 0,
-    phase_name: 'QA Review',
-    planned_duration: 2,
-    actual_duration: 2,
-    root_cause: 'Standard process followed',
-    attribution: 'QA Team',
-    impact_on_timeline: 'No change to timeline',
-    lesson_learned: 'QA process is predictable',
-    actionable_insight: undefined,
-    template_worthy: false,
-  },
-]
-
-// For now use the seeded events as the runtime drift events list
-const driftEvents: (Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>)[] = SEEDED_DRIFT_EVENTS
+// DriftEvent type for calculated drift events
+type CalculatedDriftEvent = Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>
 
 type DriftFilterValue = 'all' | 'positive' | 'negative' | 'neutral'
 
@@ -220,6 +167,66 @@ export default function CampaignTracker() {
     loading: executionLoading,
     refetch: refetchExecution
   } = execution
+
+  // Calculate drift events dynamically from phases and tasks
+  const driftEvents = useMemo((): CalculatedDriftEvent[] => {
+    // Calculate impact description based on drift days
+    const calculateImpact = (driftDays: number): string => {
+      if (driftDays > 0) return `Delayed timeline by ${driftDays} days`
+      if (driftDays < 0) return `Recovered ${Math.abs(driftDays)} days`
+      return 'No change to timeline'
+    }
+
+    // Get drift events from all phases that have drift data (completed phases)
+    const phaseBasedDrifts = phases
+      .filter(phase => phase.status === 'completed' || phase.drift_days !== 0)
+      .map(phase => {
+        // Get tasks for this phase to aggregate delay reasons
+        const phaseTasks = tasks.filter(t => t.phase_id === phase.id)
+        const delayReasons = phaseTasks
+          .map(t => t.delay_reason)
+          .filter(Boolean)
+          .join('; ')
+
+        // Determine drift type from the phase or calculate it
+        const driftDays = phase.drift_days || 0
+        const driftType = phase.drift_type ||
+          (driftDays > 1 ? 'negative' : driftDays < -1 ? 'positive' : 'neutral')
+
+        return {
+          drift_type: driftType,
+          drift_days: driftDays,
+          phase_name: phase.phase_name,
+          planned_duration: phase.planned_duration_days,
+          actual_duration: phase.actual_duration_days || phase.planned_duration_days,
+          root_cause: phase.drift_reason || delayReasons || 'No cause recorded',
+          attribution: phase.owner || 'Not specified',
+          impact_on_timeline: calculateImpact(driftDays),
+          lesson_learned: phase.drift_reason || delayReasons || 'No lesson recorded',
+          actionable_insight: undefined,
+          template_worthy: driftType === 'positive',
+        }
+      })
+
+    return phaseBasedDrifts
+  }, [phases, tasks])
+
+  // Get weekly data reports and correlation insights
+  // Note: driftEvents is passed as empty array initially, correlation uses phases/tasks directly
+  const {
+    weeklyReports,
+    correlationInsights,
+    correlationSummary,
+    isAnalyzing,
+    error: weeklyError,
+    runCorrelationAnalysis,
+  } = useWeeklyDataReports(
+    id,
+    campaign?.name || '',
+    phases,
+    tasks,
+    [] // Don't pass driftEvents here - the hook fetches drift_events from DB
+  )
 
   // Helper to get tasks for a specific phase
   const getTasksForPhase = (phaseId: string | null) => {
@@ -534,12 +541,13 @@ export default function CampaignTracker() {
       {/* Main Tabs */}
       <div className="space-y-4">
         <Tabs defaultValue="execution" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-8 h-auto flex-wrap gap-1 p-1">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-9 h-auto flex-wrap gap-1 p-1">
             <TabsTrigger value="execution" className="text-xs sm:text-sm py-2">Execution</TabsTrigger>
             <TabsTrigger value="drift" className="text-xs sm:text-sm py-2">Drift Analysis</TabsTrigger>
             {campaign?.gate_overridden && (
               <TabsTrigger value="override" className="text-xs sm:text-sm py-2">Override Learning</TabsTrigger>
             )}
+            <TabsTrigger value="correlation" className="text-xs sm:text-sm py-2">Correlations</TabsTrigger>
             <TabsTrigger value="audience" className="text-xs sm:text-sm py-2">Audience Insights</TabsTrigger>
             <TabsTrigger value="meta-ads" className="text-xs sm:text-sm py-2">Meta Ads</TabsTrigger>
             <TabsTrigger value="diagnosis" className="text-xs sm:text-sm py-2">Failure Diagnosis</TabsTrigger>
@@ -683,9 +691,9 @@ export default function CampaignTracker() {
               <CardContent className="space-y-4">
                 {/* Drift classification summary */}
                 {(() => {
-                  const positiveCount = SEEDED_DRIFT_EVENTS.filter((e) => e.drift_type === 'positive').length
-                  const negativeCount = SEEDED_DRIFT_EVENTS.filter((e) => e.drift_type === 'negative').length
-                  const neutralCount = SEEDED_DRIFT_EVENTS.filter((e) => e.drift_type === 'neutral').length
+                  const positiveCount = driftEvents.filter((e) => e.drift_type === 'positive').length
+                  const negativeCount = driftEvents.filter((e) => e.drift_type === 'negative').length
+                  const neutralCount = driftEvents.filter((e) => e.drift_type === 'neutral').length
                   return (
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium text-muted-foreground">Summary:</span>
@@ -738,7 +746,7 @@ export default function CampaignTracker() {
                 </div>
 
                 <div className="space-y-4">
-                  {(driftEvents.length > 0 ? driftEvents : SEEDED_DRIFT_EVENTS).filter(
+                  {driftEvents.filter(
                     (event) => driftFilter === 'all' || event.drift_type === driftFilter
                   ).map((event, idx) => {
                     const isPositive = event.drift_type === 'positive'
@@ -839,6 +847,19 @@ export default function CampaignTracker() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Correlation Analysis Tab */}
+          <TabsContent value="correlation" className="space-y-4 mt-4">
+            <PerformanceCorrelation
+              weeklyReports={weeklyReports}
+              correlationInsights={correlationInsights}
+              correlationSummary={correlationSummary}
+              isLoading={false}
+              isAnalyzing={isAnalyzing}
+              error={weeklyError}
+              onRunAnalysis={runCorrelationAnalysis}
+            />
           </TabsContent>
 
           {/* Audience Insights Tab */}
@@ -1061,7 +1082,7 @@ export default function CampaignTracker() {
               <Button
                 className="bg-expedition-evergreen hover:bg-expedition-evergreen/90 gap-1.5"
                 onClick={() => {
-                  const event = saveTemplateEventIndex != null ? SEEDED_DRIFT_EVENTS[saveTemplateEventIndex] : null
+                  const event = saveTemplateEventIndex != null ? driftEvents[saveTemplateEventIndex] : null
                   saveTemplate({
                     name: templateName.trim() || 'Untitled template',
                     description: templateDescription.trim(),

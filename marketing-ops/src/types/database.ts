@@ -189,6 +189,7 @@ export interface PerformanceMetric {
   confidence_level?: number
 }
 
+// Strategic Failure Analysis Types
 export interface ABTestSuggestion {
   test_type: string
   hypothesis: string
@@ -227,6 +228,131 @@ export interface StrategicFailure {
   lesson_learned?: string
   prevention_strategies?: string[]
   analyzed_by?: string
+}
+
+// Weekly Data and Correlation Types
+export interface WeeklyDataReport {
+  id: string
+  campaign_id: string
+  created_at: string
+  week_starting: string // Monday of the week (YYYY-MM-DD)
+  week_ending: string
+  // Platform metrics
+  facebook_views: number
+  instagram_views: number
+  total_impressions: number
+  total_reach: number
+  // Engagement
+  total_engagement: number
+  engagement_rate: number
+  likes: number
+  comments: number
+  shares: number
+  // Sales/Revenue
+  total_sales: number
+  total_revenue: number
+  conversion_count: number
+  conversion_rate: number
+  // Cost
+  total_spend: number
+  cpc?: number
+  cpa?: number
+  roas?: number
+  // Comparison to previous week
+  sales_change_pct?: number
+  engagement_change_pct?: number
+  views_change_pct?: number
+  // Analysis metadata
+  notes?: string
+  data_source?: string
+}
+
+export interface CorrelationInsight {
+  id: string
+  campaign_id: string
+  created_at: string
+  event_type: 'delay' | 'early_completion' | 'phase_change' | 'task_completion' | 'ad_launch' | 'ad_pause'
+  event_description: string
+  event_date: string
+  phase_name?: string
+  task_name?: string
+  performance_impact: 'positive' | 'negative' | 'neutral' | 'unknown'
+  metric_changes: { metric: string; change_pct: number; previous_value: number; current_value: number; source?: 'weekly_report' | 'meta_ads' }[]
+  correlation_strength: 'strong' | 'moderate' | 'weak' | 'none'
+  ai_analysis: string
+  confidence: number
+  actionable_insight?: string
+}
+
+// Meta Ads database types
+export interface MetaAdsMetrics {
+  id: string
+  campaign_id: string
+  created_at: string
+  updated_at: string
+  impressions: number
+  reach: number
+  clicks: number
+  ctr: number
+  cpc: number
+  cpm: number
+  conversions: number
+  conversion_rate: number
+  cpa: number
+  roas: number
+  frequency: number
+  quality_score: number
+  spend: number
+  budget_remaining: number
+  budget_utilization: number
+}
+
+export interface MetaAdsPlacement {
+  id: string
+  campaign_id: string
+  created_at: string
+  placement: string
+  spend: number
+  impressions: number
+  clicks: number
+  conversions: number
+  ctr: number
+  cpc: number
+  cpa: number
+  roas: number
+}
+
+export interface MetaAdsCreative {
+  id: string
+  campaign_id: string
+  created_at: string
+  creative_id: string
+  creative_name: string
+  format: string
+  impressions: number
+  clicks: number
+  conversions: number
+  ctr: number
+  cpc: number
+  cpa: number
+  frequency: number
+  fatigue_score: number
+  status: 'active' | 'fatigued' | 'paused'
+}
+
+export interface MetaAdsAudience {
+  id: string
+  campaign_id: string
+  created_at: string
+  segment: string
+  size: number
+  reach: number
+  impressions: number
+  clicks: number
+  conversions: number
+  ctr: number
+  cpa: number
+  roas: number
 }
 
 export type Database = {
@@ -292,6 +418,11 @@ export type Database = {
         Insert: Omit<StrategicFailure, 'id' | 'created_at'> & Record<string, unknown>
         Update: Partial<Omit<StrategicFailure, 'id' | 'created_at'>> & Record<string, unknown>
       }
+      weekly_data_reports: {
+        Row: WeeklyDataReport
+        Insert: Omit<WeeklyDataReport, 'id' | 'created_at'> & Record<string, unknown>
+        Update: Partial<Omit<WeeklyDataReport, 'id' | 'created_at'>> & Record<string, unknown>
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -299,3 +430,4 @@ export type Database = {
     CompositeTypes: Record<string, never>
   }
 }
+
