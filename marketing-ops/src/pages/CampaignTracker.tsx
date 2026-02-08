@@ -591,7 +591,7 @@ export default function CampaignTracker() {
                           {phase.actual_duration_days != null && (
                             <div className="flex justify-between">
                               <span>Actual</span>
-                              <span className={phase.drift_days > 0 ? 'text-red-600 font-semibold' : phase.drift_days < 0 ? 'text-green-600 font-semibold' : ''}>
+                              <span className={phase.drift_days > 0 ? 'text-expedition-checkpoint font-semibold' : phase.drift_days < 0 ? 'text-expedition-evergreen font-semibold' : ''}>
                                 {phase.actual_duration_days}d
                               </span>
                             </div>
@@ -606,7 +606,7 @@ export default function CampaignTracker() {
 
                         {/* Drift indicator */}
                         {phase.status === 'completed' && phase.drift_days !== 0 && (
-                          <div className={`flex items-center gap-1 text-xs font-semibold ${phase.drift_days > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          <div className={`flex items-center gap-1 text-xs font-semibold ${phase.drift_days > 0 ? 'text-expedition-checkpoint' : 'text-expedition-evergreen'}`}>
                             {phase.drift_days > 0 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
                             {Math.abs(phase.drift_days)}d {phase.drift_days > 0 ? 'over' : 'under'}
                           </div>
@@ -627,7 +627,7 @@ export default function CampaignTracker() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="w-full gap-1 border-green-300 text-green-700 hover:bg-green-50"
+                            className="w-full gap-1 border-expedition-evergreen/50 text-expedition-evergreen hover:bg-expedition-evergreen/10"
                             onClick={() => handleCompletePhase(phase.id)}
                           >
                             <CheckCircle2 className="w-3 h-3" />
@@ -674,7 +674,7 @@ export default function CampaignTracker() {
                       </span>
                       <div className="flex items-center gap-2">
                         {phase.drift_days !== 0 && phase.status === 'completed' && (
-                          <Badge variant={phase.drift_days > 0 ? 'destructive' : 'default'} className={phase.drift_days < 0 ? 'bg-green-600' : ''}>
+                          <Badge variant={phase.drift_days > 0 ? 'destructive' : phase.drift_days < 0 ? 'success' : 'default'}>
                             {phase.drift_days > 0 ? '+' : ''}{phase.drift_days}d
                           </Badge>
                         )}
@@ -708,7 +708,7 @@ export default function CampaignTracker() {
                 <CardTitle className="text-sm font-medium">Average Drift</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${driftSummary.avgDrift > 0 ? 'text-red-600' : driftSummary.avgDrift < 0 ? 'text-green-600' : 'text-gray-600'}`}>
+                <div className={`text-2xl font-bold ${driftSummary.avgDrift > 0 ? 'text-expedition-checkpoint' : driftSummary.avgDrift < 0 ? 'text-expedition-evergreen' : 'text-muted-foreground'}`}>
                   {driftSummary.avgDrift > 0 ? '+' : ''}{driftSummary.avgDrift}d
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Per completed phase</p>
@@ -720,7 +720,7 @@ export default function CampaignTracker() {
                 <CardTitle className="text-sm font-medium">Positive Drifts</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">{driftSummary.positiveCount}</div>
+                <div className="text-2xl font-bold text-expedition-evergreen">{driftSummary.positiveCount}</div>
                 <p className="text-xs text-muted-foreground mt-1">Ahead of schedule</p>
               </CardContent>
             </Card>
@@ -730,7 +730,7 @@ export default function CampaignTracker() {
                 <CardTitle className="text-sm font-medium">Negative Drifts</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600">{driftSummary.negativeCount}</div>
+                <div className="text-2xl font-bold text-expedition-checkpoint">{driftSummary.negativeCount}</div>
                 <p className="text-xs text-muted-foreground mt-1">Behind schedule</p>
               </CardContent>
             </Card>
@@ -740,7 +740,7 @@ export default function CampaignTracker() {
                 <CardTitle className="text-sm font-medium">On Track</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-gray-600">{driftSummary.phasesOnTrack}</div>
+                <div className="text-2xl font-bold text-muted-foreground">{driftSummary.phasesOnTrack}</div>
                 <p className="text-xs text-muted-foreground mt-1">Within ±1 day</p>
               </CardContent>
             </Card>
@@ -791,13 +791,13 @@ export default function CampaignTracker() {
                 return (
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium text-muted-foreground">Summary:</span>
-                    <Badge variant="outline" className="bg-green-50 text-green-800 border-green-200">
+                    <Badge variant="outline" className="bg-expedition-evergreen/10 text-expedition-evergreen border-expedition-evergreen/40">
                       🟢 {positiveCount} Positive
                     </Badge>
-                    <Badge variant="outline" className="bg-red-50 text-red-800 border-red-200">
+                    <Badge variant="outline" className="bg-expedition-checkpoint/10 text-expedition-checkpoint border-expedition-checkpoint/40">
                       🔴 {negativeCount} Negative
                     </Badge>
-                    <Badge variant="outline" className="bg-gray-100 text-gray-700 border-gray-300">
+                    <Badge variant="outline" className="bg-muted text-muted-foreground border-border">
                       ⚪ {neutralCount} Neutral
                     </Badge>
                   </div>
@@ -816,7 +816,7 @@ export default function CampaignTracker() {
                 <Button
                   size="sm"
                   variant={driftFilter === 'positive' ? 'default' : 'outline'}
-                  className={driftFilter === 'positive' ? 'bg-green-600 hover:bg-green-700' : ''}
+                  className={driftFilter === 'positive' ? 'bg-expedition-evergreen hover:bg-expedition-evergreen/90' : ''}
                   onClick={() => setDriftFilter('positive')}
                 >
                   🟢 Positive
@@ -824,7 +824,7 @@ export default function CampaignTracker() {
                 <Button
                   size="sm"
                   variant={driftFilter === 'negative' ? 'default' : 'outline'}
-                  className={driftFilter === 'negative' ? 'bg-red-600 hover:bg-red-700' : ''}
+                  className={driftFilter === 'negative' ? 'bg-expedition-checkpoint hover:bg-expedition-checkpoint/90' : ''}
                   onClick={() => setDriftFilter('negative')}
                 >
                   🔴 Negative
@@ -832,7 +832,7 @@ export default function CampaignTracker() {
                 <Button
                   size="sm"
                   variant={driftFilter === 'neutral' ? 'default' : 'outline'}
-                  className={driftFilter === 'neutral' ? 'bg-gray-600 hover:bg-gray-700' : ''}
+                  className={driftFilter === 'neutral' ? 'bg-expedition-slate hover:bg-expedition-slate/90' : ''}
                   onClick={() => setDriftFilter('neutral')}
                 >
                   ⚪ Neutral
@@ -847,25 +847,25 @@ export default function CampaignTracker() {
                   const isNegative = event.drift_type === 'negative'
                   const isNeutral = event.drift_type === 'neutral'
                   const cardBorder = isPositive
-                    ? 'border-green-300 bg-green-50/50 dark:bg-green-950/20'
+                    ? 'border-expedition-evergreen/40 bg-expedition-evergreen/10'
                     : isNegative
-                      ? 'border-red-300 bg-red-50/30 dark:bg-red-950/20'
-                      : 'border-gray-200 bg-gray-50/50 dark:bg-gray-900/30'
+                      ? 'border-expedition-checkpoint/40 bg-expedition-checkpoint/10'
+                      : 'border-border bg-muted/50'
                   return (
                     <div key={idx} className={cn('border-2 rounded-lg p-4 space-y-3', cardBorder)}>
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
                           {isNegative ? (
-                            <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
-                              <ArrowUp className="w-4 h-4 text-red-600" />
+                            <div className="w-8 h-8 rounded-full bg-expedition-checkpoint/20 flex items-center justify-center">
+                              <ArrowUp className="w-4 h-4 text-expedition-checkpoint" />
                             </div>
                           ) : isPositive ? (
-                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                              <ArrowDown className="w-4 h-4 text-green-600" />
+                            <div className="w-8 h-8 rounded-full bg-expedition-evergreen/20 flex items-center justify-center">
+                              <ArrowDown className="w-4 h-4 text-expedition-evergreen" />
                             </div>
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                              <Clock className="w-4 h-4 text-gray-600" />
+                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                              <Clock className="w-4 h-4 text-muted-foreground" />
                             </div>
                           )}
                           <div>
@@ -877,7 +877,7 @@ export default function CampaignTracker() {
                         </div>
                         <Badge
                           variant={isNegative ? 'destructive' : isPositive ? 'default' : 'secondary'}
-                          className={isPositive ? 'bg-green-600' : ''}
+                          className={isPositive ? 'bg-expedition-evergreen' : ''}
                         >
                           {event.drift_days > 0 ? '+' : ''}{event.drift_days}d
                           {isPositive && ' 🟢'}
@@ -908,21 +908,21 @@ export default function CampaignTracker() {
                         </div>
 
                       {event.actionable_insight && (
-                        <div className="bg-blue-50 p-3 rounded-lg dark:bg-blue-950/30">
+                        <div className="bg-expedition-trail/10 p-3 rounded-lg border border-expedition-trail/20">
                           <p className="text-sm">
-                            <Zap className="w-4 h-4 inline mr-1 text-blue-600" />
-                            <span className="font-medium text-blue-800 dark:text-blue-300">Insight:</span>{' '}
-                            <span className="text-blue-700 dark:text-blue-200">{event.actionable_insight}</span>
+                            <Zap className="w-4 h-4 inline mr-1 text-expedition-trail" />
+                            <span className="font-medium text-expedition-navy dark:text-white">Insight:</span>{' '}
+                            <span className="text-foreground">{event.actionable_insight}</span>
                           </p>
                         </div>
                       )}
 
                       {/* Save as Template - positive drift only */}
                       {isPositive && (
-                        <div className="bg-green-50 p-3 rounded-lg">
+                        <div className="bg-expedition-evergreen/10 p-3 rounded-lg border border-expedition-evergreen/20">
                           <p className="text-sm">
-                            <TrendingUp className="w-4 h-4 inline mr-1 text-green-600" />
-                            <span className="font-medium text-green-800">💡 Success Pattern Detected</span>
+                            <TrendingUp className="w-4 h-4 inline mr-1 text-expedition-evergreen" />
+                            <span className="font-medium text-expedition-evergreen">💡 Success Pattern Detected</span>
                           </p>
                           <Button 
                             size="sm" 
@@ -956,24 +956,24 @@ export default function CampaignTracker() {
               <div className="space-y-4">
                 {stakeholderActions.length === 0 ? (
                   <div className="text-center py-8">
-                    <Activity className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Stakeholder Actions Yet</h3>
-                    <p className="text-gray-500">Stakeholder actions and approvals will be tracked here.</p>
+                    <Activity className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-foreground mb-2">No Stakeholder Actions Yet</h3>
+                    <p className="text-muted-foreground">Stakeholder actions and approvals will be tracked here.</p>
                   </div>
                 ) : (
                   stakeholderActions.map((action) => {
                     const isOverdue = action.status === 'overdue' || (action.expected_date && new Date(action.expected_date) < new Date() && action.status !== 'completed')
                     const getActorColor = (type: string) => {
                       switch (type) {
-                        case 'client': return 'bg-purple-100 border-purple-200 text-purple-800'
-                        case 'agency': return 'bg-blue-100 border-blue-200 text-blue-800'
-                        case 'external': return 'bg-gray-100 border-gray-200 text-gray-800'
-                        default: return 'bg-gray-100 border-gray-200 text-gray-800'
+                        case 'client': return 'bg-expedition-summit/10 border-expedition-summit/30 text-expedition-navy dark:text-white'
+                        case 'agency': return 'bg-expedition-trail/10 border-expedition-trail/30 text-expedition-navy dark:text-white'
+                        case 'external': return 'bg-muted border-border text-foreground'
+                        default: return 'bg-muted border-border text-foreground'
                       }
                     }
 
                     return (
-                      <div key={action.id} className={`border rounded-lg p-4 space-y-3 ${isOverdue ? 'border-red-200 bg-red-50' : ''}`}>
+                      <div key={action.id} className={`border rounded-lg p-4 space-y-3 ${isOverdue ? 'border-expedition-checkpoint/40 bg-expedition-checkpoint/10' : ''}`}>
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-3">
                             <div className={`px-3 py-1 rounded-full text-sm border ${getActorColor(action.stakeholder_type)}`}>
@@ -991,7 +991,7 @@ export default function CampaignTracker() {
                               {action.status === 'completed' ? 'Completed' : isOverdue ? 'Overdue' : action.status}
                             </Badge>
                             {isOverdue && action.overdue_days && (
-                              <p className="text-xs text-red-600 mt-1">
+                              <p className="text-xs text-expedition-checkpoint mt-1">
                                 {action.overdue_days}d overdue
                               </p>
                             )}
@@ -1020,7 +1020,7 @@ export default function CampaignTracker() {
                           {action.critical_path && (
                             <div>
                               <span className="text-muted-foreground">Critical Path</span>
-                              <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-200">
+                              <Badge variant="warning" className="border-expedition-signal/40">
                                 Critical
                               </Badge>
                             </div>
@@ -1028,14 +1028,14 @@ export default function CampaignTracker() {
                         </div>
 
                         {action.delay_reason && (
-                          <div className="bg-yellow-50 p-3 rounded-lg">
+                          <div className="bg-expedition-signal/10 p-3 rounded-lg border border-expedition-signal/20">
                             <p className="text-sm">
-                              <AlertTriangle className="w-4 h-4 inline mr-1 text-yellow-600" />
-                              <span className="font-medium text-yellow-800">Delay Reason:</span>{' '}
-                              <span className="text-yellow-700">{action.delay_reason}</span>
+                              <AlertTriangle className="w-4 h-4 inline mr-1 text-expedition-signal" />
+                              <span className="font-medium text-expedition-signal">Delay Reason:</span>{' '}
+                              <span className="text-foreground">{action.delay_reason}</span>
                             </p>
                             {action.delay_attribution && (
-                              <p className="text-xs text-yellow-600 mt-1">
+                              <p className="text-xs text-expedition-signal mt-1">
                                 Attribution: {action.delay_attribution}
                               </p>
                             )}
@@ -1043,10 +1043,10 @@ export default function CampaignTracker() {
                         )}
 
                         {action.delay_impact && (
-                          <div className="bg-red-50 p-3 rounded-lg">
+                          <div className="bg-expedition-checkpoint/10 p-3 rounded-lg border border-expedition-checkpoint/20">
                             <p className="text-sm">
-                              <span className="font-medium text-red-800">Impact:</span>{' '}
-                              <span className="text-red-700">{action.delay_impact}</span>
+                              <span className="font-medium text-expedition-checkpoint">Impact:</span>{' '}
+                              <span className="text-foreground">{action.delay_impact}</span>
                             </p>
                           </div>
                         )}
@@ -1118,7 +1118,7 @@ export default function CampaignTracker() {
               Cancel
             </Button>
             <Button
-              className="bg-green-600 hover:bg-green-700 gap-1.5"
+              className="bg-expedition-evergreen hover:bg-expedition-evergreen/90 gap-1.5"
               onClick={() => {
                 const event = saveTemplateEventIndex != null ? SEEDED_DRIFT_EVENTS[saveTemplateEventIndex] : null
                 saveTemplate({
