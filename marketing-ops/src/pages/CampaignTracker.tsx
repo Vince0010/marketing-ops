@@ -45,8 +45,16 @@ import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase, DriftEvent } from '@/types/phase'
 import { ObservationModeBadge } from '@/components/ObservationModeBadge'
+import { DemographicAlignmentTracker } from '@/components/demographics/DemographicAlignmentTracker'
 import { cn } from '@/lib/utils'
 import { saveTemplate } from '@/lib/templates'
+import {
+  DEMO_AGE_DATA,
+  DEMO_FIT_SCORE,
+  DEMO_STRONG_ALIGNMENT,
+  DEMO_ADJUSTMENT_AREAS,
+  DEMO_RECOMMENDED_ACTIONS,
+} from '@/lib/demographicData'
 
 // Seeded drift events for demo
 const SEEDED_DRIFT_EVENTS: Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>[] = [
@@ -440,16 +448,18 @@ export default function CampaignTracker() {
         </Card>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="execution" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="execution">Execution Timeline</TabsTrigger>
-          <TabsTrigger value="drift">Drift Analysis</TabsTrigger>
-          <TabsTrigger value="recommendations">AI Recommendations</TabsTrigger>
-        </TabsList>
+      {/* Execution, Drift, Audience Insights, AI Recommendations */}
+      <div className="space-y-4">
+        <Tabs defaultValue="execution" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto flex-wrap gap-1 p-1">
+            <TabsTrigger value="execution" className="text-xs sm:text-sm py-2">Execution Timeline</TabsTrigger>
+            <TabsTrigger value="drift" className="text-xs sm:text-sm py-2">Drift Analysis</TabsTrigger>
+            <TabsTrigger value="audience" className="text-xs sm:text-sm py-2">Audience Insights</TabsTrigger>
+            <TabsTrigger value="recommendations" className="text-xs sm:text-sm py-2">AI Recommendations</TabsTrigger>
+          </TabsList>
 
-        {/* Execution Timeline Tab */}
-        <TabsContent value="execution" className="space-y-4">
+          {/* Execution Timeline Tab */}
+          <TabsContent value="execution" className="space-y-4 mt-4">
           {/* Horizontal Timeline View */}
           <Card>
             <CardHeader>
@@ -576,10 +586,10 @@ export default function CampaignTracker() {
               })}
             </CardContent>
           </Card>
-        </TabsContent>
+          </TabsContent>
 
-        {/* Drift Analysis Tab */}
-        <TabsContent value="drift" className="space-y-4">
+          {/* Drift Analysis Tab */}
+          <TabsContent value="drift" className="space-y-4 mt-4">
           {totalDrift > 2 && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
@@ -763,10 +773,23 @@ export default function CampaignTracker() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+          </TabsContent>
 
-        {/* AI Recommendations Tab - 3 tiers */}
-        <TabsContent value="recommendations" className="space-y-4">
+          {/* Audience Insights Tab */}
+          <TabsContent value="audience" className="space-y-4 mt-4">
+          <DemographicAlignmentTracker
+            ageData={DEMO_AGE_DATA}
+            fitScore={DEMO_FIT_SCORE}
+            strongAlignment={DEMO_STRONG_ALIGNMENT}
+            adjustmentAreas={DEMO_ADJUSTMENT_AREAS}
+            recommendedActions={DEMO_RECOMMENDED_ACTIONS}
+            variant="preliminary"
+            compact
+          />
+          </TabsContent>
+
+          {/* AI Recommendations Tab - 3 tiers */}
+          <TabsContent value="recommendations" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
               <CardTitle>AI-Powered Recommendations</CardTitle>
@@ -963,8 +986,9 @@ export default function CampaignTracker() {
               </Tabs>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+          </TabsContent>
+        </Tabs>
+      </div>
 
       {/* Save as Template dialog (from positive drift) */}
       <Dialog

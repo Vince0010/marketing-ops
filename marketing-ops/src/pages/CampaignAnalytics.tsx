@@ -26,15 +26,25 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  FlaskConical,
+  ArrowUp,
+  ArrowDown,
+  MapPin,
+  Target,
   Lightbulb,
-  TestTube,
-  ClipboardList,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase } from '@/types/phase'
 import { formatCurrency } from '@/utils/formatting'
+import { Progress } from '@/components/ui/progress'
+import { DemographicAlignmentTracker } from '@/components/demographics/DemographicAlignmentTracker'
+import {
+  DEMO_AGE_DATA,
+  DEMO_FIT_SCORE,
+  DEMO_STRONG_ALIGNMENT,
+  DEMO_ADJUSTMENT_AREAS,
+  DEMO_RECOMMENDED_ACTIONS,
+} from '@/lib/demographicData'
 
 // Seeded phase drift data for BarChart
 const PHASE_DRIFT_DATA = [
@@ -120,80 +130,75 @@ const CHANNEL_DATA = [
   { channel: 'LinkedIn Ads', spend: 11531, revenue: 31134, roas: 2.7, conversions: 304, ctr: 2.1 },
 ]
 
-// Strategic failure diagnosis: seeded content when drift is low but performance is poor
-const DIAGNOSIS_PRIMARY = {
-  mostLikelyCause: 'Creative / Targeting Mismatch',
-  confidence: 82,
-  confidenceLabel: 'High' as const,
-  keyEvidence: [
-    'CTR 1.2% vs benchmark 2.5% despite reach at 110% of plan',
-    'Image relevance score (platform) 4/10 on primary creative',
-    'Lookalike audience similarity 40% — below recommended 60%',
-    'High frequency (4.2) with declining engagement by day 7',
-  ],
-}
-
-const DIAGNOSIS_HYPOTHESES = [
-  {
-    rank: 1,
-    title: 'CREATIVE/TARGETING MISMATCH',
-    confidence: 75,
-    evidence: 'Low CTR despite good reach',
-    supportingData: 'Image relevance score 4/10',
-  },
-  {
-    rank: 2,
-    title: 'AUDIENCE ASSUMPTIONS WRONG',
-    confidence: 65,
-    evidence: 'High frequency, low conversions',
-    supportingData: 'Lookalike similarity 40%',
-  },
-  {
-    rank: 3,
-    title: 'TIMING/SEASONALITY ISSUE',
-    confidence: 45,
-    evidence: 'Weekend vs weekday performance gap',
-    supportingData: 'Competitor activity spike',
-  },
+// --- Audience Insights (demographic analysis) seeded data ---
+const PLANNED_AGE_DATA = [
+  { range: '18-24', goal: 25, actual: 3, diff: -22 },
+  { range: '25-34', goal: 35, actual: 50, diff: 15 },
+  { range: '35-44', goal: 25, actual: 28, diff: 3 },
+  { range: '45-54', goal: 10, actual: 14, diff: 4 },
+  { range: '55+', goal: 5, actual: 5, diff: 0 },
 ]
 
-const AB_TEST_RECOMMENDATIONS = [
-  {
-    testType: 'Headline Test',
-    hypothesis: 'Current CTAs don\'t resonate',
-    setup: 'Test 2 new headlines vs control',
-    successCriteria: 'CTR increase > 50%',
-    timeRequired: '3 days',
-  },
-  {
-    testType: 'Audience Expansion',
-    hypothesis: 'Core audience too narrow',
-    setup: 'Add 1 similar interest category',
-    successCriteria: 'CPA decrease > 20%',
-    timeRequired: '5 days',
-  },
-  {
-    testType: 'Creative Refresh',
-    hypothesis: 'Ad creative fatigue',
-    setup: 'Replace primary image/video',
-    successCriteria: 'Engagement rate > 3%',
-    timeRequired: '4 days',
-  },
+const PLANNED_GENDER_DATA = [
+  { segment: 'Female', goal: 50, actual: 62, diff: 12, status: 'over' as const },
+  { segment: 'Male', goal: 48, actual: 35, diff: -13, status: 'under' as const },
+  { segment: 'Other', goal: 2, actual: 3, diff: 1, status: 'over' as const },
 ]
 
-const DIAGNOSIS_ACTION_PLAN = {
-  immediate: 'Pause underperforming ad sets (CTR < 1%), reduce daily budget by 20% on underperforming placements, and shift spend to top 2 audiences.',
-  dataCollection: 'Survey 50 customers on message relevance; run competitor ad spy report; pull platform relevance and quality scores by creative.',
-  nextTest: 'Headline Test — launch 2 new headlines vs control by next Monday; review after 3 days.',
-}
+const PLANNED_LOCATIONS = [
+  { location: 'Northeast', type: 'planned' as const, ctr: 2.1, conversions: 180, performance: 'On target' },
+  { location: 'Midwest', type: 'planned' as const, ctr: 1.4, conversions: 95, performance: 'Underperforming' },
+  { location: 'South', type: 'planned' as const, ctr: 2.8, conversions: 220, performance: 'On target' },
+  { location: 'West Coast', type: 'planned' as const, ctr: 3.5, conversions: 310, performance: 'Overperforming' },
+  { location: 'Urban (top 10)', type: 'planned' as const, ctr: 2.5, conversions: 200, performance: 'On target' },
+]
+
+const ACTUAL_LOCATIONS = [
+  { location: 'West Coast', ctr: 3.5, conversions: 310, planned: true, performance: 'Overperforming' },
+  { location: 'South', ctr: 2.8, conversions: 220, planned: true, performance: 'On target' },
+  { location: 'Urban (top 10)', ctr: 5.8, conversions: 420, planned: true, performance: 'Overperforming' },
+  { location: 'Northeast', ctr: 2.1, conversions: 180, planned: true, performance: 'On target' },
+  { location: 'Midwest', ctr: 1.4, conversions: 95, planned: true, performance: 'Underperforming' },
+]
+
+const PLANNED_INTERESTS = [
+  { interest: 'Tech & Gadgets', goal: 30, actual: 28 },
+  { interest: 'Fashion', goal: 25, actual: 32 },
+  { interest: 'Travel', goal: 20, actual: 18 },
+  { interest: 'Sports', goal: 15, actual: 12 },
+  { interest: 'Finance', goal: 10, actual: 10 },
+]
+
+const AUDIENCE_FIT_SCORE = 78
+
+const INSIGHTS_STRONG = [
+  'Over-indexing with 25-34 age group (+15% above target)',
+  'Female audience engagement 40% higher than male (vs. planned 50/50 split)',
+]
+const INSIGHTS_MISMATCH = [
+  'Missing 18-24 demographic (-22% below target)',
+  'Midwest region underperforming by 35%',
+]
+const INSIGHTS_OPPORTUNITIES = [
+  'Unexpected strength in 45-54 age group',
+  'Urban centers outperforming suburban targets by 2.3x',
+]
+
+const RECOMMENDATIONS_IMMEDIATE = [
+  'Adjust ad creative to better resonate with missing 18-24 demographic',
+  'Reallocate budget from underperforming Midwest to overperforming West Coast',
+  'Create targeted messaging for unexpectedly strong 45-54 segment',
+]
+const RECOMMENDATIONS_TESTING = [
+  'A/B test: Different creative for missing vs. overperforming demographics',
+  'Consider expanding targeting to include similar profiles to 45-54 success group',
+]
 
 export default function CampaignAnalytics() {
   const { id } = useParams<{ id: string }>()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [, setPhases] = useState<ExecutionPhase[]>([])
   const [loading, setLoading] = useState(true)
-  const [showDiagnosisPanel, setShowDiagnosisPanel] = useState(false)
-  const [diagnosisComplete, setDiagnosisComplete] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -246,16 +251,6 @@ export default function CampaignAnalytics() {
   // Strategic diagnosis: flag if any channel underperforms
   const underperformingChannels = CHANNEL_DATA.filter((c) => c.roas < 2.5)
   const totalDrift = PHASE_DRIFT_DATA.reduce((acc, p) => acc + p.drift, 0)
-  const targetRoas = 2.5
-  const lastRoas = ROAS_TREND_DATA.length > 0 ? ROAS_TREND_DATA[ROAS_TREND_DATA.length - 1].roas : 0
-  const performancePercentOfTarget = targetRoas > 0 ? (lastRoas / targetRoas) * 100 : 0
-  const minimalDrift = totalDrift <= 2
-  const poorPerformance = performancePercentOfTarget < 70
-  const failureDetected = minimalDrift && poorPerformance
-
-  useEffect(() => {
-    if (failureDetected && !showDiagnosisPanel) setShowDiagnosisPanel(true)
-  }, [failureDetected])
 
   if (loading) {
     return (
@@ -302,204 +297,6 @@ export default function CampaignAnalytics() {
             Consider reallocating budget to higher-performing channels in future campaigns.
           </AlertDescription>
         </Alert>
-      )}
-
-      {/* Strategic Failure Diagnosis — Root Cause Analysis */}
-      {!showDiagnosisPanel ? (
-        <Card className="border-dashed border-red-200 bg-red-50/30 dark:bg-red-950/10">
-          <CardContent className="py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                <FlaskConical className="w-5 h-5 text-red-600 dark:text-red-400" />
-              </div>
-              <div>
-                <p className="font-semibold text-red-900 dark:text-red-100">Root Cause Analysis</p>
-                <p className="text-sm text-red-700 dark:text-red-300">
-                  When execution is clean but performance misses target, run a strategic diagnosis for ranked hypotheses and A/B test recommendations.
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              className="border-red-300 text-red-700 hover:bg-red-100 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/30"
-              onClick={() => {
-                setShowDiagnosisPanel(true)
-                setDiagnosisComplete(false)
-              }}
-            >
-              <FlaskConical className="w-4 h-4 mr-2" />
-              Run Analysis
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="border-2 border-red-300 dark:border-red-800 overflow-hidden">
-          <CardHeader className="bg-red-50 dark:bg-red-950/30 border-b border-red-200 dark:border-red-800">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <FlaskConical className="w-5 h-5 text-red-600 dark:text-red-400" />
-                <CardTitle className="text-red-900 dark:text-red-100">Strategic Diagnosis — Root Cause Analysis</CardTitle>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className={
-                    diagnosisComplete
-                      ? 'border-green-500 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-300'
-                      : 'border-red-500 bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
-                  }
-                >
-                  {diagnosisComplete ? 'ANALYSIS COMPLETE' : 'DIAGNOSIS ACTIVE'}
-                </Badge>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-red-700 hover:bg-red-100 dark:text-red-300 dark:hover:bg-red-900/30"
-                  onClick={() => setShowDiagnosisPanel(false)}
-                >
-                  Dismiss
-                </Button>
-              </div>
-            </div>
-            <CardDescription className="text-red-800 dark:text-red-200">
-              Failure detected: minimal execution drift but performance below 70% of KPI target. Actionable insights below.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-6">
-            {/* 1. Primary Diagnosis */}
-            <section>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
-                <Lightbulb className="w-4 h-4" />
-                Primary Diagnosis
-              </h3>
-              <div className="rounded-lg border bg-card p-4 space-y-3">
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <span className="text-muted-foreground">Most Likely Cause:</span>
-                  <span className="font-semibold text-lg">{DIAGNOSIS_PRIMARY.mostLikelyCause}</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-muted-foreground">Confidence Score:</span>
-                  <Badge variant="secondary" className="font-mono">
-                    {DIAGNOSIS_PRIMARY.confidence}%
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className={
-                      DIAGNOSIS_PRIMARY.confidenceLabel === 'High'
-                        ? 'border-green-500 text-green-700'
-                        : DIAGNOSIS_PRIMARY.confidenceLabel === 'Medium'
-                          ? 'border-amber-500 text-amber-700'
-                          : 'border-red-500 text-red-700'
-                    }
-                  >
-                    {DIAGNOSIS_PRIMARY.confidenceLabel}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-2">Key Evidence:</p>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    {DIAGNOSIS_PRIMARY.keyEvidence.map((item, i) => (
-                      <li key={i}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </section>
-
-            {/* 2. Ranked Hypotheses Grid */}
-            <section>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                Ranked Hypotheses
-              </h3>
-              <div className="grid gap-3">
-                {DIAGNOSIS_HYPOTHESES.map((h) => (
-                  <div
-                    key={h.rank}
-                    className="rounded-lg border p-4 flex flex-col sm:flex-row sm:items-center gap-3"
-                  >
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted font-semibold text-sm">
-                        {h.rank}
-                      </span>
-                      <div>
-                        <p className="font-semibold text-sm uppercase tracking-wide">{h.title}</p>
-                        <p className="text-xs text-muted-foreground">Confidence: {h.confidence}%</p>
-                      </div>
-                    </div>
-                    <div className="flex-1 text-sm space-y-1">
-                      <p><span className="text-muted-foreground">Evidence:</span> {h.evidence}</p>
-                      <p><span className="text-muted-foreground">Supporting Data:</span> {h.supportingData}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* 3. A/B Test Recommendations Table */}
-            <section>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
-                <TestTube className="w-4 h-4" />
-                A/B Test Recommendations
-              </h3>
-              <div className="rounded-lg border overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="text-left p-3 font-medium">Test Type</th>
-                      <th className="text-left p-3 font-medium">Hypothesis</th>
-                      <th className="text-left p-3 font-medium">Setup</th>
-                      <th className="text-left p-3 font-medium">Success Criteria</th>
-                      <th className="text-left p-3 font-medium">Time Required</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {AB_TEST_RECOMMENDATIONS.map((row, i) => (
-                      <tr key={i} className="border-b last:border-0">
-                        <td className="p-3 font-medium">{row.testType}</td>
-                        <td className="p-3">{row.hypothesis}</td>
-                        <td className="p-3">{row.setup}</td>
-                        <td className="p-3">{row.successCriteria}</td>
-                        <td className="p-3">{row.timeRequired}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            {/* 4. Action Plan */}
-            <section>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
-                <ClipboardList className="w-4 h-4" />
-                Action Plan
-              </h3>
-              <div className="rounded-lg border bg-card p-4 space-y-4">
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase mb-1">Immediate Action</p>
-                  <p className="text-sm">{DIAGNOSIS_ACTION_PLAN.immediate}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase mb-1">Data Collection</p>
-                  <p className="text-sm">{DIAGNOSIS_ACTION_PLAN.dataCollection}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase mb-1">Next Test</p>
-                  <p className="text-sm">{DIAGNOSIS_ACTION_PLAN.nextTest}</p>
-                </div>
-              </div>
-            </section>
-
-            <div className="flex justify-end pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDiagnosisComplete(true)}
-              >
-                Mark analysis complete
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       )}
 
       {/* KPI Summary Cards */}
@@ -559,10 +356,11 @@ export default function CampaignAnalytics() {
 
       {/* Tabs */}
       <Tabs defaultValue="performance" className="space-y-4">
-        <TabsList>
+        <TabsList className="flex flex-wrap">
           <TabsTrigger value="performance">Performance</TabsTrigger>
           <TabsTrigger value="channels">Channel Breakdown</TabsTrigger>
           <TabsTrigger value="timeline">Timeline Analysis</TabsTrigger>
+          <TabsTrigger value="audience">Audience Insights</TabsTrigger>
           <TabsTrigger value="accountability">Accountability</TabsTrigger>
         </TabsList>
 
@@ -754,6 +552,277 @@ export default function CampaignAnalytics() {
                     </tr>
                   </tbody>
                 </table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Audience Insights Tab - Demographic analysis */}
+        <TabsContent value="audience" className="space-y-4">
+          {/* Display rule banner */}
+          {campaign?.status === 'completed' ? (
+            <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertTitle>Final Analysis</AlertTitle>
+              <AlertDescription>Full campaign demographic data from Meta Ads reports.</AlertDescription>
+            </Alert>
+          ) : (
+            <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+              <Clock className="h-4 w-4 text-amber-600" />
+              <AlertTitle>Preliminary Analysis</AlertTitle>
+              <AlertDescription>Data from first 7+ days. Final demographics will update when the campaign completes.</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Unified demographic alignment tracker (target vs actual) */}
+          <DemographicAlignmentTracker
+            ageData={PLANNED_AGE_DATA}
+            fitScore={AUDIENCE_FIT_SCORE}
+            strongAlignment={DEMO_STRONG_ALIGNMENT}
+            adjustmentAreas={DEMO_ADJUSTMENT_AREAS}
+            recommendedActions={DEMO_RECOMMENDED_ACTIONS}
+            variant={campaign?.status === 'completed' ? 'final' : 'preliminary'}
+          />
+
+          {/* Two-column: Planned vs Actual */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left - Planned targets */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Planned (Goal)</CardTitle>
+                <CardDescription>Target audience from campaign brief</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-sm font-medium mb-2">Age distribution (goal %)</p>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={PLANNED_AGE_DATA} layout="vertical" margin={{ left: 50 }}>
+                      <XAxis type="number" domain={[0, 50]} tickFormatter={(v) => `${v}%`} fontSize={11} />
+                      <YAxis type="category" dataKey="range" width={45} fontSize={11} />
+                      <Bar dataKey="goal" fill="#2563eb" name="Goal %" radius={[0, 4, 4, 0]} />
+                      <Tooltip formatter={(v: number) => [`${v}%`, 'Goal']} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div>
+                  <p className="text-sm font-medium mb-2">Gender split (goal %)</p>
+                  <div className="space-y-2">
+                    {PLANNED_GENDER_DATA.map((row) => (
+                      <div key={row.segment} className="flex items-center gap-2 text-sm">
+                        <span className="w-20">{row.segment}</span>
+                        <Progress value={row.goal} className="h-2 flex-1 max-w-[120px]" />
+                        <span className="text-muted-foreground w-10">{row.goal}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium mb-2">Top planned locations</p>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    {PLANNED_LOCATIONS.map((loc) => (
+                      <li key={loc.location} className="flex items-center gap-2">
+                        <MapPin className="w-3.5 h-3.5 shrink-0" />
+                        {loc.location}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-sm font-medium mb-2">Interest categories (goal %)</p>
+                  <div className="space-y-1.5 text-sm">
+                    {PLANNED_INTERESTS.map((row) => (
+                      <div key={row.interest} className="flex justify-between">
+                        <span>{row.interest}</span>
+                        <span className="text-muted-foreground">{row.goal}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Right - Actual performance */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Actual performance</CardTitle>
+                <CardDescription>Demographic delivery from Meta Ads</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-sm font-medium mb-2">Age distribution (actual %)</p>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={PLANNED_AGE_DATA} layout="vertical" margin={{ left: 50 }}>
+                      <XAxis type="number" domain={[0, 55]} tickFormatter={(v) => `${v}%`} fontSize={11} />
+                      <YAxis type="category" dataKey="range" width={45} fontSize={11} />
+                      <Bar dataKey="actual" fill="#16a34a" name="Actual %" radius={[0, 4, 4, 0]} />
+                      <Tooltip
+                        formatter={(v: number, _name: string, props: { payload?: { diff?: number } }) => {
+                          const diff = props?.payload?.diff
+                          return [diff != null && diff !== 0 ? `${v}% (${diff > 0 ? '+' : ''}${diff}% vs goal)` : `${v}%`, 'Actual']
+                        }}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {PLANNED_AGE_DATA.map((row) => (
+                      <span
+                        key={row.range}
+                        className={`text-xs ${row.diff > 0 ? 'text-green-600' : row.diff < 0 ? 'text-red-600' : 'text-muted-foreground'}`}
+                      >
+                        {row.range}: {row.diff > 0 ? '+' : ''}{row.diff}%
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium mb-2">Gender (actual % vs goal)</p>
+                  <div className="space-y-2">
+                    {PLANNED_GENDER_DATA.map((row) => (
+                      <div key={row.segment} className="flex items-center gap-2 text-sm">
+                        <span className="w-20">{row.segment}</span>
+                        <Progress value={row.actual} className="h-2 flex-1 max-w-[120px]" />
+                        <span className="w-10">{row.actual}%</span>
+                        {row.diff !== 0 && (
+                          <span className={row.status === 'over' ? 'text-green-600' : 'text-red-600'}>
+                            {row.status === 'over' ? <ArrowUp className="w-3.5 h-3.5 inline" /> : <ArrowDown className="w-3.5 h-3.5 inline" />}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium mb-2">Top 5 performing locations</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left">
+                          <th className="pb-2 font-medium">Location</th>
+                          <th className="pb-2 font-medium text-right">CTR</th>
+                          <th className="pb-2 font-medium text-right">Conversions</th>
+                          <th className="pb-2 font-medium">Performance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ACTUAL_LOCATIONS.map((loc) => (
+                          <tr key={loc.location} className="border-b last:border-0">
+                            <td className="py-2">{loc.location}</td>
+                            <td className="py-2 text-right">{loc.ctr}%</td>
+                            <td className="py-2 text-right">{loc.conversions}</td>
+                            <td className="py-2">
+                              <Badge
+                                variant="outline"
+                                className={
+                                  loc.performance === 'Overperforming'
+                                    ? 'border-green-500 text-green-700 bg-green-50'
+                                    : loc.performance === 'Underperforming'
+                                      ? 'border-red-500 text-red-700 bg-red-50'
+                                      : ''
+                                }
+                              >
+                                {loc.performance}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium mb-2">Engagement by interest (actual %)</p>
+                  <div className="space-y-1.5 text-sm">
+                    {PLANNED_INTERESTS.map((row) => (
+                      <div key={row.interest} className="flex justify-between">
+                        <span>{row.interest}</span>
+                        <span className={row.actual >= row.goal ? 'text-green-600' : 'text-muted-foreground'}>{row.actual}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Demographic summary panel */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="w-5 h-5" />
+                Audience fit summary
+              </CardTitle>
+              <CardDescription>Alignment of actual delivery vs. planned targets</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+                <div className="flex flex-col items-center">
+                  <div className="relative w-24 h-24 rounded-full border-4 border-green-500 flex items-center justify-center bg-green-50 dark:bg-green-950/20">
+                    <span className="text-2xl font-bold text-green-700 dark:text-green-400">{AUDIENCE_FIT_SCORE}%</span>
+                  </div>
+                  <p className="text-sm font-medium mt-2">Audience Fit Score</p>
+                </div>
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+                  <div className="border rounded-lg p-3 space-y-2">
+                    <p className="text-xs font-medium text-green-700 dark:text-green-400 flex items-center gap-1">
+                      <ArrowUp className="w-3.5 h-3.5" /> Strong matches
+                    </p>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      {INSIGHTS_STRONG.map((item, i) => (
+                        <li key={i}>• {item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="border rounded-lg p-3 space-y-2">
+                    <p className="text-xs font-medium text-red-700 dark:text-red-400 flex items-center gap-1">
+                      <ArrowDown className="w-3.5 h-3.5" /> Mismatches
+                    </p>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      {INSIGHTS_MISMATCH.map((item, i) => (
+                        <li key={i}>• {item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="border rounded-lg p-3 space-y-2">
+                    <p className="text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                      <Lightbulb className="w-3.5 h-3.5" /> Opportunities
+                    </p>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      {INSIGHTS_OPPORTUNITIES.map((item, i) => (
+                        <li key={i}>• {item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recommendations */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Recommendations based on demographic gaps</CardTitle>
+              <CardDescription>Actions to improve audience alignment and performance</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600" /> Immediate actions
+                </p>
+                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                  {RECOMMENDATIONS_IMMEDIATE.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4 text-blue-600" /> Testing opportunities
+                </p>
+                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                  {RECOMMENDATIONS_TESTING.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
               </div>
             </CardContent>
           </Card>
