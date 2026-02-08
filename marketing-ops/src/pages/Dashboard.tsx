@@ -47,15 +47,15 @@ function SkeletonCard() {
         <div className="flex items-start justify-between">
           <div className="flex-1 space-y-3">
             <div className="flex items-center gap-3">
-              <div className="h-5 w-48 bg-gray-200 rounded" />
-              <div className="h-5 w-20 bg-gray-200 rounded-full" />
+              <div className="h-5 w-48 bg-muted rounded" />
+              <div className="h-5 w-20 bg-muted rounded-full" />
             </div>
             <div className="flex items-center gap-6">
-              <div className="h-4 w-24 bg-gray-100 rounded" />
-              <div className="h-4 w-24 bg-gray-100 rounded" />
-              <div className="h-4 w-20 bg-gray-100 rounded" />
+              <div className="h-4 w-24 bg-muted rounded" />
+              <div className="h-4 w-24 bg-muted rounded" />
+              <div className="h-4 w-20 bg-muted rounded" />
             </div>
-            <div className="h-2 w-full bg-gray-100 rounded" />
+            <div className="h-2 w-full bg-muted rounded" />
           </div>
         </div>
       </CardContent>
@@ -69,10 +69,10 @@ function SkeletonStatCard() {
       <CardContent className="pt-6">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
-            <div className="h-4 w-24 bg-gray-200 rounded" />
-            <div className="h-8 w-12 bg-gray-200 rounded" />
+            <div className="h-4 w-24 bg-muted rounded" />
+            <div className="h-8 w-12 bg-muted rounded" />
           </div>
-          <div className="w-12 h-12 bg-gray-100 rounded-lg" />
+          <div className="w-12 h-12 bg-muted rounded-lg" />
         </div>
       </CardContent>
     </Card>
@@ -125,9 +125,9 @@ export default function Dashboard() {
       { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string; className?: string }
     > = {
       planning: { variant: 'secondary', label: 'Planning' },
-      validated: { variant: 'outline', label: 'Validated', className: 'border-blue-300 text-blue-700 bg-blue-50' },
-      in_progress: { variant: 'default', label: 'In Progress', className: 'bg-green-600' },
-      completed: { variant: 'outline', label: 'Completed', className: 'border-green-300 text-green-700 bg-green-50' },
+      validated: { variant: 'outline', label: 'Validated', className: 'border-expedition-trail/40 text-expedition-trail bg-expedition-trail/10' },
+      in_progress: { variant: 'inProgress', label: 'In Progress' },
+      completed: { variant: 'success', label: 'Completed' },
       paused: { variant: 'destructive', label: 'Paused' },
     }
     const badge = variants[status] || variants.planning
@@ -139,15 +139,15 @@ export default function Dashboard() {
   }
 
   const getHealthColor = (health: number) => {
-    if (health >= 80) return 'text-green-600'
-    if (health >= 60) return 'text-yellow-600'
-    return 'text-red-600'
+    if (health >= 80) return 'text-expedition-evergreen'
+    if (health >= 60) return 'text-expedition-signal'
+    return 'text-expedition-checkpoint'
   }
 
   const getHealthBg = (health: number) => {
-    if (health >= 80) return 'bg-green-600'
-    if (health >= 60) return 'bg-yellow-500'
-    return 'bg-red-500'
+    if (health >= 80) return '[&>div]:bg-expedition-evergreen'
+    if (health >= 60) return '[&>div]:bg-expedition-signal'
+    return '[&>div]:bg-expedition-checkpoint'
   }
 
   const getCampaignRoute = (campaign: Campaign) => {
@@ -171,8 +171,8 @@ export default function Dashboard() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <div className="h-8 w-64 bg-gray-200 rounded animate-pulse" />
-            <div className="h-4 w-96 bg-gray-100 rounded animate-pulse mt-2" />
+            <div className="h-8 w-64 bg-muted rounded animate-pulse" />
+            <div className="h-4 w-96 bg-muted rounded animate-pulse mt-2" />
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -194,8 +194,8 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Campaign Dashboard</h1>
-          <p className="text-gray-600 mt-1">Manage and monitor your marketing campaigns</p>
+          <h1 className="text-3xl font-bold text-foreground">Campaign Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Manage and monitor your marketing campaigns</p>
         </div>
         <Button asChild>
           <Link to="/campaigns/new" className="gap-2">
@@ -214,8 +214,8 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">Total Campaigns</p>
                 <p className="text-2xl font-bold mt-1">{stats.total}</p>
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <BarChart3 className="text-blue-600" size={24} />
+              <div className="w-12 h-12 bg-expedition-trail/10 rounded-lg flex items-center justify-center">
+                <BarChart3 className="text-expedition-trail" size={24} />
               </div>
             </div>
           </CardContent>
@@ -228,8 +228,8 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">In Progress</p>
                 <p className="text-2xl font-bold mt-1">{stats.inProgress}</p>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <TrendingUp className="text-green-600" size={24} />
+              <div className="w-12 h-12 bg-expedition-summit/10 rounded-lg flex items-center justify-center">
+                <TrendingUp className="text-expedition-summit" size={24} />
               </div>
             </div>
           </CardContent>
@@ -242,8 +242,8 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">Planning</p>
                 <p className="text-2xl font-bold mt-1">{stats.planning}</p>
               </div>
-              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <Clock className="text-yellow-600" size={24} />
+              <div className="w-12 h-12 bg-expedition-signal/10 rounded-lg flex items-center justify-center">
+                <Clock className="text-expedition-signal" size={24} />
               </div>
             </div>
           </CardContent>
@@ -256,8 +256,8 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">Completed</p>
                 <p className="text-2xl font-bold mt-1">{stats.completed}</p>
               </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <CheckCircle2 className="text-purple-600" size={24} />
+              <div className="w-12 h-12 bg-expedition-evergreen/10 rounded-lg flex items-center justify-center">
+                <CheckCircle2 className="text-expedition-evergreen" size={24} />
               </div>
             </div>
           </CardContent>
@@ -350,7 +350,7 @@ export default function Dashboard() {
                                   Resume Campaign
                                 </DropdownMenuItem>
                               )}
-                              <DropdownMenuItem className="text-red-600">
+                              <DropdownMenuItem className="text-expedition-checkpoint">
                                 <Trash2 className="w-4 h-4 mr-2" />
                                 Delete
                               </DropdownMenuItem>
@@ -383,7 +383,7 @@ export default function Dashboard() {
                           </div>
                           <Progress value={campaign.operational_health} className={`h-1.5 ${getHealthBg(campaign.operational_health)}`} />
                           {campaign.drift_count > 0 && (
-                            <div className="flex items-center gap-1 text-xs text-yellow-600">
+                            <div className="flex items-center gap-1 text-xs text-expedition-signal">
                               <AlertCircle size={12} />
                               {campaign.drift_count} drift event{campaign.drift_count !== 1 ? 's' : ''}
                             </div>
@@ -398,10 +398,10 @@ export default function Dashboard() {
                           <span
                             className={`font-semibold ${
                               campaign.risk_score >= 70
-                                ? 'text-green-600'
+                                ? 'text-expedition-evergreen'
                                 : campaign.risk_score >= 50
-                                ? 'text-yellow-600'
-                                : 'text-red-600'
+                                ? 'text-expedition-signal'
+                                : 'text-expedition-checkpoint'
                             }`}
                           >
                             {campaign.risk_score}/100

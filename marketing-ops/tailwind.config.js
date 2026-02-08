@@ -46,12 +46,23 @@ export default {
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',
+  			/* Expedition semantic palette */
+  			expedition: {
+  				navy: 'hsl(var(--expedition-navy))',
+  				trail: 'hsl(var(--trail-blue))',
+  				evergreen: 'hsl(var(--evergreen))',
+  				summit: 'hsl(var(--summit-teal))',
+  				signal: 'hsl(var(--signal-orange))',
+  				checkpoint: 'hsl(var(--checkpoint-red))',
+  				mist: 'hsl(var(--mist-gray))',
+  				slate: 'hsl(var(--slate))',
+  			},
   			chart: {
-  				'1': 'hsl(var(--chart-1))',
-  				'2': 'hsl(var(--chart-2))',
-  				'3': 'hsl(var(--chart-3))',
-  				'4': 'hsl(var(--chart-4))',
-  				'5': 'hsl(var(--chart-5))'
+  				'1': 'hsl(var(--trail-blue))',
+  				'2': 'hsl(var(--evergreen))',
+  				'3': 'hsl(var(--summit-teal))',
+  				'4': 'hsl(var(--signal-orange))',
+  				'5': 'hsl(var(--checkpoint-red))'
   			}
   		}
   	}

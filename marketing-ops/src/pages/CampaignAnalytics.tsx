@@ -268,13 +268,13 @@ export default function CampaignAnalytics() {
   const getActorColor = (type: string) => {
     switch (type) {
       case 'client':
-        return 'bg-blue-100 text-blue-800'
+        return 'bg-expedition-trail/10 text-expedition-navy dark:text-white'
       case 'agency':
-        return 'bg-purple-100 text-purple-800'
+        return 'bg-expedition-summit/10 text-expedition-navy dark:text-white'
       case 'external':
-        return 'bg-orange-100 text-orange-800'
+        return 'bg-expedition-signal/10 text-expedition-navy dark:text-white'
       default:
-        return 'bg-gray-100 text-gray-800'
+        return 'bg-muted text-foreground'
     }
   }
 
@@ -288,7 +288,7 @@ export default function CampaignAnalytics() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-expedition-trail" />
       </div>
     )
   }
@@ -325,15 +325,15 @@ export default function CampaignAnalytics() {
                 </div>
                 <div className="text-center">
                   <p className="text-sm text-muted-foreground">Revenue</p>
-                  <p className="text-2xl font-bold text-green-600">{formatCurrency(totalRevenue)}</p>
+                  <p className="text-2xl font-bold text-expedition-evergreen">{formatCurrency(totalRevenue)}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-sm text-muted-foreground">Avg ROAS</p>
-                  <p className="text-2xl font-bold text-blue-600">{avgROAS.toFixed(1)}x</p>
+                  <p className="text-2xl font-bold text-expedition-trail">{avgROAS.toFixed(1)}x</p>
                 </div>
                 <div className="text-center">
                   <p className="text-sm text-muted-foreground">Conversions</p>
-                  <p className="text-2xl font-bold text-purple-600">{totalConversions}</p>
+                  <p className="text-2xl font-bold text-expedition-summit">{totalConversions}</p>
                 </div>
               </div>
             </CardContent>
@@ -343,7 +343,7 @@ export default function CampaignAnalytics() {
             <Card>
               <CardContent className="pt-6 text-center">
                 <p className="text-sm text-muted-foreground">Break-Even Day</p>
-                <p className="text-3xl font-bold text-blue-600 mt-1">
+                <p className="text-3xl font-bold text-expedition-trail mt-1">
                   {hasPerformanceData ? 
                     `Day ${roasTrendData.findIndex(d => d.roas >= (campaign?.target_value || 2.5)) + 1}` :
                     'N/A'
@@ -355,7 +355,7 @@ export default function CampaignAnalytics() {
             <Card>
               <CardContent className="pt-6 text-center">
                 <p className="text-sm text-muted-foreground">Peak ROAS</p>
-                <p className="text-3xl font-bold text-green-600 mt-1">
+                <p className="text-3xl font-bold text-expedition-evergreen mt-1">
                   {hasPerformanceData ? `${Math.max(...roasTrendData.map(d => d.roas)).toFixed(1)}x` : 'N/A'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">Campaign peak</p>
@@ -364,7 +364,7 @@ export default function CampaignAnalytics() {
             <Card>
               <CardContent className="pt-6 text-center">
                 <p className="text-sm text-muted-foreground">Total Revenue</p>
-                <p className="text-3xl font-bold text-purple-600 mt-1">{formatCurrency(totalRevenue)}</p>
+                <p className="text-3xl font-bold text-expedition-summit mt-1">{formatCurrency(totalRevenue)}</p>
                 <p className="text-xs text-muted-foreground mt-1">Campaign lifetime</p>
               </CardContent>
             </Card>
@@ -490,18 +490,18 @@ export default function CampaignAnalytics() {
                           <td className="py-2 text-center">
                             <Badge
                               variant={row.drift > 0 ? 'destructive' : row.drift < 0 ? 'default' : 'secondary'}
-                              className={row.drift < 0 ? 'bg-green-600' : ''}
+                              className={row.drift < 0 ? 'bg-expedition-evergreen' : ''}
                             >
                               {row.drift > 0 ? '+' : ''}{row.drift}d
                             </Badge>
                           </td>
                           <td className="py-2 text-center">
                             {row.drift === 0 ? (
-                              <CheckCircle2 className="w-4 h-4 text-green-600 inline" />
+                              <CheckCircle2 className="w-4 h-4 text-expedition-evergreen inline" />
                             ) : row.drift > 0 ? (
-                              <AlertTriangle className="w-4 h-4 text-red-600 inline" />
+                              <AlertTriangle className="w-4 h-4 text-expedition-checkpoint inline" />
                             ) : (
-                              <TrendingUp className="w-4 h-4 text-green-600 inline" />
+                              <TrendingUp className="w-4 h-4 text-expedition-evergreen inline" />
                             )}
                           </td>
                         </tr>
@@ -529,14 +529,14 @@ export default function CampaignAnalytics() {
         <TabsContent value="audience" className="space-y-4">
           {/* Display rule banner */}
           {campaign?.status === 'completed' ? (
-            <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <Alert className="border-expedition-evergreen/40 bg-expedition-evergreen/10">
+              <CheckCircle2 className="h-4 w-4 text-expedition-evergreen" />
               <AlertTitle>Final Analysis</AlertTitle>
               <AlertDescription>Full campaign demographic data from Meta Ads reports.</AlertDescription>
             </Alert>
           ) : (
-            <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
-              <Clock className="h-4 w-4 text-amber-600" />
+            <Alert variant="warning">
+              <Clock className="h-4 w-4 text-expedition-signal" />
               <AlertTitle>Preliminary Analysis</AlertTitle>
               <AlertDescription>Data from first 7+ days. Final demographics will update when the campaign completes.</AlertDescription>
             </Alert>
@@ -567,7 +567,7 @@ export default function CampaignAnalytics() {
                     <BarChart data={PLANNED_AGE_DATA} layout="vertical" margin={{ left: 50 }}>
                       <XAxis type="number" domain={[0, 50]} tickFormatter={(v) => `${v}%`} fontSize={11} />
                       <YAxis type="category" dataKey="range" width={45} fontSize={11} />
-                      <Bar dataKey="goal" fill="#2563eb" name="Goal %" radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="goal" fill="hsl(216, 76%, 50%)" name="Goal %" radius={[0, 4, 4, 0]} />
                       <Tooltip formatter={(v: number | undefined) => [`${v ?? 0}%`, 'Goal']} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -622,7 +622,7 @@ export default function CampaignAnalytics() {
                     <BarChart data={PLANNED_AGE_DATA} layout="vertical" margin={{ left: 50 }}>
                       <XAxis type="number" domain={[0, 55]} tickFormatter={(v) => `${v}%`} fontSize={11} />
                       <YAxis type="category" dataKey="range" width={45} fontSize={11} />
-                      <Bar dataKey="actual" fill="#16a34a" name="Actual %" radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="actual" fill="hsl(158, 62%, 31%)" name="Actual %" radius={[0, 4, 4, 0]} />
                       <Tooltip
                         formatter={(v: number | undefined, _name: string | undefined, props: { payload?: { diff?: number } }) => {
                           const diff = props?.payload?.diff
@@ -636,7 +636,7 @@ export default function CampaignAnalytics() {
                     {PLANNED_AGE_DATA.map((row) => (
                       <span
                         key={row.range}
-                        className={`text-xs ${row.diff > 0 ? 'text-green-600' : row.diff < 0 ? 'text-red-600' : 'text-muted-foreground'}`}
+                        className={`text-xs ${row.diff > 0 ? 'text-expedition-evergreen' : row.diff < 0 ? 'text-expedition-checkpoint' : 'text-muted-foreground'}`}
                       >
                         {row.range}: {row.diff > 0 ? '+' : ''}{row.diff}%
                       </span>
@@ -652,7 +652,7 @@ export default function CampaignAnalytics() {
                         <Progress value={row.actual} className="h-2 flex-1 max-w-[120px]" />
                         <span className="w-10">{row.actual}%</span>
                         {row.diff !== 0 && (
-                          <span className={row.status === 'over' ? 'text-green-600' : 'text-red-600'}>
+                          <span className={row.status === 'over' ? 'text-expedition-evergreen' : 'text-expedition-checkpoint'}>
                             {row.status === 'over' ? <ArrowUp className="w-3.5 h-3.5 inline" /> : <ArrowDown className="w-3.5 h-3.5 inline" />}
                           </span>
                         )}
@@ -683,9 +683,9 @@ export default function CampaignAnalytics() {
                                 variant="outline"
                                 className={
                                   loc.performance === 'Overperforming'
-                                    ? 'border-green-500 text-green-700 bg-green-50'
+                                    ? 'border-expedition-evergreen/50 text-expedition-evergreen bg-expedition-evergreen/10'
                                     : loc.performance === 'Underperforming'
-                                      ? 'border-red-500 text-red-700 bg-red-50'
+                                      ? 'border-expedition-checkpoint/50 text-expedition-checkpoint bg-expedition-checkpoint/10'
                                       : ''
                                 }
                               >
@@ -704,7 +704,7 @@ export default function CampaignAnalytics() {
                     {PLANNED_INTERESTS.map((row) => (
                       <div key={row.interest} className="flex justify-between">
                         <span>{row.interest}</span>
-                        <span className={row.actual >= row.goal ? 'text-green-600' : 'text-muted-foreground'}>{row.actual}%</span>
+                        <span className={row.actual >= row.goal ? 'text-expedition-evergreen' : 'text-muted-foreground'}>{row.actual}%</span>
                       </div>
                     ))}
                   </div>
@@ -725,14 +725,14 @@ export default function CampaignAnalytics() {
             <CardContent className="space-y-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
                 <div className="flex flex-col items-center">
-                  <div className="relative w-24 h-24 rounded-full border-4 border-green-500 flex items-center justify-center bg-green-50 dark:bg-green-950/20">
-                    <span className="text-2xl font-bold text-green-700 dark:text-green-400">{AUDIENCE_FIT_SCORE}%</span>
+                  <div className="relative w-24 h-24 rounded-full border-4 border-expedition-evergreen flex items-center justify-center bg-expedition-evergreen/10">
+                    <span className="text-2xl font-bold text-expedition-evergreen">{AUDIENCE_FIT_SCORE}%</span>
                   </div>
                   <p className="text-sm font-medium mt-2">Audience Fit Score</p>
                 </div>
                 <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
                   <div className="border rounded-lg p-3 space-y-2">
-                    <p className="text-xs font-medium text-green-700 dark:text-green-400 flex items-center gap-1">
+                    <p className="text-xs font-medium text-expedition-evergreen flex items-center gap-1">
                       <ArrowUp className="w-3.5 h-3.5" /> Strong matches
                     </p>
                     <ul className="text-sm text-muted-foreground space-y-1">
@@ -742,7 +742,7 @@ export default function CampaignAnalytics() {
                     </ul>
                   </div>
                   <div className="border rounded-lg p-3 space-y-2">
-                    <p className="text-xs font-medium text-red-700 dark:text-red-400 flex items-center gap-1">
+                    <p className="text-xs font-medium text-expedition-checkpoint flex items-center gap-1">
                       <ArrowDown className="w-3.5 h-3.5" /> Mismatches
                     </p>
                     <ul className="text-sm text-muted-foreground space-y-1">
@@ -752,7 +752,7 @@ export default function CampaignAnalytics() {
                     </ul>
                   </div>
                   <div className="border rounded-lg p-3 space-y-2">
-                    <p className="text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                    <p className="text-xs font-medium text-expedition-signal flex items-center gap-1">
                       <Lightbulb className="w-3.5 h-3.5" /> Opportunities
                     </p>
                     <ul className="text-sm text-muted-foreground space-y-1">
@@ -775,7 +775,7 @@ export default function CampaignAnalytics() {
             <CardContent className="space-y-4">
               <div>
                 <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600" /> Immediate actions
+                  <AlertTriangle className="w-4 h-4 text-expedition-signal" /> Immediate actions
                 </p>
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
                   {RECOMMENDATIONS_IMMEDIATE.map((item, i) => (
@@ -785,7 +785,7 @@ export default function CampaignAnalytics() {
               </div>
               <div>
                 <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                  <Lightbulb className="w-4 h-4 text-blue-600" /> Testing opportunities
+                  <Lightbulb className="w-4 h-4 text-expedition-trail" /> Testing opportunities
                 </p>
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
                   {RECOMMENDATIONS_TESTING.map((item, i) => (
@@ -837,11 +837,11 @@ export default function CampaignAnalytics() {
                           <td className="py-3 text-muted-foreground">{entry.delay_impact || 'On schedule'}</td>
                           <td className="py-3 text-center">
                             {entry.status === 'completed' ? (
-                              <CheckCircle2 className="w-4 h-4 text-green-600 inline" />
+                              <CheckCircle2 className="w-4 h-4 text-expedition-evergreen inline" />
                             ) : entry.status === 'overdue' ? (
-                              <AlertTriangle className="w-4 h-4 text-red-600 inline" />
+                              <AlertTriangle className="w-4 h-4 text-expedition-checkpoint inline" />
                             ) : (
-                              <Clock className="w-4 h-4 text-gray-500 inline" />
+                              <Clock className="w-4 h-4 text-muted-foreground inline" />
                             )}
                           </td>
                         </tr>
@@ -852,7 +852,7 @@ export default function CampaignAnalytics() {
               ) : (
                 <div className="h-48 flex items-center justify-center border-2 border-dashed rounded-lg">
                   <div className="text-center">
-                    <Users className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                    <Users className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
                     <p className="text-muted-foreground">No accountability data available yet</p>
                   </div>
                 </div>

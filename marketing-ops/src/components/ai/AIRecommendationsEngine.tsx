@@ -242,26 +242,26 @@ export default function AIRecommendationsEngine({
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'critical': return 'bg-red-100 text-red-800 border-red-200'
-      case 'high': return 'bg-orange-100 text-orange-800 border-orange-200'
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      default: return 'bg-blue-100 text-blue-800 border-blue-200'
+      case 'critical': return 'bg-expedition-checkpoint/10 text-expedition-checkpoint border-expedition-checkpoint/40'
+      case 'high': return 'bg-expedition-signal/10 text-expedition-signal border-expedition-signal/40'
+      case 'medium': return 'bg-expedition-summit/10 text-expedition-summit border-expedition-summit/40'
+      default: return 'bg-expedition-trail/10 text-expedition-trail border-expedition-trail/40'
     }
   }
 
   const getImpactColor = (impact: string) => {
     switch (impact) {
-      case 'high': return 'bg-green-600'
-      case 'medium': return 'bg-yellow-600'
-      default: return 'bg-gray-600'
+      case 'high': return 'bg-expedition-evergreen text-white border-0'
+      case 'medium': return 'bg-expedition-signal text-white border-0'
+      default: return 'bg-expedition-slate text-white border-0'
     }
   }
 
   const getEffortColor = (effort: string) => {
     switch (effort) {
-      case 'low': return 'bg-green-600'
-      case 'medium': return 'bg-yellow-600'
-      default: return 'bg-red-600'
+      case 'low': return 'bg-expedition-evergreen text-white border-0'
+      case 'medium': return 'bg-expedition-signal text-white border-0'
+      default: return 'bg-expedition-checkpoint text-white border-0'
     }
   }
 
@@ -275,8 +275,8 @@ export default function AIRecommendationsEngine({
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                <Brain className="w-5 h-5 text-blue-600" />
+              <div className="w-8 h-8 rounded-full bg-expedition-trail/10 flex items-center justify-center">
+                <Brain className="w-5 h-5 text-expedition-trail" />
               </div>
               <div>
                 <CardTitle className="text-base">AI Recommendations Engine</CardTitle>
@@ -300,19 +300,19 @@ export default function AIRecommendationsEngine({
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{recommendations.length}</div>
+              <div className="text-2xl font-bold text-expedition-trail">{recommendations.length}</div>
               <div className="text-sm text-muted-foreground">Total Recommendations</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-red-600">{criticalCount}</div>
+              <div className="text-2xl font-bold text-expedition-checkpoint">{criticalCount}</div>
               <div className="text-sm text-muted-foreground">Critical Priority</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">{actionRequiredCount}</div>
+              <div className="text-2xl font-bold text-expedition-signal">{actionRequiredCount}</div>
               <div className="text-sm text-muted-foreground">Action Required</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{appliedRecommendations.size}</div>
+              <div className="text-2xl font-bold text-expedition-evergreen">{appliedRecommendations.size}</div>
               <div className="text-sm text-muted-foreground">Applied</div>
             </div>
           </div>
@@ -353,11 +353,11 @@ export default function AIRecommendationsEngine({
             <Card>
               <CardContent className="py-12">
                 <div className="text-center space-y-4">
-                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mx-auto">
-                    <Brain className="w-6 h-6 text-blue-600 animate-pulse" />
+                  <div className="w-12 h-12 rounded-full bg-expedition-trail/10 flex items-center justify-center mx-auto">
+                    <Brain className="w-6 h-6 text-expedition-trail animate-pulse" />
                   </div>
                   <div>
-                    <h3 className="font-medium text-gray-900">AI Analysis in Progress</h3>
+                    <h3 className="font-medium text-foreground">AI Analysis in Progress</h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       Analyzing campaign data and generating recommendations...
                     </p>
@@ -370,11 +370,11 @@ export default function AIRecommendationsEngine({
             <Card>
               <CardContent className="py-12">
                 <div className="text-center space-y-4">
-                  <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto">
-                    <CheckCircle className="w-6 h-6 text-green-600" />
+                  <div className="w-12 h-12 rounded-full bg-expedition-evergreen/10 flex items-center justify-center mx-auto">
+                    <CheckCircle className="w-6 h-6 text-expedition-evergreen" />
                   </div>
                   <div>
-                    <h3 className="font-medium text-gray-900">No Recommendations</h3>
+                    <h3 className="font-medium text-foreground">No Recommendations</h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       Campaign is performing optimally. Check back later for new insights.
                     </p>
@@ -393,13 +393,13 @@ export default function AIRecommendationsEngine({
                       {/* Header */}
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                          <div className="w-10 h-10 rounded-full bg-expedition-trail/10 flex items-center justify-center text-expedition-trail shrink-0">
                             {recommendation.icon}
                           </div>
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               <h4 className="font-semibold text-sm">{recommendation.title}</h4>
-                              {isApplied && <CheckCircle className="w-4 h-4 text-green-600" />}
+                              {isApplied && <CheckCircle className="w-4 h-4 text-expedition-evergreen" />}
                             </div>
                             <p className="text-sm text-muted-foreground">{recommendation.description}</p>
                           </div>
@@ -430,11 +430,11 @@ export default function AIRecommendationsEngine({
                       </div>
 
                       {/* AI Reasoning */}
-                      <div className="bg-blue-50 p-3 rounded-lg">
+                      <div className="bg-expedition-trail/10 p-3 rounded-lg border border-expedition-trail/20">
                         <div className="text-sm">
-                          <div className="font-medium text-blue-900 mb-1">AI Analysis:</div>
-                          <div className="text-blue-800 mb-2">{recommendation.reasoning}</div>
-                          <div className="text-xs text-blue-600">
+                          <div className="font-medium text-expedition-navy dark:text-white mb-1">AI Analysis:</div>
+                          <div className="text-foreground mb-2">{recommendation.reasoning}</div>
+                          <div className="text-xs text-expedition-trail">
                             Data source: {recommendation.dataSource}
                           </div>
                         </div>
@@ -442,10 +442,10 @@ export default function AIRecommendationsEngine({
 
                       {/* Expected Outcome */}
                       {recommendation.estimatedOutcome && (
-                        <div className="bg-green-50 p-3 rounded-lg">
+                        <div className="bg-expedition-evergreen/10 p-3 rounded-lg border border-expedition-evergreen/20">
                           <div className="text-sm">
-                            <div className="font-medium text-green-900 mb-1">Expected Outcome:</div>
-                            <div className="text-green-800">{recommendation.estimatedOutcome}</div>
+                            <div className="font-medium text-expedition-evergreen mb-1">Expected Outcome:</div>
+                            <div className="text-foreground">{recommendation.estimatedOutcome}</div>
                           </div>
                         </div>
                       )}
@@ -457,7 +457,7 @@ export default function AIRecommendationsEngine({
                           <ol className="text-sm text-muted-foreground space-y-1">
                             {recommendation.implementationSteps.map((step, i) => (
                               <li key={i} className="flex items-start gap-2">
-                                <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-xs flex items-center justify-center shrink-0 mt-0.5">
+                                <span className="w-5 h-5 rounded-full bg-expedition-trail/10 text-expedition-trail text-xs flex items-center justify-center shrink-0 mt-0.5">
                                   {i + 1}
                                 </span>
                                 {step}
@@ -471,7 +471,7 @@ export default function AIRecommendationsEngine({
                       <div className="flex items-center justify-between pt-2 border-t">
                         <div className="text-xs text-muted-foreground">
                           {recommendation.actionRequired && (
-                            <span className="text-orange-600 font-medium">Action required</span>
+                            <span className="text-expedition-signal font-medium">Action required</span>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
@@ -496,7 +496,7 @@ export default function AIRecommendationsEngine({
                             </>
                           )}
                           {isApplied && (
-                            <Badge className="bg-green-600">
+                            <Badge variant="success">
                               <CheckCircle className="w-3 h-3 mr-1" />
                               Applied
                             </Badge>

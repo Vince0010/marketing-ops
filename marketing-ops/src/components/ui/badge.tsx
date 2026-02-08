@@ -9,12 +9,20 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          "border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/80",
+          "border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/90",
         secondary:
           "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
         destructive:
-          "border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80",
-        outline: "text-foreground",
+          "border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/90",
+        outline: "text-foreground border-border",
+        success:
+          "border-transparent bg-expedition-evergreen text-white shadow hover:bg-expedition-evergreen/90",
+        warning:
+          "border-transparent bg-expedition-signal text-white shadow hover:bg-expedition-signal/90",
+        inProgress:
+          "border-transparent bg-expedition-summit text-white shadow hover:bg-expedition-summit/90",
+        critical:
+          "border-transparent bg-expedition-checkpoint text-white shadow hover:bg-expedition-checkpoint/90",
       },
     },
     defaultVariants: {

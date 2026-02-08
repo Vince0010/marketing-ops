@@ -67,33 +67,33 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   }
 
   return (
-    <aside className={`w-64 bg-card border-r border-border fixed left-0 top-0 bottom-0 flex flex-col z-50 transition-transform duration-300 ease-in-out ${
+    <aside className={`w-64 bg-expedition-navy border-r border-white/10 fixed left-0 top-0 bottom-0 flex flex-col z-50 transition-transform duration-300 ease-in-out ${
       isOpen ? 'translate-x-0' : '-translate-x-full'
     } md:translate-x-0`}>
       {/* Logo */}
       <div className="p-6">
         <Link to="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <Zap className="w-5 h-5 text-primary-foreground" />
+          <div className="w-8 h-8 bg-expedition-trail rounded-lg flex items-center justify-center">
+            <Zap className="w-5 h-5 text-white" />
           </div>
-          <span className="text-xl font-bold text-foreground">
-            MarketingOps<span className="text-primary">.ai</span>
+          <span className="text-xl font-bold text-white">
+            MarketingOps<span className="text-expedition-summit">.ai</span>
           </span>
         </Link>
       </div>
 
-      <Separator />
+      <Separator className="bg-white/10" />
 
       {/* Theme switch: Light / Dark */}
       <div className="p-4">
-        <p className="text-xs font-medium text-muted-foreground mb-2">Theme</p>
-        <div className="flex rounded-lg border border-border bg-muted/30 p-0.5">
+        <p className="text-xs font-medium text-white/60 mb-2">Theme</p>
+        <div className="flex rounded-lg border border-white/10 bg-white/5 p-0.5">
           <button
             type="button"
             onClick={() => setDark(false)}
             className={cn(
               'flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors',
-              !dark ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              !dark ? 'bg-expedition-trail text-white shadow-sm' : 'text-white/70 hover:text-white'
             )}
             aria-pressed={!dark}
             aria-label="Light mode"
@@ -106,7 +106,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             onClick={() => setDark(true)}
             className={cn(
               'flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors',
-              dark ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              dark ? 'bg-expedition-trail text-white shadow-sm' : 'text-white/70 hover:text-white'
             )}
             aria-pressed={dark}
             aria-label="Dark mode"
@@ -117,15 +117,18 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         </div>
       </div>
 
-      <Separator />
+      <Separator className="bg-white/10" />
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1">
         {navLinks.map((link) => (
           <Link key={link.name} to={link.href} onClick={() => onClose?.()}>
             <Button
-              variant={isActive(link.href) ? 'default' : 'ghost'}
-              className="w-full justify-start gap-3"
+              variant="ghost"
+              className={cn(
+                'w-full justify-start gap-3 text-white/90 hover:text-white hover:bg-white/10',
+                isActive(link.href) && 'bg-expedition-trail text-white hover:bg-expedition-trail/90'
+              )}
             >
               {link.icon}
               {link.name}
@@ -134,25 +137,23 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         ))}
       </nav>
 
-      <Separator />
+      <Separator className="bg-white/10" />
 
       {/* Bottom section: notifications + user */}
       <div className="p-4 space-y-3">
-        {/* Notifications */}
-        <Button variant="ghost" className="w-full justify-start gap-3 relative">
+        <Button variant="ghost" className="w-full justify-start gap-3 relative text-white/90 hover:text-white hover:bg-white/10">
           <Bell className="w-5 h-5" />
           Notifications
-          <Badge className="ml-auto h-5 w-5 flex items-center justify-center p-0 text-[10px]" variant="destructive">
+          <Badge className="ml-auto h-5 w-5 flex items-center justify-center p-0 text-[10px] bg-expedition-checkpoint text-white border-0">
             3
           </Badge>
         </Button>
 
-        {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="w-full justify-start gap-3">
-              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                <User className="w-4 h-4 text-primary" />
+            <Button variant="ghost" className="w-full justify-start gap-3 text-white/90 hover:text-white hover:bg-white/10">
+              <div className="w-8 h-8 bg-expedition-trail/30 rounded-full flex items-center justify-center">
+                <User className="w-4 h-4 text-expedition-trail" />
               </div>
               <span className="text-sm">Demo User</span>
             </Button>
@@ -173,7 +174,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               Switch to {dark ? 'light' : 'dark'} mode
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-red-600">
+            <DropdownMenuItem className="text-expedition-checkpoint">
               <LogOut className="w-4 h-4 mr-2" />
               Sign Out
             </DropdownMenuItem>

@@ -379,10 +379,10 @@ export default function CampaignCreate() {
       </div>
 
       {templateFrom && (
-        <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800">
-          <FileText className="h-4 w-4 text-green-600" />
+        <Alert className="border-expedition-evergreen/40 bg-expedition-evergreen/10">
+          <FileText className="h-4 w-4 text-expedition-evergreen" />
           <AlertDescription>
-            <span className="font-medium text-green-800 dark:text-green-200">Creating from template:</span>{' '}
+            <span className="font-medium text-expedition-evergreen">Creating from template:</span>{' '}
             {templateFrom.name}
             {templateFrom.sourcePhaseName && (
               <span className="text-muted-foreground"> (from phase: {templateFrom.sourcePhaseName})</span>

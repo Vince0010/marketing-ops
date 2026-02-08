@@ -2,54 +2,76 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Expedition color palette – exploration-inspired, data-driven */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    /* Expedition palette (HSL for opacity support) */
+    --expedition-navy: 211 64% 16%;        /* #0F2A44 – headers, nav, structure */
+    --trail-blue: 216 76% 50%;             /* #1F6AE1 – actions, links, active */
+    --evergreen: 158 62% 31%;             /* #1E7F5C – success, completed */
+    --summit-teal: 176 61% 43%;           /* #2BB0A6 – in-progress, highlights */
+    --signal-orange: 28 86% 62%;          /* #F2994A – warnings, deadlines */
+    --checkpoint-red: 6 76% 57%;          /* #E5533D – blocked, critical */
+    --mist-gray: 210 20% 96%;             /* #F4F6F8 – backgrounds, cards */
+    --base-white: 0 0% 100%;              /* #FFFFFF – canvas */
+    --slate: 220 9% 46%;                  /* #6B7280 – secondary text */
+
+    --background: var(--mist-gray);
+    --foreground: var(--expedition-navy);
+    --card: var(--base-white);
+    --card-foreground: var(--expedition-navy);
+    --popover: var(--base-white);
+    --popover-foreground: var(--expedition-navy);
+    --primary: var(--trail-blue);
+    --primary-foreground: var(--base-white);
+    --secondary: var(--mist-gray);
+    --secondary-foreground: var(--expedition-navy);
+    --muted: var(--mist-gray);
+    --muted-foreground: var(--slate);
+    --accent: var(--mist-gray);
+    --accent-foreground: var(--expedition-navy);
+    --destructive: var(--checkpoint-red);
+    --destructive-foreground: var(--base-white);
+    --border: 214 20% 90%;
+    --input: 214 20% 90%;
+    --ring: var(--trail-blue);
     --radius: 0.5rem;
+
+    /* Semantic status (for badges, alerts, progress) */
+    --success: var(--evergreen);
+    --warning: var(--signal-orange);
+    --in-progress: var(--summit-teal);
+    --critical: var(--checkpoint-red);
   }
 
-  /* Professional dark mode: #0f172a bg, #1e293b surfaces, #334155 borders */
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-    --card: 217 33% 17%;
-    --card-foreground: 210 40% 98%;
-    --popover: 217 33% 17%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 215 28% 25%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 91% 60%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 215 28% 25%;
-    --input: 215 28% 25%;
-    --ring: 217 91% 60%;
-    --success: 160 84% 39%;
-    --warning: 38 92% 50%;
-    --alert: 0 84% 60%;
+    --expedition-navy: 211 64% 16%;
+    --trail-blue: 216 76% 55%;
+    --evergreen: 158 62% 38%;
+    --summit-teal: 176 61% 48%;
+    --signal-orange: 28 86% 62%;
+    --checkpoint-red: 6 76% 57%;
+    --mist-gray: 210 20% 96%;
+    --slate: 220 9% 60%;
+    --background: 211 40% 10%;
+    --foreground: 0 0% 98%;
+    --card: 211 35% 14%;
+    --card-foreground: 0 0% 98%;
+    --popover: 211 35% 14%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 216 76% 55%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 211 30% 18%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 211 30% 18%;
+    --muted-foreground: 220 9% 60%;
+    --accent: 211 30% 18%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: var(--checkpoint-red);
+    --destructive-foreground: 0 0% 98%;
+    --border: 211 28% 22%;
+    --input: 211 28% 22%;
+    --ring: 216 76% 55%;
   }
 }
 
@@ -62,37 +84,16 @@
     color: hsl(var(--foreground));
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   }
-  .dark {
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  }
-  .dark .shadow-sm,
-  .dark [class*="shadow"] {
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  }
 }
 
 @layer components {
   .btn-primary {
-    @apply px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors;
+    @apply px-4 py-2 bg-[hsl(var(--trail-blue))] text-white rounded-lg hover:opacity-90 transition-colors;
   }
-  
   .btn-secondary {
-    @apply px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors;
+    @apply px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors border border-border;
   }
-  
-  .card {
-    @apply bg-white rounded-lg shadow-sm p-6 border border-gray-200;
-  }
-  
-  .card-hover {
-    @apply card hover:shadow-md transition-shadow cursor-pointer;
-  }
-  
-  .input {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
-  }
-  
-  .label {
-    @apply block text-sm font-medium text-gray-700 mb-1;
+  .card-expedition {
+    @apply rounded-xl border border-border bg-card text-card-foreground shadow-sm;
   }
 }
