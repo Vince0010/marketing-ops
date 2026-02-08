@@ -35,6 +35,7 @@ import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase } from '@/types/phase'
 import { getGateDecision, calculateDetailedRiskScore, type RiskAssessment } from '@/utils/calculations'
 import { formatCurrency } from '@/utils/formatting'
+import { DecisionStatusBadge } from '@/components/DecisionStatusBadge'
 
 interface RiskFactor {
   name: string
@@ -381,6 +382,14 @@ export default function CampaignValidate() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Decision status badge - prominent above actions */}
+            <div className="flex justify-center">
+              <DecisionStatusBadge
+                decision={gateDecision}
+                showSublabel
+                prominent
+              />
+            </div>
             <div
               className={`p-4 rounded-lg text-center ${
                 gateDecision === 'proceed'
@@ -469,10 +478,7 @@ export default function CampaignValidate() {
               <Button
                 className="w-full"
                 variant="outline"
-                onClick={() => {
-                  setOverrideReason('adjust')
-                  setOverrideDialogOpen(true)
-                }}
+                onClick={() => handleDecision('adjust')}
               >
                 Request Changes
               </Button>

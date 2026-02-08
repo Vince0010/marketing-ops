@@ -18,6 +18,7 @@ import {
   LogOut,
   Bell,
   Zap,
+  FileText,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
@@ -38,6 +39,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const navLinks: NavLink[] = [
     { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
     { name: 'New Campaign', href: '/campaigns/new', icon: <PlusCircle className="w-5 h-5" /> },
+    { name: 'Templates', href: '/templates', icon: <FileText className="w-5 h-5" /> },
     { name: 'Team', href: '/team', icon: <Users className="w-5 h-5" /> },
   ]
 
