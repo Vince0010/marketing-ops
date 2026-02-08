@@ -19,8 +19,11 @@ import {
   Bell,
   Zap,
   FileText,
+<<<<<<< HEAD
   Sun,
   Moon,
+=======
+>>>>>>> 1fe4725 (Added Components)
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'

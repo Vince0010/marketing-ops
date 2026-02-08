@@ -53,7 +53,11 @@ export default function CampaignValidate() {
   const [loading, setLoading] = useState(true)
   const [overrideDialogOpen, setOverrideDialogOpen] = useState(false)
   const [overrideReason, setOverrideReason] = useState('')
+<<<<<<< HEAD
   const [riskAssessment, setRiskAssessment] = useState<RiskAssessment | null>(null)
+=======
+  const [, setOverrideAction] = useState<'proceed' | 'adjust' | 'pause'>('proceed')
+>>>>>>> 1fe4725 (Added Components)
 
   useEffect(() => {
     const fetchData = async () => {
