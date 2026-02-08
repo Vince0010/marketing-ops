@@ -181,7 +181,7 @@ export default function CampaignValidate() {
       const updates: Record<string, unknown> = {
         gate_status: decision,
         gate_overridden: overridden,
-        status: decision === 'proceed' ? 'validated' : decision === 'pause' ? 'paused' : 'planning',
+        status: decision === 'proceed' ? 'in_progress' : decision === 'pause' ? 'paused' : 'planning',
       }
       if (overridden && overrideReason) {
         updates.override_reason = overrideReason
