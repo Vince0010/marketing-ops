@@ -95,7 +95,6 @@ async function main() {
                 id: taskId,
                 campaign_id: campaign.id,
                 phase_id: phase.id,
-                phase_name: phase.phase_name,
                 title: `${template.title} #${i + 1}`,
                 description: `Auto-generated task for ${phase.phase_name} phase`,
                 action_type: template.action_type,
@@ -106,6 +105,7 @@ async function main() {
                 started_at: startedAt.toISOString(),
                 completed_at: status === 'completed' ? new Date().toISOString() : null,
                 time_in_phase_minutes: timeInPhaseMinutes,
+                created_by: 'system',
             })
 
             // Create history entry

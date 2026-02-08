@@ -58,6 +58,13 @@ import { KanbanBoard } from '@/components/kanban'
 import { useCampaignExecution } from '@/hooks/useCampaignExecution'
 import { cn } from '@/lib/utils'
 import { saveTemplate } from '@/lib/templates'
+import {
+  DEMO_AGE_DATA,
+  DEMO_FIT_SCORE,
+  DEMO_STRONG_ALIGNMENT,
+  DEMO_ADJUSTMENT_AREAS,
+  DEMO_RECOMMENDED_ACTIONS,
+} from '@/lib/demographicData'
 
 const SEEDED_DRIFT_EVENTS: Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>[] = [
   {
@@ -114,9 +121,60 @@ const SEEDED_DRIFT_EVENTS: Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 
   },
 ]
 
+// For now use the seeded events as the runtime drift events list
+const driftEvents: (Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>)[] = SEEDED_DRIFT_EVENTS
+
 type DriftFilterValue = 'all' | 'positive' | 'negative' | 'neutral'
 
 type RecommendationActionState = 'pending' | 'accepted' | 'rejected' | 'completed'
+
+// AI Recommendations seed data
+const AI_RECOMMENDATIONS: {
+  tier: 'immediate' | 'tactical' | 'strategic'
+  title: string
+  description: string
+  category: string
+  impact: 'high' | 'medium' | 'low'
+  effort: 'high' | 'medium' | 'low'
+  icon: React.ReactNode
+}[] = [
+    {
+      tier: 'immediate',
+      title: 'Pause underperforming ad sets',
+      description: 'Ad sets with CTR below 0.5% are draining budget. Pause and reallocate.',
+      category: 'Budget Optimization',
+      impact: 'high',
+      effort: 'low',
+      icon: <AlertTriangle className="w-4 h-4" />,
+    },
+    {
+      tier: 'tactical',
+      title: 'A/B test new creative variants',
+      description: 'Current creatives showing fatigue. Test 3 new variants targeting 25-34 demo.',
+      category: 'Creative',
+      impact: 'high',
+      effort: 'medium',
+      icon: <Zap className="w-4 h-4" />,
+    },
+    {
+      tier: 'tactical',
+      title: 'Expand lookalike audiences',
+      description: 'Top 1% lookalike exhausted. Expand to 2-3% for fresh reach.',
+      category: 'Audience',
+      impact: 'medium',
+      effort: 'low',
+      icon: <TrendingUp className="w-4 h-4" />,
+    },
+    {
+      tier: 'strategic',
+      title: 'Consider channel diversification',
+      description: 'Heavy reliance on Meta. Evaluate TikTok/Google for audience expansion.',
+      category: 'Strategy',
+      impact: 'high',
+      effort: 'high',
+      icon: <BarChart3 className="w-4 h-4" />,
+    },
+  ]
 
 export default function CampaignTracker() {
   const { id } = useParams<{ id: string }>()
@@ -128,6 +186,9 @@ export default function CampaignTracker() {
   const [saveTemplateEventIndex, setSaveTemplateEventIndex] = useState<number | null>(null)
   const [templateName, setTemplateName] = useState('')
   const [templateDescription, setTemplateDescription] = useState('')
+  // Recommendation action states
+  const [recommendationStates, setRecommendationStates] = useState<Record<string, RecommendationActionState>>({})
+  const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({})
 
   // Get tasks from Kanban board for phase metrics
   // Get execution data from hook
@@ -178,7 +239,7 @@ export default function CampaignTracker() {
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }
 
   useEffect(() => {
     fetchData()
@@ -263,28 +324,28 @@ export default function CampaignTracker() {
   const calculateHealthIndicators = () => {
     const completedPhases = phases.filter(p => p.status === 'completed')
     const totalPhases = phases.length
-    
+
     // Operational Health: Based on phase completion rate and drift
     let operationalHealth = 100
     if (totalPhases > 0) {
       const completionRate = (completedPhases.length / totalPhases) * 100
-      const avgDrift = completedPhases.length > 0 
+      const avgDrift = completedPhases.length > 0
         ? Math.abs(completedPhases.reduce((acc, p) => acc + (p.drift_days || 0), 0) / completedPhases.length)
         : 0
-      
+
       // Reduce health based on drift (more than 2 days average is concerning)
       const driftPenalty = Math.min(avgDrift * 5, 30) // Max 30 point penalty
       operationalHealth = Math.max(completionRate - driftPenalty, 0)
     }
-    
+
     // Performance Health: Use campaign data or calculate from phases
-    const performanceHealth = campaign?.performance_health ?? 
-      (campaign?.status === 'completed' ? 85 : 
-       campaign?.status === 'in_progress' ? 75 : 90)
-    
+    const performanceHealth = campaign?.performance_health ??
+      (campaign?.status === 'completed' ? 85 :
+        campaign?.status === 'in_progress' ? 75 : 90)
+
     // Total drift calculation
     const totalDrift = completedPhases.reduce((acc, p) => acc + Math.abs(p.drift_days || 0), 0)
-    
+
     return {
       operational: Math.round(operationalHealth),
       performance: Math.round(performanceHealth),
@@ -339,7 +400,7 @@ export default function CampaignTracker() {
 
   // Calculate drift summary stats
   const driftSummary = {
-    avgDrift: phases.filter(p => p.drift_days != null).length > 0 
+    avgDrift: phases.filter(p => p.drift_days != null).length > 0
       ? Math.round(phases.filter(p => p.drift_days != null).reduce((sum, p) => sum + (p.drift_days || 0), 0) / phases.filter(p => p.drift_days != null).length * 10) / 10
       : 0,
     positiveCount: driftEvents.filter(d => d.drift_type === 'positive').length,
@@ -1033,118 +1094,79 @@ export default function CampaignTracker() {
             </Card>
           </TabsContent>
 
-        {/* Meta Ads Dashboard Tab */}
-        <TabsContent value="meta-ads" className="space-y-4">
-          {campaign && (
-            <MetaAdsDashboard
-              campaign={campaign}
-              metaPixelId={campaign.meta_pixel_id}
-              metaAccountId={campaign.meta_ads_account_id}
-            />
-          )}
-        </TabsContent>
+        </Tabs>
 
-        {/* Strategic Failure Diagnosis Tab */}
-        <TabsContent value="diagnosis" className="space-y-4">
-          {campaign && (
-            <StrategicFailureDiagnosis
-              campaign={campaign}
-              phases={phases}
-              driftEvents={driftEvents}
-              onCreateTemplate={(diagnosis) => {
-                console.log('Created failure prevention template:', diagnosis)
-                // In production, this would save the template to the database
-              }}
-            />
-          )}
-        </TabsContent>
-
-        {/* AI Recommendations Tab */}
-        <TabsContent value="recommendations" className="space-y-4">
-          {campaign && (
-            <AIRecommendationsEngine
-              campaign={campaign}
-              phases={phases}
-              driftEvents={driftEvents}
-              onApplyRecommendation={(recommendation) => {
-                console.log('Applied recommendation:', recommendation)
-                // In production, this would trigger actual campaign modifications
-              }}
-            />
-          )}
-        </TabsContent>
-      </Tabs>
-
-      {/* Save as Template dialog (from positive drift) */}
-      <Dialog
-        open={saveTemplateEventIndex !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSaveTemplateEventIndex(null)
-            setTemplateName('')
-            setTemplateDescription('')
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create template from success</DialogTitle>
-            <DialogDescription>
-              Save this positive drift as a reusable template. Phase structure, durations, and lessons will be available for new campaigns.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="template-name">Template name</Label>
-              <Input
-                id="template-name"
-                placeholder="e.g. Campaign Setup - Reuse"
-                value={templateName}
-                onChange={(e) => setTemplateName(e.target.value)}
-              />
+        {/* Save as Template dialog (from positive drift) */}
+        <Dialog
+          open={saveTemplateEventIndex !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSaveTemplateEventIndex(null)
+              setTemplateName('')
+              setTemplateDescription('')
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Create template from success</DialogTitle>
+              <DialogDescription>
+                Save this positive drift as a reusable template. Phase structure, durations, and lessons will be available for new campaigns.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="template-name">Template name</Label>
+                <Input
+                  id="template-name"
+                  placeholder="e.g. Campaign Setup - Reuse"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="template-desc">Description</Label>
+                <Textarea
+                  id="template-desc"
+                  placeholder="What made this successful? When to use?"
+                  rows={3}
+                  value={templateDescription}
+                  onChange={(e) => setTemplateDescription(e.target.value)}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="template-desc">Description</Label>
-              <Textarea
-                id="template-desc"
-                placeholder="What made this successful? When to use?"
-                rows={3}
-                value={templateDescription}
-                onChange={(e) => setTemplateDescription(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSaveTemplateEventIndex(null)
-                setTemplateName('')
-                setTemplateDescription('')
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="bg-green-600 hover:bg-green-700 gap-1.5"
-              onClick={() => {
-                const event = saveTemplateEventIndex != null ? SEEDED_DRIFT_EVENTS[saveTemplateEventIndex] : null
-                saveTemplate({
-                  name: templateName.trim() || 'Untitled template',
-                  description: templateDescription.trim(),
-                  sourcePhaseName: event?.phase_name,
-                })
-                setSaveTemplateEventIndex(null)
-                setTemplateName('')
-                setTemplateDescription('')
-              }}
-            >
-              <Save className="w-4 h-4" />
-              Save template
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSaveTemplateEventIndex(null)
+                  setTemplateName('')
+                  setTemplateDescription('')
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700 gap-1.5"
+                onClick={() => {
+                  const event = saveTemplateEventIndex != null ? SEEDED_DRIFT_EVENTS[saveTemplateEventIndex] : null
+                  saveTemplate({
+                    name: templateName.trim() || 'Untitled template',
+                    description: templateDescription.trim(),
+                    sourcePhaseName: event?.phase_name,
+                  })
+                  setSaveTemplateEventIndex(null)
+                  setTemplateName('')
+                  setTemplateDescription('')
+                }}
+              >
+                <Save className="w-4 h-4" />
+                Save template
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   )
 }
