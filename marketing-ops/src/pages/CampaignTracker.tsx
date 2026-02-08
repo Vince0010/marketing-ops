@@ -12,23 +12,23 @@ import {
   TrendingUp,
   TrendingDown,
   AlertTriangle,
-  Play,
-  CheckCircle2,
   Clock,
   ArrowRight,
   ArrowDown,
   ArrowUp,
-  Minus,
   Zap,
   Target,
   DollarSign,
   BarChart3,
+  RefreshCw,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
-import type { ExecutionPhase, DriftEvent } from '@/types/phase'
-import { formatDate } from '@/utils/formatting'
+import type { DriftEvent } from '@/types/phase'
 
+import KanbanBoard from '@/components/kanban/KanbanBoard'
+import { usePhaseTracking } from '@/hooks/usePhaseTracking'
+import { useCampaignExecution } from '@/hooks/useCampaignExecution'
 // Seeded drift events for demo
 const SEEDED_DRIFT_EVENTS: Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>[] = [
   {
@@ -111,22 +111,48 @@ const AI_RECOMMENDATIONS = [
 export default function CampaignTracker() {
   const { id } = useParams<{ id: string }>()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
-  const [phases, setPhases] = useState<ExecutionPhase[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Use unified campaign execution hook (shares data with KanbanBoard)
+  const {
+    phases: executionPhases,
+    tasks: executionTasks,
+    history: executionHistory,
+    loading: executionLoading,
+    error: executionError,
+    createTask,
+    moveTaskToPhase,
+    refetch: executionRefetch,
+  } = useCampaignExecution(id)
+
+  // Use unified phase tracking hook for metrics
+  // Pass execution data to share state - enables real-time updates when tasks move
+  const {
+    phaseMetrics,
+    operationsHealth,
+    tasksInPhase,
+    isLoading: trackingLoading,
+    error: trackingError,
+  } = usePhaseTracking(id, {
+    phases: executionPhases,
+    tasks: executionTasks,
+    history: executionHistory
+  })
+
   useEffect(() => {
-    fetchData()
+    fetchCampaign()
   }, [id])
 
-  const fetchData = async () => {
+  const fetchCampaign = async () => {
     try {
-      const [campaignRes, phasesRes] = await Promise.all([
-        supabase.from('campaigns').select('*').eq('id', id).single(),
-        supabase.from('execution_phases').select('*').eq('campaign_id', id).order('phase_number'),
-      ])
+      const { data, error } = await supabase
+        .from('campaigns')
+        .select('*')
+        .eq('id', id)
+        .single()
 
-      if (campaignRes.data) setCampaign(campaignRes.data)
-      if (phasesRes.data) setPhases(phasesRes.data)
+      if (error) throw error
+      if (data) setCampaign(data)
     } catch (error) {
       console.error('Error:', error)
     } finally {
@@ -134,100 +160,22 @@ export default function CampaignTracker() {
     }
   }
 
-  const handleStartPhase = async (phaseId: string) => {
-    const now = new Date().toISOString().split('T')[0]
-    try {
-      await supabase
-        .from('execution_phases')
-        .update({
-          status: 'in_progress',
-          actual_start_date: now,
-        })
-        .eq('id', phaseId)
+  // Get phase color based on health
+  const getPhaseHealthColor = (phaseId: string): string => {
+    const metrics = phaseMetrics.get(phaseId)
+    if (!metrics) return 'border-gray-200 bg-white'
 
-      // Update local state
-      setPhases((prev) =>
-        prev.map((p) =>
-          p.id === phaseId ? { ...p, status: 'in_progress', actual_start_date: now } : p
-        )
-      )
-    } catch (error) {
-      console.error('Error starting phase:', error)
-    }
+    if (metrics.onTimePercentage >= 80) return 'border-green-300 bg-green-50'
+    if (metrics.onTimePercentage >= 50) return 'border-yellow-300 bg-yellow-50'
+    return 'border-red-300 bg-red-50'
   }
 
-  const handleCompletePhase = async (phaseId: string) => {
-    const now = new Date().toISOString().split('T')[0]
-    const phase = phases.find((p) => p.id === phaseId)
-    if (!phase || !phase.actual_start_date) return
+  const totalDrift = Array.from(phaseMetrics.values()).reduce(
+    (acc, m) => acc + m.totalDriftDays,
+    0
+  )
 
-    const actualDays = Math.ceil(
-      (new Date(now).getTime() - new Date(phase.actual_start_date).getTime()) / (1000 * 60 * 60 * 24)
-    )
-    const driftDays = actualDays - phase.planned_duration_days
-
-    try {
-      await supabase
-        .from('execution_phases')
-        .update({
-          status: 'completed',
-          actual_end_date: now,
-          actual_duration_days: actualDays,
-          drift_days: driftDays,
-          drift_type: driftDays > 1 ? 'negative' : driftDays < -1 ? 'positive' : 'neutral',
-        })
-        .eq('id', phaseId)
-
-      setPhases((prev) =>
-        prev.map((p) =>
-          p.id === phaseId
-            ? {
-                ...p,
-                status: 'completed',
-                actual_end_date: now,
-                actual_duration_days: actualDays,
-                drift_days: driftDays,
-                drift_type: driftDays > 1 ? 'negative' : driftDays < -1 ? 'positive' : 'neutral',
-              }
-            : p
-        )
-      )
-    } catch (error) {
-      console.error('Error completing phase:', error)
-    }
-  }
-
-  const getPhaseStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'border-green-300 bg-green-50'
-      case 'in_progress':
-        return 'border-blue-300 bg-blue-50'
-      case 'blocked':
-        return 'border-red-300 bg-red-50'
-      default:
-        return 'border-gray-200 bg-white'
-    }
-  }
-
-  const getPhaseStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge className="bg-green-600">Completed</Badge>
-      case 'in_progress':
-        return <Badge className="bg-blue-600">In Progress</Badge>
-      case 'blocked':
-        return <Badge variant="destructive">Blocked</Badge>
-      default:
-        return <Badge variant="secondary">Pending</Badge>
-    }
-  }
-
-  const operationalHealth = campaign?.operational_health ?? 85
-  const performanceHealth = campaign?.performance_health ?? 72
-  const totalDrift = phases.reduce((acc, p) => acc + (p.drift_days || 0), 0)
-
-  if (loading) {
+  if (loading || trackingLoading || executionLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
@@ -243,26 +191,67 @@ export default function CampaignTracker() {
           <h1 className="text-3xl font-bold">Campaign Execution Tracker</h1>
           <p className="text-muted-foreground mt-1">{campaign?.name || `Campaign ${id}`}</p>
         </div>
-        <Badge variant="default" className="gap-2 bg-blue-600">
-          <Activity className="w-4 h-4" />
-          In Progress
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => executionRefetch()}
+            disabled={trackingLoading}
+          >
+            <RefreshCw className={`w-4 h-4 mr-1 ${trackingLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Badge variant="default" className="gap-2 bg-blue-600">
+            <Activity className="w-4 h-4" />
+            In Progress
+          </Badge>
+        </div>
       </div>
+
+      {/* Tracking Error Alert */}
+      {trackingError && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Error Loading Data</AlertTitle>
+          <AlertDescription>
+            {trackingError}
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-4"
+              onClick={() => executionRefetch()}
+            >
+              Try Again
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Health Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Operational Health</CardTitle>
+            <CardTitle className="text-sm font-medium">Operations Health</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between mb-2">
-              <span className={`text-2xl font-bold ${operationalHealth >= 80 ? 'text-green-600' : operationalHealth >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
-                {operationalHealth}%
+              <span className={`text-2xl font-bold ${operationsHealth.status === 'excellent' || operationsHealth.status === 'good'
+                ? 'text-green-600'
+                : operationsHealth.status === 'fair'
+                  ? 'text-yellow-600'
+                  : 'text-red-600'
+                }`}>
+                {operationsHealth.score}%
               </span>
-              <TrendingUp className={`w-5 h-5 ${operationalHealth >= 80 ? 'text-green-600' : 'text-yellow-600'}`} />
+              <TrendingUp className={`w-5 h-5 ${operationsHealth.status === 'excellent' || operationsHealth.status === 'good'
+                ? 'text-green-600'
+                : 'text-yellow-600'
+                }`} />
             </div>
-            <Progress value={operationalHealth} className="h-2" />
+            <Progress value={operationsHealth.score} className="h-2" />
+            <p className="text-xs text-muted-foreground mt-2 capitalize">
+              {operationsHealth.status}
+            </p>
           </CardContent>
         </Card>
 
@@ -272,12 +261,17 @@ export default function CampaignTracker() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between mb-2">
-              <span className={`text-2xl font-bold ${performanceHealth >= 80 ? 'text-green-600' : performanceHealth >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
-                {performanceHealth}%
+              <span className={`text-2xl font-bold ${(campaign?.performance_health ?? 72) >= 80
+                ? 'text-green-600'
+                : (campaign?.performance_health ?? 72) >= 60
+                  ? 'text-yellow-600'
+                  : 'text-red-600'
+                }`}>
+                {campaign?.performance_health ?? 72}%
               </span>
               <BarChart3 className="w-5 h-5 text-yellow-600" />
             </div>
-            <Progress value={performanceHealth} className="h-2" />
+            <Progress value={campaign?.performance_health ?? 72} className="h-2" />
           </CardContent>
         </Card>
 
@@ -287,8 +281,9 @@ export default function CampaignTracker() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between mb-2">
-              <span className={`text-2xl font-bold ${totalDrift > 0 ? 'text-red-600' : totalDrift < 0 ? 'text-green-600' : 'text-gray-600'}`}>
-                {totalDrift > 0 ? '+' : ''}{totalDrift}d
+              <span className={`text-2xl font-bold ${totalDrift > 0 ? 'text-red-600' : totalDrift < 0 ? 'text-green-600' : 'text-gray-600'
+                }`}>
+                {totalDrift > 0 ? '+' : ''}{totalDrift.toFixed(1)}d
               </span>
               {totalDrift > 0 ? (
                 <TrendingDown className="w-5 h-5 text-red-600" />
@@ -297,20 +292,24 @@ export default function CampaignTracker() {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              {phases.filter((p) => p.status === 'completed').length}/{phases.length} phases complete
+              {executionTasks.filter((t) => t.status === 'completed').length}/{executionTasks.length} tasks complete
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Drift Events</CardTitle>
+            <CardTitle className="text-sm font-medium">Task Flow</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{SEEDED_DRIFT_EVENTS.length}</div>
+            <div className="text-2xl font-bold">{executionTasks.length}</div>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs text-red-600">{SEEDED_DRIFT_EVENTS.filter(d => d.drift_type === 'negative').length} delays</span>
-              <span className="text-xs text-green-600">{SEEDED_DRIFT_EVENTS.filter(d => d.drift_type === 'positive').length} ahead</span>
+              <span className="text-xs text-green-600">
+                {Array.from(phaseMetrics.values()).reduce((sum, m) => sum + m.onTimeCount, 0)} on-time
+              </span>
+              <span className="text-xs text-red-600">
+                {Array.from(phaseMetrics.values()).reduce((sum, m) => sum + m.overdueCount, 0)} overdue
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -319,97 +318,151 @@ export default function CampaignTracker() {
       {/* Tabs */}
       <Tabs defaultValue="execution" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="execution">Execution Timeline</TabsTrigger>
+          <TabsTrigger value="execution">Execution</TabsTrigger>
           <TabsTrigger value="drift">Drift Analysis</TabsTrigger>
           <TabsTrigger value="recommendations">AI Recommendations</TabsTrigger>
         </TabsList>
 
-        {/* Execution Timeline Tab */}
-        <TabsContent value="execution" className="space-y-4">
-          {/* Horizontal Timeline View */}
+        {/* Unified Execution Tab - Timeline + Kanban */}
+        <TabsContent value="execution" className="space-y-6">
+          {/* Debug Info */}
+          {executionTasks.length === 0 && executionPhases.length > 0 && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                No tasks found. Create tasks using the "New Action" button below, then drag them to phases.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Phase Performance Timeline */}
           <Card>
             <CardHeader>
-              <CardTitle>Phase Timeline</CardTitle>
-              <CardDescription>Click a phase to start or complete it</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Phase Performance Timeline</CardTitle>
+                  <CardDescription>
+                    Task flow through execution phases — real-time metrics from actual task times
+                  </CardDescription>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {executionTasks.length} tasks | Last updated: {new Date().toLocaleTimeString()}
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {/* Horizontal scroll container */}
               <div className="flex gap-4 overflow-x-auto pb-4">
-                {phases.map((phase, i) => (
-                  <div key={phase.id} className="flex items-center">
-                    <Card className={`min-w-[220px] border-2 ${getPhaseStatusColor(phase.status)}`}>
-                      <CardContent className="pt-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <Badge variant="outline" className="text-xs">
-                            Phase {phase.phase_number || i + 1}
-                          </Badge>
-                          {getPhaseStatusBadge(phase.status)}
-                        </div>
+                {executionPhases.map((phase, i) => {
+                  const metrics = phaseMetrics.get(phase.id)
+                  const activeTasks = tasksInPhase.get(phase.id) || []
 
-                        <h4 className="font-semibold text-sm">{phase.phase_name}</h4>
-
-                        <div className="space-y-1 text-xs text-muted-foreground">
-                          <div className="flex justify-between">
-                            <span>Planned</span>
-                            <span>{phase.planned_duration_days}d</span>
+                  return (
+                    <div key={phase.id} className="flex items-center">
+                      <Card className={`min-w-[260px] border-2 ${getPhaseHealthColor(phase.id)}`}>
+                        <CardContent className="pt-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <Badge variant="outline" className="text-xs">
+                              Phase {phase.phase_number || i + 1}
+                            </Badge>
+                            <Badge className={
+                              metrics && metrics.onTimePercentage >= 80
+                                ? 'bg-green-600'
+                                : metrics && metrics.onTimePercentage >= 50
+                                  ? 'bg-yellow-600'
+                                  : 'bg-red-600'
+                            }>
+                              {metrics ? `${metrics.onTimePercentage.toFixed(0)}% on-time` : 'No data'}
+                            </Badge>
                           </div>
-                          {phase.actual_duration_days != null && (
-                            <div className="flex justify-between">
-                              <span>Actual</span>
-                              <span className={phase.drift_days > 0 ? 'text-red-600 font-semibold' : phase.drift_days < 0 ? 'text-green-600 font-semibold' : ''}>
-                                {phase.actual_duration_days}d
+
+                          <h4 className="font-semibold text-sm">{phase.phase_name}</h4>
+
+                          <div className="space-y-2 text-xs">
+                            {/* Expected duration */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-muted-foreground">Expected per task:</span>
+                              <span className="font-medium">{phase.planned_duration_days}d</span>
+                            </div>
+
+                            {/* Active tasks */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-muted-foreground">Currently here:</span>
+                              <span className="font-semibold text-blue-600">
+                                {activeTasks.length} task{activeTasks.length !== 1 ? 's' : ''}
                               </span>
                             </div>
-                          )}
-                          {phase.owner && (
-                            <div className="flex justify-between">
-                              <span>Owner</span>
-                              <span className="font-medium text-foreground">{phase.owner}</span>
-                            </div>
-                          )}
-                        </div>
 
-                        {/* Drift indicator */}
-                        {phase.status === 'completed' && phase.drift_days !== 0 && (
-                          <div className={`flex items-center gap-1 text-xs font-semibold ${phase.drift_days > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {phase.drift_days > 0 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
-                            {Math.abs(phase.drift_days)}d {phase.drift_days > 0 ? 'over' : 'under'}
+                            {/* Completed tasks */}
+                            {metrics && metrics.totalTasksCompleted > 0 && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Completed:</span>
+                                <span className="font-medium text-green-600">
+                                  {metrics.totalTasksCompleted} task{metrics.totalTasksCompleted !== 1 ? 's' : ''}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Average time */}
+                            {metrics && metrics.avgTimeSpentDays > 0 && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Avg time spent:</span>
+                                <span className={`font-medium ${metrics.avgDriftDays > 0.5 ? 'text-red-600' : 'text-green-600'
+                                  }`}>
+                                  {metrics.avgTimeSpentDays.toFixed(1)}d
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Aggregate drift */}
+                            {metrics && metrics.totalDriftDays !== 0 && (
+                              <div className="flex items-center gap-1 pt-2 border-t">
+                                {metrics.totalDriftDays > 0 ? (
+                                  <ArrowUp className="w-3 h-3 text-red-600" />
+                                ) : (
+                                  <ArrowDown className="w-3 h-3 text-green-600" />
+                                )}
+                                <span className={`text-xs font-semibold ${metrics.totalDriftDays > 0 ? 'text-red-600' : 'text-green-600'
+                                  }`}>
+                                  {Math.abs(metrics.totalDriftDays).toFixed(1)}d aggregate drift
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Performance breakdown */}
+                            {metrics && (metrics.totalTasksCompleted + metrics.totalTasksActive) > 0 && (
+                              <div className="pt-2 border-t space-y-1">
+                                <div className="flex justify-between text-green-600">
+                                  <span>On-time:</span>
+                                  <span className="font-medium">{metrics.onTimeCount}</span>
+                                </div>
+                                {metrics.atRiskCount > 0 && (
+                                  <div className="flex justify-between text-yellow-600">
+                                    <span>At-risk:</span>
+                                    <span className="font-medium">{metrics.atRiskCount}</span>
+                                  </div>
+                                )}
+                                {metrics.overdueCount > 0 && (
+                                  <div className="flex justify-between text-red-600">
+                                    <span>Overdue:</span>
+                                    <span className="font-medium">{metrics.overdueCount}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        )}
+                        </CardContent>
+                      </Card>
 
-                        {/* Action buttons */}
-                        {phase.status === 'pending' && (
-                          <Button
-                            size="sm"
-                            className="w-full gap-1"
-                            onClick={() => handleStartPhase(phase.id)}
-                          >
-                            <Play className="w-3 h-3" />
-                            Start Phase
-                          </Button>
-                        )}
-                        {phase.status === 'in_progress' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full gap-1 border-green-300 text-green-700 hover:bg-green-50"
-                            onClick={() => handleCompletePhase(phase.id)}
-                          >
-                            <CheckCircle2 className="w-3 h-3" />
-                            Complete
-                          </Button>
-                        )}
-                      </CardContent>
-                    </Card>
+                      {/* Connector arrow */}
+                      {i < executionPhases.length - 1 && (
+                        <ArrowRight className="w-5 h-5 text-muted-foreground mx-1 shrink-0" />
+                      )}
+                    </div>
+                  )
+                })}
 
-                    {/* Connector arrow */}
-                    {i < phases.length - 1 && (
-                      <ArrowRight className="w-5 h-5 text-muted-foreground mx-1 shrink-0" />
-                    )}
-                  </div>
-                ))}
-
-                {phases.length === 0 && (
+                {executionPhases.length === 0 && (
                   <div className="text-center w-full py-8 text-muted-foreground">
                     No execution phases defined. Create phases in the campaign setup.
                   </div>
@@ -418,38 +471,78 @@ export default function CampaignTracker() {
             </CardContent>
           </Card>
 
-          {/* Phase Progress Summary */}
+          {/* Operations Health Breakdown */}
           <Card>
             <CardHeader>
-              <CardTitle>Phase Progress</CardTitle>
+              <CardTitle>Operations Health Breakdown</CardTitle>
+              <CardDescription>Real-time health calculated from task flow efficiency</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {phases.map((phase, i) => {
-                const progress =
-                  phase.status === 'completed'
-                    ? 100
-                    : phase.status === 'in_progress'
-                    ? 50
-                    : 0
-                return (
-                  <div key={phase.id}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">
-                        {phase.phase_number || i + 1}. {phase.phase_name}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        {phase.drift_days !== 0 && phase.status === 'completed' && (
-                          <Badge variant={phase.drift_days > 0 ? 'destructive' : 'default'} className={phase.drift_days < 0 ? 'bg-green-600' : ''}>
-                            {phase.drift_days > 0 ? '+' : ''}{phase.drift_days}d
-                          </Badge>
-                        )}
-                        {getPhaseStatusBadge(phase.status)}
-                      </div>
-                    </div>
-                    <Progress value={progress} className="h-2" />
-                  </div>
-                )
-              })}
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <div className="text-sm text-muted-foreground">Flow Velocity</div>
+                  <div className="text-2xl font-bold">{operationsHealth.factors.flowVelocity}%</div>
+                  <Progress value={operationsHealth.factors.flowVelocity} className="h-2" />
+                  <p className="text-xs text-muted-foreground">Task speed vs expected</p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-sm text-muted-foreground">Bottleneck Score</div>
+                  <div className="text-2xl font-bold">{operationsHealth.factors.bottleneckScore}%</div>
+                  <Progress value={operationsHealth.factors.bottleneckScore} className="h-2" />
+                  <p className="text-xs text-muted-foreground">Tasks not stuck</p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-sm text-muted-foreground">Completion Rate</div>
+                  <div className="text-2xl font-bold">{operationsHealth.factors.completionRate}%</div>
+                  <Progress value={operationsHealth.factors.completionRate} className="h-2" />
+                  <p className="text-xs text-muted-foreground">Tasks completed</p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-sm text-muted-foreground">On-Time Rate</div>
+                  <div className="text-2xl font-bold">{operationsHealth.factors.onTimeRate}%</div>
+                  <Progress value={operationsHealth.factors.onTimeRate} className="h-2" />
+                  <p className="text-xs text-muted-foreground">Within expected time</p>
+                </div>
+              </div>
+
+              {operationsHealth.insights.length > 0 && (
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm font-medium text-blue-900 mb-2">Insights</p>
+                  <ul className="space-y-1">
+                    {operationsHealth.insights.map((insight, i) => (
+                      <li key={i} className="text-sm text-blue-700">• {insight}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Task Kanban Board */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Task Flow Board</CardTitle>
+              <CardDescription>
+                Drag tasks through phases — time tracking happens automatically
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <KanbanBoard
+                campaignId={id!}
+                externalData={{
+                  phases: executionPhases,
+                  tasks: executionTasks,
+                  history: executionHistory,
+                  loading: executionLoading,
+                  error: executionError,
+                  createTask,
+                  moveTaskToPhase,
+                  refetch: executionRefetch
+                }}
+              />
             </CardContent>
           </Card>
         </TabsContent>

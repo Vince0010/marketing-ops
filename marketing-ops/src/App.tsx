@@ -5,6 +5,7 @@ import CampaignCreate from './pages/CampaignCreate.tsx'
 import CampaignValidate from './pages/CampaignValidate'
 import CampaignTracker from './pages/CampaignTracker'
 import CampaignAnalytics from './pages/CampaignAnalytics'
+import CampaignKanban from './pages/CampaignKanban'
 import TeamCapacity from './pages/TeamCapacity'
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
           <Route path="/campaigns/:id/validate" element={<CampaignValidate />} />
           <Route path="/campaigns/:id/tracker" element={<CampaignTracker />} />
           <Route path="/campaigns/:id/analytics" element={<CampaignAnalytics />} />
+          <Route path="/campaigns/:id/kanban" element={<CampaignKanban />} />
           <Route path="/team" element={<TeamCapacity />} />
         </Routes>
       </Layout>

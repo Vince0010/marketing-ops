@@ -40,14 +40,19 @@ export interface ExecutionPhase {
   planned_start_date: string
   planned_end_date: string
   planned_duration_days: number
+  
+  // DEPRECATED: Use task_phase_history for time tracking and drift calculation
+  // These fields remain for backward compatibility but should not be used in new code
   actual_start_date?: string
   actual_end_date?: string
   actual_duration_days?: number
 
-  // Status
+  // DEPRECATED: Phases don't have statuses - tasks do
+  // Phase "status" should be derived from task states, not stored
   status: PhaseStatus
 
-  // Drift
+  // DEPRECATED: Use calculatePhaseAggregateMetrics for drift calculation
+  // Drift should be calculated from aggregated task times, not stored
   drift_days: number
   drift_type?: DriftType
   drift_reason?: string

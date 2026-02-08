@@ -15,6 +15,7 @@ import {
   Trash2,
   Pause,
   Play,
+  Kanban,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -320,10 +321,18 @@ export default function Dashboard() {
                                 </Link>
                               </DropdownMenuItem>
                               {campaign.status === 'in_progress' && (
-                                <DropdownMenuItem>
-                                  <Pause className="w-4 h-4 mr-2" />
-                                  Pause Campaign
-                                </DropdownMenuItem>
+                                <>
+                                  <DropdownMenuItem asChild>
+                                    <Link to={`/campaigns/${campaign.id}/kanban`}>
+                                      <Kanban className="w-4 h-4 mr-2" />
+                                      Action Tracker
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem>
+                                    <Pause className="w-4 h-4 mr-2" />
+                                    Pause Campaign
+                                  </DropdownMenuItem>
+                                </>
                               )}
                               {campaign.status === 'paused' && (
                                 <DropdownMenuItem>
