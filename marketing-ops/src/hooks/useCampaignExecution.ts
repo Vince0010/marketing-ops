@@ -149,6 +149,21 @@ export function useCampaignExecution(
 
         try {
             const phase = newPhaseId ? phases.find(p => p.id === newPhaseId) : null
+            
+            // Debug logging
+            console.log('[Hook] Moving task:', {
+                taskId,
+                newPhaseId,
+                oldPhaseId,
+                foundPhase: phase?.phase_name || 'null',
+                availablePhases: phases.map(p => ({ id: p.id, name: p.phase_name }))
+            })
+            
+            if (newPhaseId && !phase) {
+                console.error('[Hook] Phase not found! newPhaseId:', newPhaseId, 'Available phases:', phases)
+                throw new Error(`Phase ${newPhaseId} not found in phases array`)
+            }
+            
             const isLastPhase = phase ? phase.phase_number === Math.max(...phases.map(p => p.phase_number)) : false
 
             // Optimistically update local state first
@@ -185,17 +200,13 @@ export function useCampaignExecution(
             if (oldPhaseId) {
                 setHistory(prev => prev.map(h => {
                     if (h.action_id === taskId && h.exited_at === null) {
-                        // Calculate time spent from the task's current tracking
+                        // Calculate time spent ONLY for this session (elapsed since started_at)
+                        // Do NOT include time_in_phase_minutes as it may contain carry-over
                         const task = tasks.find(t => t.id === taskId)
                         let timeSpent = 0
-                        if (task) {
-                            const stored = task.time_in_phase_minutes || 0
-                            if (task.started_at) {
-                                const elapsed = Math.floor((Date.now() - new Date(task.started_at).getTime()) / 60000)
-                                timeSpent = stored + elapsed
-                            } else {
-                                timeSpent = stored
-                            }
+                        if (task?.started_at) {
+                            const elapsed = Math.floor((Date.now() - new Date(task.started_at).getTime()) / 60000)
+                            timeSpent = elapsed
                         }
                         return { ...h, exited_at: now, time_spent_minutes: timeSpent }
                     }

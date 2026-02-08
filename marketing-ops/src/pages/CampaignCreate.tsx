@@ -204,39 +204,72 @@ export default function CampaignCreate() {
       if (insertError) throw insertError
 
       const phaseInserts = stagesToPhaseInserts(stages, campaign.id, form.start_date)
-      const { error: phasesError } = await supabase
+      const { data: createdPhases, error: phasesError } = await supabase
         .from('execution_phases')
         .insert(phaseInserts)
+        .select('id, phase_name, phase_number, planned_duration_days')
 
       if (phasesError) throw phasesError
 
+      // Build planned timeline map for action cards
+      // Each phase gets 8-hour workdays (480 minutes per day)
+      const plannedTimelineMap: Record<string, { phase_name: string; planned_minutes: number; phase_number: number }> = {}
+      if (createdPhases) {
+        createdPhases.forEach(phase => {
+          plannedTimelineMap[phase.id] = {
+            phase_name: phase.phase_name,
+            planned_minutes: phase.planned_duration_days * 8 * 60, // 8 hours/day * 60 min/hour
+            phase_number: phase.phase_number
+          }
+        })
+      }
+
       // Create ad deliverable tasks in Kanban backlog via backend API
       if (adDeliverables.length > 0) {
+        console.log(`[CampaignCreate] Creating ${adDeliverables.length} ad deliverable tasks...`)
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
         const now = new Date().toISOString()
 
         const results = await Promise.allSettled(
-          adDeliverables.map((ad) =>
-            fetch(`${apiUrl}/campaigns/${campaign.id}/tasks`, {
+          adDeliverables.map(async (ad) => {
+            const taskData = {
+              title: ad.title.trim() || `${ad.platform} ${ad.post_type}`,
+              description: ad.description.trim() || null,
+              action_type: 'Ad Deliverable',
+              status: 'planned',
+              priority: 'medium',
+              phase_id: null,
+              timestamp: now,
+              metadata: { platform: ad.platform, post_type: ad.post_type },
+              planned_timeline: plannedTimelineMap, // Add the planned timeline map
+            }
+            console.log('[CampaignCreate] Creating task:', taskData.title, 'for campaign:', campaign.id)
+            
+            const response = await fetch(`${apiUrl}/campaigns/${campaign.id}/tasks`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                title: ad.title.trim() || `${ad.platform} ${ad.post_type}`,
-                description: ad.description.trim() || null,
-                action_type: 'Ad Deliverable',
-                status: 'planned',
-                priority: 'medium',
-                phase_id: null,
-                timestamp: now,
-                metadata: { platform: ad.platform, post_type: ad.post_type },
-              }),
+              body: JSON.stringify(taskData),
             })
-          )
+            
+            if (!response.ok) {
+              const errorText = await response.text()
+              console.error('[CampaignCreate] Failed to create task:', response.status, errorText)
+              throw new Error(`Failed to create task: ${response.status} - ${errorText}`)
+            }
+            
+            const createdTask = await response.json()
+            console.log('[CampaignCreate] Task created successfully:', createdTask.id)
+            return createdTask
+          })
         )
 
         const failures = results.filter((r) => r.status === 'rejected')
+        const successes = results.filter((r) => r.status === 'fulfilled')
+        
+        console.log(`[CampaignCreate] Created ${successes.length} tasks successfully, ${failures.length} failed`)
+        
         if (failures.length > 0) {
-          console.error('Failed to create some ad deliverable tasks:', failures)
+          console.error('[CampaignCreate] Failed to create some ad deliverable tasks:', failures)
         }
       }
 

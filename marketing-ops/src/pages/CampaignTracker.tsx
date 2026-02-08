@@ -59,10 +59,12 @@ import {
   DEMO_RECOMMENDED_ACTIONS,
 } from '@/lib/demographicData'
 import { KanbanBoard } from '@/components/kanban'
+import { ActionCardDriftPanel } from '@/components/kanban/ActionCardDriftPanel'
+import { calculateCampaignActionCardDrifts } from '@/utils/actionCardDrift'
 import AIRecommendationsEngine from '@/components/ai/AIRecommendationsEngine'
 import MetaAdsDashboard from '@/components/meta/MetaAdsDashboard'
-import StrategicFailureDiagnosis from '@/components/diagnosis/StrategicFailureDiagnosis'
-import { OverrideOutcomeAnalysis } from '@/components/diagnosis/OverrideOutcomeAnalysis'
+// import StrategicFailureDiagnosis from '@/components/diagnosis/StrategicFailureDiagnosis'
+// import { OverrideOutcomeAnalysis } from '@/components/diagnosis/OverrideOutcomeAnalysis'
 import type { OverrideEvent } from '@/types/database'
 import { PerformanceCorrelation } from '@/components/correlation/PerformanceCorrelation'
 import { useWeeklyDataReports } from '@/hooks/useWeeklyDataReports'
@@ -171,6 +173,7 @@ export default function CampaignTracker() {
   const {
     phases,
     tasks,
+    history,
     loading: executionLoading,
     refetch: refetchExecution
   } = execution
@@ -269,6 +272,11 @@ export default function CampaignTracker() {
 
     return [...completedDrifts, ...inProgressDrifts]
   }, [phases, tasks, driftTick])
+
+  // Calculate action card drift analysis (per ad deliverable)
+  const actionCardDrifts = useMemo(() => {
+    return calculateCampaignActionCardDrifts(tasks, history)
+  }, [tasks, history])
 
   // Get weekly data reports and correlation insights
   // Note: driftEvents is passed as empty array initially, correlation uses phases/tasks directly
@@ -662,15 +670,24 @@ export default function CampaignTracker() {
                 {id && <KanbanBoard campaignId={id} externalData={execution} />}
               </CardContent>
             </Card>
+
+            {/* Action Card Drift Analysis */}
+            <ActionCardDriftPanel 
+              driftAnalyses={actionCardDrifts}
+              loading={executionLoading}
+            />
           </TabsContent>
 
           {/* Override Learning Tab */}
           {campaign?.gate_overridden && (
             <TabsContent value="override" className="space-y-4 mt-4">
-              <OverrideOutcomeAnalysis
+              {/* <OverrideOutcomeAnalysis
                 campaign={campaign}
                 overrideEvent={overrideEvent}
-              />
+              /> */}
+              <div className="text-center py-8 text-muted-foreground">
+                Override analysis component temporarily disabled
+              </div>
             </TabsContent>
           )}
 
@@ -1019,14 +1036,17 @@ export default function CampaignTracker() {
 
           {/* Strategic Failure Diagnosis Tab */}
           <TabsContent value="diagnosis" className="space-y-4 mt-4">
-            <StrategicFailureDiagnosis
+            {/* <StrategicFailureDiagnosis
               campaign={campaign}
               phases={phases}
               driftEvents={driftEvents as unknown as DriftEvent[]}
               onCreateTemplate={(_diagnosis: any) => {
                 console.log('Created failure prevention template:', _diagnosis)
               }}
-            />
+            /> */}
+            <div className="text-center py-8 text-muted-foreground">
+              Strategic failure diagnosis component temporarily disabled
+            </div>
           </TabsContent>
 
           {/* Accountability Timeline Tab */}

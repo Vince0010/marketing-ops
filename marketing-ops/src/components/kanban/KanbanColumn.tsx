@@ -223,7 +223,7 @@ export function KanbanColumn({ phase, tasks, campaignId, onCreateTask, onTaskCli
             <div
                 ref={setNodeRef}
                 className={cn(
-                    "flex-1 p-2 space-y-2 min-h-[200px] overflow-y-auto",
+                    "flex-1 p-2 pb-20 space-y-2 min-h-[200px] max-h-[calc(100vh-300px)] overflow-y-auto",
                     isOver && "bg-blue-50 dark:bg-blue-900/20"
                 )}
             >

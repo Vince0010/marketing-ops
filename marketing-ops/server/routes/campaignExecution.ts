@@ -174,6 +174,39 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
             restartPhase: restartPhase || false
         })
 
+        // Validate that the new phase exists if provided
+        if (newPhaseId) {
+            const { data: phaseExists, error: phaseCheckError } = await supabaseAdmin
+                .from('execution_phases')
+                .select('id, phase_name, campaign_id')
+                .eq('id', newPhaseId)
+                .single()
+
+            if (phaseCheckError || !phaseExists) {
+                console.error('[API] Phase does not exist:', newPhaseId, phaseCheckError)
+                return res.status(400).json({ 
+                    error: 'Invalid phase_id', 
+                    details: `Phase ${newPhaseId} does not exist in execution_phases table`,
+                    phaseCheckError 
+                })
+            }
+
+            // Verify phase belongs to the same campaign
+            if (phaseExists.campaign_id !== campaignId) {
+                console.error('[API] Phase belongs to different campaign:', {
+                    phaseId: newPhaseId,
+                    phaseCampaignId: phaseExists.campaign_id,
+                    requestCampaignId: campaignId
+                })
+                return res.status(400).json({ 
+                    error: 'Phase does not belong to this campaign',
+                    details: `Phase ${newPhaseId} belongs to campaign ${phaseExists.campaign_id}, not ${campaignId}`
+                })
+            }
+
+            console.log('[API] Phase validated:', phaseExists.phase_name)
+        }
+
         const now = new Date()
         const nowIso = now.toISOString()
 
@@ -214,15 +247,18 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
 
             let timeSpentMinutes = 0
             if (currentTask) {
-                const storedMinutes = currentTask.time_in_phase_minutes || 0
+                // ONLY count the elapsed time since started_at (this session)
+                // Do NOT include time_in_phase_minutes as it may contain carry-over from previous sessions
                 if (currentTask.started_at) {
                     const startedAt = new Date(currentTask.started_at)
                     const elapsedMs = now.getTime() - startedAt.getTime()
                     const elapsedMinutes = Math.floor(elapsedMs / 60000)
-                    timeSpentMinutes = storedMinutes + elapsedMinutes
+                    timeSpentMinutes = elapsedMinutes
                 } else {
-                    timeSpentMinutes = storedMinutes
+                    // If no started_at, use stored time (fallback for old data)
+                    timeSpentMinutes = currentTask.time_in_phase_minutes || 0
                 }
+                console.log('[API] Closing history entry with time:', timeSpentMinutes, 'minutes (elapsed since', currentTask.started_at, ')')
             }
 
             const historyUpdate: any = {
@@ -304,7 +340,7 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
         const updates: any = {
             phase_id: newPhaseId,
             started_at: nowIso,
-            time_in_phase_minutes: carryOverMinutes,
+            time_in_phase_minutes: carryOverMinutes, // Carry over cumulative time for display
         }
 
         // Add delay_reason if provided

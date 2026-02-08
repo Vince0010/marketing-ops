@@ -54,6 +54,9 @@ export interface MarketerAction {
     // Estimated effort
     estimated_hours?: number
     actual_hours?: number
+
+    // Planned timeline per stage (stored as JSONB in database)
+    planned_timeline?: ActionCardPlannedTimeline
 }
 
 /**
@@ -84,4 +87,49 @@ export interface TaskPhaseHistory {
  * For inserting history entries
  */
 export type TaskPhaseHistoryInsert = Omit<TaskPhaseHistory, 'id' | 'created_at' | 'time_spent_minutes'>
+
+/**
+ * Planned timeline for an action card - maps each stage/phase to its planned duration
+ */
+export interface ActionCardPlannedTimeline {
+    [phaseId: string]: {
+        phase_name: string
+        planned_minutes: number
+        phase_number: number
+    }
+}
+
+/**
+ * Drift metrics for a single action card in a specific phase
+ */
+export interface ActionCardPhaseDrift {
+    phase_id: string
+    phase_name: string
+    phase_number: number
+    planned_minutes: number
+    actual_minutes: number
+    drift_minutes: number
+    drift_percentage: number
+    status: 'ahead' | 'on_track' | 'behind'
+}
+
+/**
+ * Complete drift analysis for an action card across all phases
+ */
+export interface ActionCardDriftAnalysis {
+    action_id: string
+    action_title: string
+    platform?: string
+    post_type?: string
+    total_planned_minutes: number
+    total_actual_minutes: number
+    total_drift_minutes: number
+    total_drift_percentage: number
+    overall_status: 'ahead' | 'on_track' | 'behind'
+    phase_drifts: ActionCardPhaseDrift[]
+    current_phase_id: string | null
+    current_phase_name?: string
+    completed_phases_count: number
+    total_phases_count: number
+}
 
