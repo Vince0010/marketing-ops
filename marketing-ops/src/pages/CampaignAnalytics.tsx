@@ -27,24 +27,17 @@ import {
   CheckCircle2,
   Clock,
   FileX,
-  ArrowDown,
-  ArrowUp,
-  MapPin,
-  Target,
   Lightbulb,
+  FlaskConical,
+  TestTube,
+  ClipboardList,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase } from '@/types/phase'
 import type { PerformanceMetric, StakeholderAction } from '@/types/database'
 import { formatCurrency } from '@/utils/formatting'
-import { Progress } from '@/components/ui/progress'
-import { DemographicAlignmentTracker } from '@/components/demographics/DemographicAlignmentTracker'
-import {
-  DEMO_STRONG_ALIGNMENT,
-  DEMO_ADJUSTMENT_AREAS,
-  DEMO_RECOMMENDED_ACTIONS,
-} from '@/lib/demographicData'
+import { Button } from '@/components/ui/button'
 
 
 // Seeded phase drift data for BarChart
@@ -201,7 +194,9 @@ const DIAGNOSIS_ACTION_PLAN = {
 export default function CampaignAnalytics() {
   const { id } = useParams<{ id: string }>()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
-  const [, setPhases] = useState<ExecutionPhase[]>([])
+  const [phases, setPhases] = useState<ExecutionPhase[]>([])
+  const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetric[]>([])
+  const [stakeholderActions, setStakeholderActions] = useState<StakeholderAction[]>([])
   const [loading, setLoading] = useState(true)
   const [showDiagnosisPanel, setShowDiagnosisPanel] = useState(false)
   const [diagnosisComplete, setDiagnosisComplete] = useState(false)
@@ -707,39 +702,6 @@ export default function CampaignAnalytics() {
                     <p className="text-muted-foreground">No performance data available yet</p>
                   </div>
                 </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={350}>
-                  <LineChart data={ROAS_TREND_DATA}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="day" fontSize={12} />
-                    <YAxis fontSize={12} tickFormatter={(v) => `${v}x`} />
-                    <Tooltip
-                      formatter={(value, name) => [
-                        value == null ? '' : name === 'spend' ? `$${Number(value).toLocaleString()}` : `${value}x`,
-                        name === 'roas' ? 'Actual ROAS' : name === 'target' ? 'Target ROAS' : 'Spend',
-                      ]}
-                    />
-                    <Legend />
-                    <ReferenceLine y={2.5} stroke="#ef4444" strokeDasharray="5 5" label="Target" />
-                    <Line
-                      type="monotone"
-                      dataKey="roas"
-                      stroke="#2563eb"
-                      strokeWidth={3}
-                      dot={{ fill: '#2563eb', r: 4 }}
-                      name="Actual ROAS"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="target"
-                      stroke="#dc2626"
-                      strokeWidth={1}
-                      strokeDasharray="5 5"
-                      dot={false}
-                      name="Target ROAS"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
               )}
             </CardContent>
           </Card>

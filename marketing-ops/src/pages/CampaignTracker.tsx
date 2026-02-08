@@ -27,6 +27,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Activity,
   TrendingUp,
@@ -41,6 +42,9 @@ import {
   Zap,
   BarChart3,
   Save,
+  DollarSign,
+  Target,
+  Users,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
@@ -50,17 +54,9 @@ import { formatDate } from '@/utils/formatting'
 import AIRecommendationsEngine from '@/components/ai/AIRecommendationsEngine'
 import StrategicFailureDiagnosis from '@/components/diagnosis/StrategicFailureDiagnosis'
 import MetaAdsDashboard from '@/components/meta/MetaAdsDashboard'
-import { DemographicAlignmentTracker } from '@/components/demographics/DemographicAlignmentTracker'
 import { ObservationModeBadge } from '@/components/ObservationModeBadge'
 import { cn } from '@/lib/utils'
 import { saveTemplate } from '@/lib/templates'
-import {
-  DEMO_AGE_DATA,
-  DEMO_FIT_SCORE,
-  DEMO_STRONG_ALIGNMENT,
-  DEMO_ADJUSTMENT_AREAS,
-  DEMO_RECOMMENDED_ACTIONS,
-} from '@/lib/demographicData'
 
 // Seeded drift events for demo
 const SEEDED_DRIFT_EVENTS: Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>[] = [
@@ -453,7 +449,7 @@ export default function CampaignTracker() {
 
   const { operational: operationalHealth, performance: performanceHealth, totalDrift } = calculateHealthIndicators()
 
-  const handleSaveAsTemplate = async (driftEvent: DriftEvent) => {
+  const handleSaveAsTemplate = async (driftEvent: Partial<DriftEvent> & Pick<DriftEvent, 'drift_type' | 'drift_days' | 'phase_name' | 'lesson_learned'>) => {
     try {
       if (!campaign) return
 
@@ -1018,8 +1014,8 @@ export default function CampaignTracker() {
                         </div>
                       )}
                     </div>
-                  ))
-                )}
+                  )
+                })}
               </div>
             </CardContent>
           </Card>
