@@ -1,6 +1,12 @@
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import type { TargetAudience as TargetAudienceType } from '@/types/campaign'
 
 const AGE_RANGES = ['18-24', '25-34', '35-44', '45-54', '55-64', '65+']
@@ -65,141 +71,9 @@ export default function TargetAudience({ data, onChange }: Props) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Demographics */}
-      <div className="space-y-4">
-        <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Demographics</h4>
-
-        <div className="space-y-2">
-          <Label>Age Range</Label>
-          <div className="flex flex-wrap gap-2">
-            {AGE_RANGES.map((range) => (
-              <label key={range} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={(demo.age_range || []).includes(range)}
-                  onChange={() => toggleArrayItem(demo.age_range, range, (v) => updateDemo({ age_range: v }))}
-                  className="rounded border-gray-300"
-                />
-                {range}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Gender</Label>
-            <Select value={demo.gender || ''} onValueChange={(v) => updateDemo({ gender: v as 'male' | 'female' | 'all' })}>
-              <SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="male">Male</SelectItem>
-                <SelectItem value="female">Female</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Location Type</Label>
-            <Select value={demo.location_type || ''} onValueChange={(v) => updateDemo({ location_type: v })}>
-              <SelectTrigger><SelectValue placeholder="Select location type" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="local">Local</SelectItem>
-                <SelectItem value="regional">Regional</SelectItem>
-                <SelectItem value="national">National</SelectItem>
-                <SelectItem value="international">International</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="locations">Specific Locations</Label>
-            <Input
-              id="locations"
-              placeholder="e.g. New York, California"
-              value={(demo.locations || []).join(', ')}
-              onChange={(e) => updateDemo({ locations: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Income Level</Label>
-            <Select value={demo.income_level || ''} onValueChange={(v) => updateDemo({ income_level: v })}>
-              <SelectTrigger><SelectValue placeholder="Select income level" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="<30k">Under $30k</SelectItem>
-                <SelectItem value="30-50k">$30k - $50k</SelectItem>
-                <SelectItem value="50-75k">$50k - $75k</SelectItem>
-                <SelectItem value="75-100k">$75k - $100k</SelectItem>
-                <SelectItem value="100k+">$100k+</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
-
-      {/* Psychographics */}
-      <div className="space-y-4">
-        <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Psychographics</h4>
-
-        <div className="space-y-2">
-          <Label>Interests / Hobbies</Label>
-          <div className="grid grid-cols-3 gap-2">
-            {INTERESTS.map((interest) => (
-              <label key={interest} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={(psycho.interests || []).includes(interest)}
-                  onChange={() => toggleArrayItem(psycho.interests, interest, (v) => updatePsycho({ interests: v }))}
-                  className="rounded border-gray-300"
-                />
-                {interest}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Behaviors</Label>
-          <div className="grid grid-cols-2 gap-2">
-            {BEHAVIORS.map((behavior) => (
-              <label key={behavior} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={(psycho.behaviors || []).includes(behavior)}
-                  onChange={() => toggleArrayItem(psycho.behaviors, behavior, (v) => updatePsycho({ behaviors: v }))}
-                  className="rounded border-gray-300"
-                />
-                {behavior}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Life Events (optional)</Label>
-          <div className="grid grid-cols-3 gap-2">
-            {LIFE_EVENTS.map((event) => (
-              <label key={event} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={(psycho.life_events || []).includes(event)}
-                  onChange={() => toggleArrayItem(psycho.life_events, event, (v) => updatePsycho({ life_events: v }))}
-                  className="rounded border-gray-300"
-                />
-                {event}
-              </label>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Audience Type */}
+    <div className="space-y-4">
       <div className="space-y-2">
-        <Label>Audience Type</Label>
+        <Label>Who are you targeting?</Label>
         <div className="space-y-2">
           {AUDIENCE_TYPES.map(({ value, label }) => (
             <label key={value} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -207,13 +81,144 @@ export default function TargetAudience({ data, onChange }: Props) {
                 type="checkbox"
                 checked={data.audience_type.includes(value)}
                 onChange={() => toggleAudienceType(value)}
-                className="rounded border-gray-300"
+                className="rounded border-input"
               />
               {label}
             </label>
           ))}
         </div>
       </div>
+
+      <Accordion type="multiple" className="space-y-2">
+        <AccordionItem value="demographics" className="border rounded-lg px-4">
+          <AccordionTrigger className="text-sm font-medium hover:no-underline">
+            Demographics (age, gender, location, income)
+          </AccordionTrigger>
+          <AccordionContent className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Age Range</Label>
+              <div className="flex flex-wrap gap-2">
+                {AGE_RANGES.map((range) => (
+                  <label key={range} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={(demo.age_range || []).includes(range)}
+                      onChange={() => toggleArrayItem(demo.age_range, range, (v) => updateDemo({ age_range: v }))}
+                      className="rounded border-input"
+                    />
+                    {range}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Gender</Label>
+                <Select value={demo.gender || ''} onValueChange={(v) => updateDemo({ gender: v as 'male' | 'female' | 'all' })}>
+                  <SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Location Type</Label>
+                <Select value={demo.location_type || ''} onValueChange={(v) => updateDemo({ location_type: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select location type" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="local">Local</SelectItem>
+                    <SelectItem value="regional">Regional</SelectItem>
+                    <SelectItem value="national">National</SelectItem>
+                    <SelectItem value="international">International</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="locations">Specific Locations</Label>
+                <Input
+                  id="locations"
+                  placeholder="e.g. New York, California"
+                  value={(demo.locations || []).join(', ')}
+                  onChange={(e) => updateDemo({ locations: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Income Level</Label>
+                <Select value={demo.income_level || ''} onValueChange={(v) => updateDemo({ income_level: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select income level" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="<30k">Under $30k</SelectItem>
+                    <SelectItem value="30-50k">$30k - $50k</SelectItem>
+                    <SelectItem value="50-75k">$50k - $75k</SelectItem>
+                    <SelectItem value="75-100k">$75k - $100k</SelectItem>
+                    <SelectItem value="100k+">$100k+</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="psychographics" className="border rounded-lg px-4">
+          <AccordionTrigger className="text-sm font-medium hover:no-underline">
+            Psychographics (interests, behaviors, life events)
+          </AccordionTrigger>
+          <AccordionContent className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Interests / Hobbies</Label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {INTERESTS.map((interest) => (
+                  <label key={interest} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={(psycho.interests || []).includes(interest)}
+                      onChange={() => toggleArrayItem(psycho.interests, interest, (v) => updatePsycho({ interests: v }))}
+                      className="rounded border-input"
+                    />
+                    {interest}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Behaviors</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {BEHAVIORS.map((behavior) => (
+                  <label key={behavior} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={(psycho.behaviors || []).includes(behavior)}
+                      onChange={() => toggleArrayItem(psycho.behaviors, behavior, (v) => updatePsycho({ behaviors: v }))}
+                      className="rounded border-input"
+                    />
+                    {behavior}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Life Events (optional)</Label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {LIFE_EVENTS.map((event) => (
+                  <label key={event} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={(psycho.life_events || []).includes(event)}
+                      onChange={() => toggleArrayItem(psycho.life_events, event, (v) => updatePsycho({ life_events: v }))}
+                      className="rounded border-input"
+                    />
+                    {event}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       <div className="space-y-2">
         <Label htmlFor="audience_size">Audience Size Estimate</Label>

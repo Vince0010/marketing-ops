@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +10,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { createDefaultStages } from '@/lib/defaultStages'
 import { stagesToPhaseInserts } from '@/lib/stageUtils'
+import { SIMULATE_CAMPAIGN_ID, saveSimulatePayload } from '@/lib/simulate'
 import type { StageConfig } from '@/types/phase'
 import type {
   CampaignType, PrimaryObjective, PrimaryKPI,
@@ -29,6 +30,8 @@ import ConstraintsRisks from '@/components/campaign-form/ConstraintsRisks'
 import TrackingSetup from '@/components/campaign-form/TrackingSetup'
 import CompetitiveContext from '@/components/campaign-form/CompetitiveContext'
 import StageBuilder from '@/components/stages/StageBuilder'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { FileText } from 'lucide-react'
 
 interface FormData {
   // Fundamentals
@@ -113,7 +116,20 @@ const TOTAL_STEPS = SECTIONS.length
 
 export default function CampaignCreate() {
   const navigate = useNavigate()
-  const [form, setForm] = useState<FormData>(INITIAL_FORM)
+  const location = useLocation()
+  const templateFrom = location.state?.template as { name: string; description: string; sourcePhaseName?: string } | undefined
+  const [form, setForm] = useState<FormData>(() => {
+    const base = INITIAL_FORM
+    if (location.state?.template) {
+      const t = location.state.template as { name: string; description: string }
+      return {
+        ...base,
+        name: `Campaign from: ${t.name}`,
+        description: t.description || '',
+      }
+    }
+    return base
+  })
   const [stages, setStages] = useState<StageConfig[]>(createDefaultStages())
   const [currentStep, setCurrentStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)
@@ -201,6 +217,55 @@ export default function CampaignCreate() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  /** Create campaign in memory and go to validate — no Supabase. Use while DB is not ready. */
+  const handleSimulate = () => {
+    if (!canSubmit) return
+    setError(null)
+    const now = new Date().toISOString()
+    const campaign = {
+      id: SIMULATE_CAMPAIGN_ID,
+      created_at: now,
+      name: form.name,
+      campaign_type: form.campaign_type!,
+      status: 'planning',
+      description: form.description || null,
+      industry: form.industry || null,
+      start_date: form.start_date,
+      end_date: form.end_date,
+      total_budget: Number(form.total_budget),
+      daily_budget: form.daily_budget ? Number(form.daily_budget) : null,
+      primary_objective: form.primary_objective!,
+      primary_kpi: form.primary_kpi!,
+      target_value: Number(form.target_value),
+      secondary_kpis: form.secondary_kpis.length ? form.secondary_kpis : null,
+      target_audience: Object.keys(form.target_audience).length ? form.target_audience : null,
+      audience_type: form.audience_type.length ? form.audience_type : null,
+      creative_strategy: Object.keys(form.creative_strategy).length ? form.creative_strategy : null,
+      channel_placement: Object.keys(form.channel_placement).length ? form.channel_placement : null,
+      budget_strategy: Object.keys(form.budget_strategy).length ? form.budget_strategy : null,
+      tracking_setup: Object.keys(form.tracking_setup).length ? form.tracking_setup : null,
+      meta_pixel_id: form.meta_pixel_id || null,
+      meta_ads_account_id: form.meta_ads_account_id || null,
+      competitive_context: Object.keys(form.competitive_context).length ? form.competitive_context : null,
+      constraints: Object.keys(form.constraints).length ? form.constraints : null,
+      operational_health: 100,
+      performance_health: 100,
+      drift_count: 0,
+      positive_drift_count: 0,
+      negative_drift_count: 0,
+      risk_score: 75,
+    }
+    const phaseInserts = stagesToPhaseInserts(stages, SIMULATE_CAMPAIGN_ID, form.start_date)
+    const phases = phaseInserts.map((p, i) => ({
+      ...p,
+      id: `simulate-phase-${i}`,
+      created_at: now,
+      drift_days: 0,
+    }))
+    saveSimulatePayload({ campaign, phases })
+    navigate(`/campaigns/${SIMULATE_CAMPAIGN_ID}/validate`)
   }
 
   const renderSectionContent = (sectionId: string) => {
@@ -313,6 +378,20 @@ export default function CampaignCreate() {
         </p>
       </div>
 
+      {templateFrom && (
+        <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800">
+          <FileText className="h-4 w-4 text-green-600" />
+          <AlertDescription>
+            <span className="font-medium text-green-800 dark:text-green-200">Creating from template:</span>{' '}
+            {templateFrom.name}
+            {templateFrom.sourcePhaseName && (
+              <span className="text-muted-foreground"> (from phase: {templateFrom.sourcePhaseName})</span>
+            )}
+            . Name and description are pre-filled; complete the rest of the form.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Step indicator */}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-sm font-medium text-muted-foreground">
@@ -380,7 +459,12 @@ export default function CampaignCreate() {
             </Button>
           )}
         </div>
-        <div>
+        <div className="flex gap-2">
+          {isLastStep && (
+            <Button variant="secondary" onClick={handleSimulate} disabled={!canSubmit}>
+              Simulate (no Supabase)
+            </Button>
+          )}
           {isLastStep ? (
             <Button onClick={handleSubmit} disabled={!canSubmit || submitting}>
               {submitting ? 'Creating...' : 'Create Campaign'}

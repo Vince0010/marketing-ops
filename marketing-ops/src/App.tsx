@@ -6,6 +6,7 @@ import CampaignValidate from './pages/CampaignValidate'
 import CampaignTracker from './pages/CampaignTracker'
 import CampaignAnalytics from './pages/CampaignAnalytics'
 import TeamCapacity from './pages/TeamCapacity'
+import TemplateLibrary from './pages/TemplateLibrary'
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
           <Route path="/campaigns/:id/tracker" element={<CampaignTracker />} />
           <Route path="/campaigns/:id/analytics" element={<CampaignAnalytics />} />
           <Route path="/team" element={<TeamCapacity />} />
+          <Route path="/templates" element={<TemplateLibrary />} />
         </Routes>
       </Layout>
     </Router>

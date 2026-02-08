@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Separator } from '@/components/ui/separator'
 import {
   BarChart,
   Bar,
@@ -27,7 +26,10 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  Target,
+  FlaskConical,
+  Lightbulb,
+  TestTube,
+  ClipboardList,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
@@ -118,11 +120,80 @@ const CHANNEL_DATA = [
   { channel: 'LinkedIn Ads', spend: 11531, revenue: 31134, roas: 2.7, conversions: 304, ctr: 2.1 },
 ]
 
+// Strategic failure diagnosis: seeded content when drift is low but performance is poor
+const DIAGNOSIS_PRIMARY = {
+  mostLikelyCause: 'Creative / Targeting Mismatch',
+  confidence: 82,
+  confidenceLabel: 'High' as const,
+  keyEvidence: [
+    'CTR 1.2% vs benchmark 2.5% despite reach at 110% of plan',
+    'Image relevance score (platform) 4/10 on primary creative',
+    'Lookalike audience similarity 40% — below recommended 60%',
+    'High frequency (4.2) with declining engagement by day 7',
+  ],
+}
+
+const DIAGNOSIS_HYPOTHESES = [
+  {
+    rank: 1,
+    title: 'CREATIVE/TARGETING MISMATCH',
+    confidence: 75,
+    evidence: 'Low CTR despite good reach',
+    supportingData: 'Image relevance score 4/10',
+  },
+  {
+    rank: 2,
+    title: 'AUDIENCE ASSUMPTIONS WRONG',
+    confidence: 65,
+    evidence: 'High frequency, low conversions',
+    supportingData: 'Lookalike similarity 40%',
+  },
+  {
+    rank: 3,
+    title: 'TIMING/SEASONALITY ISSUE',
+    confidence: 45,
+    evidence: 'Weekend vs weekday performance gap',
+    supportingData: 'Competitor activity spike',
+  },
+]
+
+const AB_TEST_RECOMMENDATIONS = [
+  {
+    testType: 'Headline Test',
+    hypothesis: 'Current CTAs don\'t resonate',
+    setup: 'Test 2 new headlines vs control',
+    successCriteria: 'CTR increase > 50%',
+    timeRequired: '3 days',
+  },
+  {
+    testType: 'Audience Expansion',
+    hypothesis: 'Core audience too narrow',
+    setup: 'Add 1 similar interest category',
+    successCriteria: 'CPA decrease > 20%',
+    timeRequired: '5 days',
+  },
+  {
+    testType: 'Creative Refresh',
+    hypothesis: 'Ad creative fatigue',
+    setup: 'Replace primary image/video',
+    successCriteria: 'Engagement rate > 3%',
+    timeRequired: '4 days',
+  },
+]
+
+const DIAGNOSIS_ACTION_PLAN = {
+  immediate: 'Pause underperforming ad sets (CTR < 1%), reduce daily budget by 20% on underperforming placements, and shift spend to top 2 audiences.',
+  dataCollection: 'Survey 50 customers on message relevance; run competitor ad spy report; pull platform relevance and quality scores by creative.',
+  nextTest: 'Headline Test — launch 2 new headlines vs control by next Monday; review after 3 days.',
+}
+
 export default function CampaignAnalytics() {
   const { id } = useParams<{ id: string }>()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
-  const [phases, setPhases] = useState<ExecutionPhase[]>([])
+  const [, setPhases] = useState<ExecutionPhase[]>([])
   const [loading, setLoading] = useState(true)
+  const [showDiagnosisPanel, setShowDiagnosisPanel] = useState(false)
+  const [diagnosisComplete, setDiagnosisComplete] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -175,6 +246,16 @@ export default function CampaignAnalytics() {
   // Strategic diagnosis: flag if any channel underperforms
   const underperformingChannels = CHANNEL_DATA.filter((c) => c.roas < 2.5)
   const totalDrift = PHASE_DRIFT_DATA.reduce((acc, p) => acc + p.drift, 0)
+  const targetRoas = 2.5
+  const lastRoas = ROAS_TREND_DATA.length > 0 ? ROAS_TREND_DATA[ROAS_TREND_DATA.length - 1].roas : 0
+  const performancePercentOfTarget = targetRoas > 0 ? (lastRoas / targetRoas) * 100 : 0
+  const minimalDrift = totalDrift <= 2
+  const poorPerformance = performancePercentOfTarget < 70
+  const failureDetected = minimalDrift && poorPerformance
+
+  useEffect(() => {
+    if (failureDetected && !showDiagnosisPanel) setShowDiagnosisPanel(true)
+  }, [failureDetected])
 
   if (loading) {
     return (
@@ -221,6 +302,204 @@ export default function CampaignAnalytics() {
             Consider reallocating budget to higher-performing channels in future campaigns.
           </AlertDescription>
         </Alert>
+      )}
+
+      {/* Strategic Failure Diagnosis — Root Cause Analysis */}
+      {!showDiagnosisPanel ? (
+        <Card className="border-dashed border-red-200 bg-red-50/30 dark:bg-red-950/10">
+          <CardContent className="py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <FlaskConical className="w-5 h-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <p className="font-semibold text-red-900 dark:text-red-100">Root Cause Analysis</p>
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  When execution is clean but performance misses target, run a strategic diagnosis for ranked hypotheses and A/B test recommendations.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              className="border-red-300 text-red-700 hover:bg-red-100 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/30"
+              onClick={() => {
+                setShowDiagnosisPanel(true)
+                setDiagnosisComplete(false)
+              }}
+            >
+              <FlaskConical className="w-4 h-4 mr-2" />
+              Run Analysis
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-2 border-red-300 dark:border-red-800 overflow-hidden">
+          <CardHeader className="bg-red-50 dark:bg-red-950/30 border-b border-red-200 dark:border-red-800">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <FlaskConical className="w-5 h-5 text-red-600 dark:text-red-400" />
+                <CardTitle className="text-red-900 dark:text-red-100">Strategic Diagnosis — Root Cause Analysis</CardTitle>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={
+                    diagnosisComplete
+                      ? 'border-green-500 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-300'
+                      : 'border-red-500 bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
+                  }
+                >
+                  {diagnosisComplete ? 'ANALYSIS COMPLETE' : 'DIAGNOSIS ACTIVE'}
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-700 hover:bg-red-100 dark:text-red-300 dark:hover:bg-red-900/30"
+                  onClick={() => setShowDiagnosisPanel(false)}
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+            <CardDescription className="text-red-800 dark:text-red-200">
+              Failure detected: minimal execution drift but performance below 70% of KPI target. Actionable insights below.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-6">
+            {/* 1. Primary Diagnosis */}
+            <section>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                <Lightbulb className="w-4 h-4" />
+                Primary Diagnosis
+              </h3>
+              <div className="rounded-lg border bg-card p-4 space-y-3">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span className="text-muted-foreground">Most Likely Cause:</span>
+                  <span className="font-semibold text-lg">{DIAGNOSIS_PRIMARY.mostLikelyCause}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-muted-foreground">Confidence Score:</span>
+                  <Badge variant="secondary" className="font-mono">
+                    {DIAGNOSIS_PRIMARY.confidence}%
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className={
+                      DIAGNOSIS_PRIMARY.confidenceLabel === 'High'
+                        ? 'border-green-500 text-green-700'
+                        : DIAGNOSIS_PRIMARY.confidenceLabel === 'Medium'
+                          ? 'border-amber-500 text-amber-700'
+                          : 'border-red-500 text-red-700'
+                    }
+                  >
+                    {DIAGNOSIS_PRIMARY.confidenceLabel}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Key Evidence:</p>
+                  <ul className="list-disc list-inside space-y-1 text-sm">
+                    {DIAGNOSIS_PRIMARY.keyEvidence.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </section>
+
+            {/* 2. Ranked Hypotheses Grid */}
+            <section>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Ranked Hypotheses
+              </h3>
+              <div className="grid gap-3">
+                {DIAGNOSIS_HYPOTHESES.map((h) => (
+                  <div
+                    key={h.rank}
+                    className="rounded-lg border p-4 flex flex-col sm:flex-row sm:items-center gap-3"
+                  >
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted font-semibold text-sm">
+                        {h.rank}
+                      </span>
+                      <div>
+                        <p className="font-semibold text-sm uppercase tracking-wide">{h.title}</p>
+                        <p className="text-xs text-muted-foreground">Confidence: {h.confidence}%</p>
+                      </div>
+                    </div>
+                    <div className="flex-1 text-sm space-y-1">
+                      <p><span className="text-muted-foreground">Evidence:</span> {h.evidence}</p>
+                      <p><span className="text-muted-foreground">Supporting Data:</span> {h.supportingData}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* 3. A/B Test Recommendations Table */}
+            <section>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                <TestTube className="w-4 h-4" />
+                A/B Test Recommendations
+              </h3>
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left p-3 font-medium">Test Type</th>
+                      <th className="text-left p-3 font-medium">Hypothesis</th>
+                      <th className="text-left p-3 font-medium">Setup</th>
+                      <th className="text-left p-3 font-medium">Success Criteria</th>
+                      <th className="text-left p-3 font-medium">Time Required</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {AB_TEST_RECOMMENDATIONS.map((row, i) => (
+                      <tr key={i} className="border-b last:border-0">
+                        <td className="p-3 font-medium">{row.testType}</td>
+                        <td className="p-3">{row.hypothesis}</td>
+                        <td className="p-3">{row.setup}</td>
+                        <td className="p-3">{row.successCriteria}</td>
+                        <td className="p-3">{row.timeRequired}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            {/* 4. Action Plan */}
+            <section>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                <ClipboardList className="w-4 h-4" />
+                Action Plan
+              </h3>
+              <div className="rounded-lg border bg-card p-4 space-y-4">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase mb-1">Immediate Action</p>
+                  <p className="text-sm">{DIAGNOSIS_ACTION_PLAN.immediate}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase mb-1">Data Collection</p>
+                  <p className="text-sm">{DIAGNOSIS_ACTION_PLAN.dataCollection}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase mb-1">Next Test</p>
+                  <p className="text-sm">{DIAGNOSIS_ACTION_PLAN.nextTest}</p>
+                </div>
+              </div>
+            </section>
+
+            <div className="flex justify-end pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDiagnosisComplete(true)}
+              >
+                Mark analysis complete
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* KPI Summary Cards */}
@@ -301,8 +580,8 @@ export default function CampaignAnalytics() {
                   <XAxis dataKey="day" fontSize={12} />
                   <YAxis fontSize={12} tickFormatter={(v) => `${v}x`} />
                   <Tooltip
-                    formatter={(value: number, name: string) => [
-                      name === 'spend' ? `$${value.toLocaleString()}` : `${value}x`,
+                    formatter={(value, name) => [
+                      value == null ? '' : name === 'spend' ? `$${Number(value).toLocaleString()}` : `${value}x`,
                       name === 'roas' ? 'Actual ROAS' : name === 'target' ? 'Target ROAS' : 'Spend',
                     ]}
                   />
@@ -413,7 +692,7 @@ export default function CampaignAnalytics() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" fontSize={12} />
                   <YAxis fontSize={12} label={{ value: 'Days', angle: -90, position: 'insideLeft' }} />
-                  <Tooltip formatter={(value: number) => [`${value} days`]} />
+                  <Tooltip formatter={(value) => [value != null ? `${value} days` : '']} />
                   <Legend />
                   <Bar dataKey="planned" fill="#93c5fd" name="Planned (days)" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="actual" fill="#2563eb" name="Actual (days)" radius={[4, 4, 0, 0]} />

@@ -35,6 +35,7 @@ import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase } from '@/types/phase'
 import { getGateDecision } from '@/utils/calculations'
 import { formatCurrency } from '@/utils/formatting'
+import { DecisionStatusBadge } from '@/components/DecisionStatusBadge'
 
 interface RiskFactor {
   name: string
@@ -52,7 +53,7 @@ export default function CampaignValidate() {
   const [loading, setLoading] = useState(true)
   const [overrideDialogOpen, setOverrideDialogOpen] = useState(false)
   const [overrideReason, setOverrideReason] = useState('')
-  const [overrideAction, setOverrideAction] = useState<'proceed' | 'adjust' | 'pause'>('proceed')
+  const [, setOverrideAction] = useState<'proceed' | 'adjust' | 'pause'>('proceed')
 
   useEffect(() => {
     fetchData()
@@ -342,6 +343,14 @@ export default function CampaignValidate() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Decision status badge - prominent above actions */}
+            <div className="flex justify-center">
+              <DecisionStatusBadge
+                decision={gateDecision}
+                showSublabel
+                prominent
+              />
+            </div>
             <div
               className={`p-4 rounded-lg text-center ${
                 gateDecision === 'proceed'
@@ -430,10 +439,7 @@ export default function CampaignValidate() {
               <Button
                 className="w-full"
                 variant="outline"
-                onClick={() => {
-                  setOverrideAction('adjust')
-                  setOverrideDialogOpen(true)
-                }}
+                onClick={() => handleDecision('adjust')}
               >
                 Request Changes
               </Button>
