@@ -387,8 +387,95 @@ BEGIN
     (camp3_id, '2026-01-31', 'meta_ads', 320000, 2560, 12, 8000.00, 1440.00, 0.800, 3.13, 666.67, 0.18, 240000, 1.33, 80000, 0.010, 1.8, 28);
 
   -- Story 3 Strategic Failure diagnosis
-  INSERT INTO strategic_failures (campaign_id, detected_date, detection_criteria, primary_diagnosis, diagnosis_confidence, creative_hypothesis_score, targeting_hypothesis_score, timing_hypothesis_score, value_prop_hypothesis_score, evidence_points, ai_analysis, ai_model_used, recommended_actions, resolved, lesson_learned, prevention_strategies, analyzed_by)
-  VALUES (camp3_id, '2026-01-28', 'CTR below 1% threshold, ROAS below 0.2x after 5 days of data', 'audience_mismatch', 0.82, 30, 85, 40, 65, ARRAY['CTR 60% below industry benchmark for luxury','High frequency but low engagement','Interest-based targeting too broad for luxury segment','Off-peak season for luxury purchases'], 'Campaign launched on time with no execution drift. Performance underperformance is driven by audience targeting: interest-based targeting captures casual browsers rather than high-intent luxury buyers. The off-peak seasonality compounds this — luxury watch purchases peak in Q4 holiday season. Recommend shifting to lookalike audiences based on existing customers and retargeting website visitors.', 'deepseek-v2.5', ARRAY['Shift to lookalike audiences from customer data','Add retargeting for website visitors','Test engagement-optimized creative','Consider pausing until Q4 peak season'], false, 'Interest-based targeting insufficient for luxury segments; need behavioral and purchase-intent signals', ARRAY['Use purchase-history lookalikes for luxury','Validate seasonality before committing budget','Start with small test budget before scaling'], 'ai');
+  INSERT INTO strategic_failures (
+    campaign_id, detected_date, detection_criteria, primary_diagnosis, diagnosis_confidence, 
+    creative_hypothesis_score, targeting_hypothesis_score, timing_hypothesis_score, value_prop_hypothesis_score, 
+    evidence_points, ai_analysis, ai_model_used, recommended_actions, 
+    ab_test_suggestions, resolved, lesson_learned, prevention_strategies, analyzed_by
+  )
+  VALUES (
+    camp3_id, 
+    '2026-01-28', 
+    'CTR below 1% threshold, ROAS below 0.2x after 5 days of data', 
+    'audience_mismatch', 
+    0.82, 
+    30, 85, 40, 65, 
+    ARRAY[
+      'CTR 60% below industry benchmark for luxury',
+      'High frequency but low engagement',
+      'Interest-based targeting too broad for luxury segment',
+      'Off-peak season for luxury purchases'
+    ], 
+    'Campaign launched on time with no execution drift. Performance underperformance is driven by audience targeting: interest-based targeting captures casual browsers rather than high-intent luxury buyers. The off-peak seasonality compounds this — luxury watch purchases peak in Q4 holiday season. Recommend shifting to lookalike audiences based on existing customers and retargeting website visitors.', 
+    'deepseek-v2.5', 
+    ARRAY[
+      'Shift to lookalike audiences from customer data',
+      'Add retargeting for website visitors',
+      'Test engagement-optimized creative',
+      'Consider pausing until Q4 peak season'
+    ],
+    '[
+      {
+        "test_type": "Audience Targeting Test",
+        "hypothesis": "Interest-based targeting is too broad for luxury segment; lookalike audiences will have higher purchase intent",
+        "control_variant": "Current interest-based targeting (luxury interests, watch enthusiasts)",
+        "test_variant": "1% Lookalike audience from existing high-value customers + website visitors (past 30 days)",
+        "setup_instructions": [
+          "Create lookalike audience from customer list in Meta Ads Manager",
+          "Set up 50/50 budget split between control and test",
+          "Duplicate ad sets with identical creative but different audiences",
+          "Implement conversion tracking for both variants",
+          "Run for minimum 7 days or 100 conversions per variant"
+        ],
+        "success_criteria": "Test variant achieves >30% improvement in CPA and >2x ROAS vs control",
+        "recommended_duration_days": 14,
+        "expected_impact": "25-40% reduction in CPA, 2-3x improvement in ROAS",
+        "confidence_level": 0.85
+      },
+      {
+        "test_type": "Creative Messaging Test",
+        "hypothesis": "Current generic luxury messaging not resonating; exclusive/scarcity messaging will drive higher engagement",
+        "control_variant": "Current creative: product-focused lifestyle imagery",
+        "test_variant": "Limited edition messaging with urgency (Only 500 pieces, Exclusive to Q1 2026)",
+        "setup_instructions": [
+          "Develop 3 creative variants with scarcity/exclusivity angles",
+          "Test against current best performer",
+          "Use same targeting for fair comparison",
+          "Monitor engagement rate and CTR as leading indicators",
+          "Scale winning variant after 72 hours of data"
+        ],
+        "success_criteria": "Test creative achieves >50% higher CTR and >20% higher conversion rate",
+        "recommended_duration_days": 7,
+        "expected_impact": "15-25% improvement in CTR, 10-20% lift in conversion rate",
+        "confidence_level": 0.72
+      },
+      {
+        "test_type": "Seasonal Timing Test",
+        "hypothesis": "Off-peak seasonality is suppressing demand; pausing and relaunching in Q4 will yield better results",
+        "control_variant": "Continue running campaign at current budget through Q1",
+        "test_variant": "Pause campaign, save 70% of budget for Q4 relaunch (Oct-Dec)",
+        "setup_instructions": [
+          "Document current performance as baseline",
+          "Gradually reduce budget by 50% over 1 week",
+          "Pause campaign but retain all setup",
+          "Schedule Q4 relaunch with 2x budget",
+          "Compare Q4 results to Q1 extrapolated performance"
+        ],
+        "success_criteria": "Q4 campaign achieves >3x ROAS (vs current 0.16x) and <$300 CPA (vs current $750)",
+        "recommended_duration_days": 90,
+        "expected_impact": "5-10x improvement in ROAS during peak season",
+        "confidence_level": 0.78
+      }
+    ]'::jsonb,
+    false, 
+    'Interest-based targeting insufficient for luxury segments; need behavioral and purchase-intent signals', 
+    ARRAY[
+      'Use purchase-history lookalikes for luxury',
+      'Validate seasonality before committing budget',
+      'Start with small test budget before scaling'
+    ], 
+    'ai'
+  );
 
   -- Story 3 Risk Score
   INSERT INTO risk_scores (campaign_id, overall_score, risk_level, timeline_risk, budget_risk, resource_risk, performance_risk, risk_factors, mitigation_suggestions, gate_recommendation, gate_reason, calculated_by)

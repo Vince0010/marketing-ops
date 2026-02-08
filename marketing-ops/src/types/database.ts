@@ -188,6 +188,46 @@ export interface PerformanceMetric {
   confidence_level?: number
 }
 
+export interface ABTestSuggestion {
+  test_type: string
+  hypothesis: string
+  control_variant: string
+  test_variant: string
+  setup_instructions: string[]
+  success_criteria: string
+  recommended_duration_days: number
+  expected_impact: string
+  confidence_level: number
+}
+
+export interface StrategicFailure {
+  id: string
+  campaign_id: string
+  created_at: string
+  detected_date: string
+  detection_criteria: string
+  primary_diagnosis: 'creative_fatigue' | 'audience_mismatch' | 'timing_issues' | 'value_proposition' | 'budget_constraints' | 'technical_issues' | 'market_saturation' | 'competition'
+  diagnosis_confidence: number
+  creative_hypothesis_score?: number
+  targeting_hypothesis_score?: number
+  timing_hypothesis_score?: number
+  value_prop_hypothesis_score?: number
+  evidence_points?: string[]
+  performance_data?: Record<string, unknown>
+  ai_analysis?: string
+  ai_model_used?: string
+  ai_generated_at?: string
+  recommended_actions?: string[]
+  ab_test_suggestions?: ABTestSuggestion[]
+  resolution_actions?: string[]
+  resolved?: boolean
+  resolution_date?: string
+  post_resolution_performance?: Record<string, unknown>
+  lesson_learned?: string
+  prevention_strategies?: string[]
+  analyzed_by?: string
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -245,6 +285,11 @@ export type Database = {
         Row: PerformanceMetric
         Insert: Omit<PerformanceMetric, 'id' | 'created_at'> & Record<string, unknown>
         Update: Partial<Omit<PerformanceMetric, 'id' | 'created_at'>> & Record<string, unknown>
+      }
+      strategic_failures: {
+        Row: StrategicFailure
+        Insert: Omit<StrategicFailure, 'id' | 'created_at'> & Record<string, unknown>
+        Update: Partial<Omit<StrategicFailure, 'id' | 'created_at'>> & Record<string, unknown>
       }
     }
     Views: Record<string, never>

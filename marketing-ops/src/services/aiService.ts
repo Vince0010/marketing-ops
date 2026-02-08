@@ -282,3 +282,137 @@ Generate recommendations that would improve future campaigns of this type. Focus
 export function isApiKeyConfigured(): boolean {
   return !!getApiKey()
 }
+
+/**
+ * Diagnose strategic failure when campaign has clean execution but poor performance
+ * Per spec: drift < 1 day BUT performance < 70% target
+ */
+export async function diagnoseStrategicFailure(
+  context: AIContext
+): Promise<{
+  primary_diagnosis: string
+  diagnosis_confidence: number
+  creative_hypothesis_score: number
+  targeting_hypothesis_score: number
+  timing_hypothesis_score: number
+  value_prop_hypothesis_score: number
+  evidence_points: string[]
+  ai_analysis: string
+  recommended_actions: string[]
+  prevention_strategies: string[]
+  ab_test_suggestions: Array<{
+    test_type: string
+    hypothesis: string
+    control_variant: string
+    test_variant: string
+    setup_instructions: string[]
+    success_criteria: string
+    recommended_duration_days: number
+    expected_impact: string
+    confidence_level: number
+  }>
+} | null> {
+  const { campaign, phases, performanceMetrics } = context
+  // driftEvents available in context for future analysis if needed
+
+  // Calculate average drift
+  const completedPhases = phases.filter(p => p.status === 'completed' && p.drift_days !== null)
+  const avgDrift = completedPhases.length > 0 
+    ? completedPhases.reduce((sum, p) => sum + Math.abs(p.drift_days || 0), 0) / completedPhases.length
+    : 0
+
+  const performanceHealth = campaign.performance_health || 100
+
+  // Check if qualifies for strategic failure diagnosis
+  if (avgDrift >= 1 || performanceHealth >= 70) {
+    return null // Not a strategic failure
+  }
+
+  const messages: AIMessage[] = [
+    {
+      role: 'system',
+      content: `You are an expert marketing diagnostician. A campaign has clean execution (low drift) but poor performance (<70% target). This indicates a STRATEGIC FAILURE rather than operational issues.
+
+Your task: Diagnose the root strategic cause and provide actionable test recommendations.
+
+RETURN ONLY VALID JSON in this EXACT format:
+{
+  "primary_diagnosis": "audience_mismatch|creative_fatigue|timing_issues|value_proposition|market_saturation|competition",
+  "diagnosis_confidence": 0.85,
+  "creative_hypothesis_score": 30,
+  "targeting_hypothesis_score": 85,
+  "timing_hypothesis_score": 40,
+  "value_prop_hypothesis_score": 65,
+  "evidence_points": ["evidence 1", "evidence 2", "evidence 3"],
+  "ai_analysis": "Detailed explanation of the diagnosis",
+  "recommended_actions": ["action 1", "action 2", "action 3"],
+  "prevention_strategies": ["strategy 1", "strategy 2"],
+  "ab_test_suggestions": [
+    {
+      "test_type": "Audience Targeting Test",
+      "hypothesis": "Clear hypothesis statement",
+      "control_variant": "Current approach",
+      "test_variant": "Proposed new approach",
+      "setup_instructions": ["step 1", "step 2", "step 3"],
+      "success_criteria": "Specific metric improvement target",
+      "recommended_duration_days": 14,
+      "expected_impact": "Expected outcome",
+      "confidence_level": 0.85
+    }
+  ]
+}
+
+Hypothesis scores should total ~200-250 (not exactly 100). Higher score = more likely root cause.`,
+    },
+    {
+      role: 'user',
+      content: `Diagnose this strategic failure:
+
+Campaign: "${campaign.name}"
+Type: ${campaign.campaign_type.replace(/_/g, ' ')}
+Objective: ${campaign.primary_objective} (KPI: ${campaign.primary_kpi}, Target: ${campaign.target_value})
+Budget: $${campaign.total_budget.toLocaleString()}
+Avg Drift: ${avgDrift.toFixed(2)} days (CLEAN EXECUTION)
+Performance Health: ${performanceHealth}% (POOR PERFORMANCE)
+
+Execution Summary:
+${buildPhaseSummary(phases)}
+
+Performance Metrics:
+${buildPerformanceSummary(performanceMetrics, campaign)}
+
+Target Audience:
+${JSON.stringify(campaign.target_audience, null, 2)}
+
+Creative Strategy:
+${JSON.stringify(campaign.creative_strategy, null, 2)}
+
+Competitive Context:
+${JSON.stringify(campaign.competitive_context, null, 2)}
+
+Analyze why this campaign is underperforming despite clean execution. Provide specific evidence from the data above. Generate 2-3 A/B test recommendations to validate your diagnosis. Return ONLY valid JSON.`,
+    },
+  ]
+
+  try {
+    const raw = await callAI(messages)
+    const parsed = JSON.parse(raw)
+    
+    return {
+      primary_diagnosis: parsed.primary_diagnosis || 'audience_mismatch',
+      diagnosis_confidence: parsed.diagnosis_confidence || 0.7,
+      creative_hypothesis_score: parsed.creative_hypothesis_score || 50,
+      targeting_hypothesis_score: parsed.targeting_hypothesis_score || 50,
+      timing_hypothesis_score: parsed.timing_hypothesis_score || 50,
+      value_prop_hypothesis_score: parsed.value_prop_hypothesis_score || 50,
+      evidence_points: parsed.evidence_points || [],
+      ai_analysis: parsed.ai_analysis || '',
+      recommended_actions: parsed.recommended_actions || [],
+      prevention_strategies: parsed.prevention_strategies || [],
+      ab_test_suggestions: parsed.ab_test_suggestions || [],
+    }
+  } catch (error) {
+    console.error('Strategic failure diagnosis failed:', error)
+    return null
+  }
+}

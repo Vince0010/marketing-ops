@@ -1,328 +1,129 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
 import {
   AlertTriangle,
   TrendingDown,
-  FileText,
   CheckCircle2,
   Lightbulb,
-  Shield,
+  Target,
   Zap,
   Brain,
+  FlaskConical,
 } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase, DriftEvent } from '@/types/phase'
-
-interface FailurePattern {
-  id: string
-  name: string
-  description: string
-  frequency: number
-  impact_level: 'low' | 'medium' | 'high' | 'critical'
-  typical_causes: string[]
-  warning_signs: string[]
-  prevention_strategies: string[]
-  recovery_actions: string[]
-  industry_context: string
-  success_rate: number
-}
-
-interface FailureDiagnosis {
-  campaign_id: string
-  failure_type: string
-  root_causes: string[]
-  contributing_factors: string[]
-  impact_assessment: {
-    budget_waste: number
-    timeline_delay: number
-    kpi_shortfall: number
-    reputation_impact: 'low' | 'medium' | 'high'
-  }
-  lessons_learned: string[]
-  prevention_plan: string[]
-  template_created: boolean
-  remediation_status: 'planned' | 'in_progress' | 'completed'
-  confidence_score: number
-}
+import type { StrategicFailure, ABTestSuggestion } from '@/types/database'
 
 interface StrategicFailureDiagnosisProps {
   campaign: Campaign
   phases: ExecutionPhase[]
   driftEvents: DriftEvent[]
-  onCreateTemplate?: (diagnosis: FailureDiagnosis) => void
+  onCreateTemplate?: (diagnosis: StrategicFailure) => void
 }
-
-// Common failure patterns database (would be real data in production)
-const FAILURE_PATTERNS: FailurePattern[] = [
-  {
-    id: 'pattern-audience-mismatch',
-    name: 'Audience-Creative Mismatch',
-    description: 'Creative messaging does not resonate with target audience demographics or psychographics',
-    frequency: 34,
-    impact_level: 'high',
-    typical_causes: [
-      'Insufficient audience research',
-      'Generic creative approach',
-      'Demographic assumptions',
-      'Missing persona validation'
-    ],
-    warning_signs: [
-      'Low CTR despite good reach',
-      'High CPC with low conversions',
-      'Poor engagement metrics',
-      'High bounce rate on landing pages'
-    ],
-    prevention_strategies: [
-      'Conduct comprehensive audience research',
-      'Create persona-specific creative variants',
-      'A/B test messaging frameworks',
-      'Validate assumptions with focus groups'
-    ],
-    recovery_actions: [
-      'Pause underperforming creative immediately',
-      'Develop audience-specific messaging',
-      'Implement dynamic creative optimization',
-      'Reallocate budget to validated segments'
-    ],
-    industry_context: 'Most common in B2C lead generation campaigns targeting broad demographics',
-    success_rate: 78
-  },
-  {
-    id: 'pattern-budget-misallocation',
-    name: 'Channel Budget Misallocation',
-    description: 'Budget distributed across channels without performance-based optimization',
-    frequency: 28,
-    impact_level: 'high',
-    typical_causes: [
-      'Equal budget distribution assumption',
-      'Lack of real-time performance monitoring',
-      'Over-reliance on historical data',
-      'Platform preference bias'
-    ],
-    warning_signs: [
-      'High variance in channel CPL/CPA',
-      'Some channels exhausting budget early',
-      'Declining overall ROAS',
-      'Uneven conversion distribution'
-    ],
-    prevention_strategies: [
-      'Implement dynamic budget allocation',
-      'Set up real-time performance monitoring',
-      'Use automated bidding strategies',
-      'Regular channel performance reviews'
-    ],
-    recovery_actions: [
-      'Reallocate budget to top performers',
-      'Pause underperforming channels',
-      'Increase bids on converting placements',
-      'Test new channel opportunities'
-    ],
-    industry_context: 'Critical for multi-channel campaigns with diverse audience segments',
-    success_rate: 85
-  },
-  {
-    id: 'pattern-creative-fatigue',
-    name: 'Accelerated Creative Fatigue',
-    description: 'Creative assets lose effectiveness faster than anticipated due to high frequency',
-    frequency: 42,
-    impact_level: 'medium',
-    typical_causes: [
-      'Limited creative variety',
-      'High frequency targeting',
-      'Narrow audience size',
-      'Poor creative refresh strategy'
-    ],
-    warning_signs: [
-      'Declining CTR over time',
-      'Increasing frequency rates',
-      'Rising CPC/CPM',
-      'Engagement rate decline'
-    ],
-    prevention_strategies: [
-      'Develop creative asset pipeline',
-      'Implement frequency caps',
-      'Plan creative refresh schedule',
-      'Create dynamic creative variations'
-    ],
-    recovery_actions: [
-      'Deploy fresh creative immediately',
-      'Lower frequency caps',
-      'Expand audience size',
-      'Implement creative rotation'
-    ],
-    industry_context: 'Common in social media campaigns with limited creative budgets',
-    success_rate: 91
-  },
-  {
-    id: 'pattern-timeline-cascade',
-    name: 'Timeline Cascade Failure',
-    description: 'Early phase delays create compounding effects across subsequent phases',
-    frequency: 19,
-    impact_level: 'critical',
-    typical_causes: [
-      'Inadequate phase buffer time',
-      'Dependency mapping failures',
-      'Stakeholder approval bottlenecks',
-      'Resource allocation conflicts'
-    ],
-    warning_signs: [
-      'Multiple phase delays',
-      'Compressed optimization periods',
-      'Rushed creative development',
-      'Stakeholder escalations'
-    ],
-    prevention_strategies: [
-      'Build 20% buffer into critical phases',
-      'Map all dependencies clearly',
-      'Establish approval SLAs',
-      'Implement phase gate reviews'
-    ],
-    recovery_actions: [
-      'Compress non-critical phases',
-      'Deploy additional resources',
-      'Negotiate timeline extensions',
-      'Parallel process where possible'
-    ],
-    industry_context: 'High-stakes launches with firm external deadlines',
-    success_rate: 62
-  }
-]
 
 export default function StrategicFailureDiagnosis({ 
   campaign, 
   phases, 
-  driftEvents,
-  onCreateTemplate 
+  // driftEvents and onCreateTemplate available for future use
+  // driftEvents,
+  // onCreateTemplate 
 }: StrategicFailureDiagnosisProps) {
-  const [analysis, setAnalysis] = useState<FailureDiagnosis | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [strategicFailure, setStrategicFailure] = useState<StrategicFailure | null>(null)
+  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('diagnosis')
-  const [selectedPattern, setSelectedPattern] = useState<FailurePattern | null>(null)
-  const [customNotes, setCustomNotes] = useState('')
 
-  // AI-powered failure analysis
-  const analyzeFailures = useCallback(async () => {
-    setLoading(true)
-    
-    try {
-      // Simulate AI analysis delay
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
-      // Calculate failure indicators
-      const completedPhases = phases.filter(p => p.status === 'completed')
-      const avgDrift = completedPhases.length > 0 
-        ? completedPhases.reduce((acc, p) => acc + Math.abs(p.drift_days || 0), 0) / completedPhases.length
-        : 0
-      
-      const negativeEvents = driftEvents.filter(d => d.drift_type === 'negative')
-      const healthScore = campaign.performance_health || 0
-      
-      // Determine primary failure patterns based on data
-      const diagnosis: FailureDiagnosis = {
-        campaign_id: campaign.id,
-        failure_type: healthScore < 60 ? 'strategic_failure' : avgDrift > 3 ? 'execution_failure' : 'performance_issue',
-        root_causes: [],
-        contributing_factors: [],
-        impact_assessment: {
-          budget_waste: 0,
-          timeline_delay: Math.round(avgDrift),
-          kpi_shortfall: Math.max(0, 100 - healthScore),
-          reputation_impact: healthScore < 50 ? 'high' : healthScore < 75 ? 'medium' : 'low'
-        },
-        lessons_learned: [],
-        prevention_plan: [],
-        template_created: false,
-        remediation_status: 'planned',
-        confidence_score: 0
-      }
-      
-      // AI-powered root cause analysis
-      if (healthScore < 70) {
-        diagnosis.root_causes.push('Performance metrics below acceptable threshold')
-        diagnosis.contributing_factors.push('Possible audience-creative mismatch')
-        diagnosis.lessons_learned.push('Earlier performance intervention required')
-        diagnosis.prevention_plan.push('Implement daily performance monitoring')
-        diagnosis.confidence_score += 25
-      }
-      
-      if (avgDrift > 2) {
-        diagnosis.root_causes.push('Systematic timeline management issues')
-        diagnosis.contributing_factors.push('Inadequate phase planning and buffer time')
-        diagnosis.lessons_learned.push('Timeline estimates consistently underestimated')
-        diagnosis.prevention_plan.push('Add 25% buffer time to creative and approval phases')
-        diagnosis.confidence_score += 25
-      }
-      
-      if (negativeEvents.length > 2) {
-        diagnosis.root_causes.push('Recurring execution delays')
-        diagnosis.contributing_factors.push('Process bottlenecks in approval workflow')
-        diagnosis.lessons_learned.push('Stakeholder approval process needs optimization')
-        diagnosis.prevention_plan.push('Establish clear approval SLAs and escalation procedures')
-        diagnosis.confidence_score += 20
-      }
-      
-      if (campaign.campaign_type === 'lead_gen' && healthScore < 80) {
-        diagnosis.root_causes.push('Lead generation efficiency below target')
-        diagnosis.contributing_factors.push('Potential targeting or conversion optimization issues')
-        diagnosis.lessons_learned.push('More aggressive early optimization required')
-        diagnosis.prevention_plan.push('Implement automated bid optimization and audience expansion')
-        diagnosis.confidence_score += 15
-      }
-      
-      // Calculate budget waste based on performance
-      if (healthScore < 70) {
-        const totalBudget = campaign.total_budget || 0
-        diagnosis.impact_assessment.budget_waste = Math.round(totalBudget * (100 - healthScore) / 100 * 0.3) // 30% of shortfall
-      }
-      
-      diagnosis.confidence_score = Math.min(diagnosis.confidence_score, 95)
-      
-      setAnalysis(diagnosis)
-    } catch (error) {
-      console.error('Error analyzing failures:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [campaign, phases, driftEvents])
-
+  // Fetch strategic failure data from database
   useEffect(() => {
-    if (campaign && (campaign.performance_health < 80 || driftEvents.length > 1)) {
-      analyzeFailures()
-    }
-  }, [campaign, phases, driftEvents, analyzeFailures])
+    async function fetchStrategicFailure() {
+      setLoading(true)
+      try {
+        const { data, error } = await supabase
+          .from('strategic_failures')
+          .select('*')
+          .eq('campaign_id', campaign.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
 
-  const getImpactColor = (impact: string) => {
-    switch (impact) {
-      case 'critical': return 'text-red-700 bg-red-100 border-red-200'
-      case 'high': return 'text-orange-700 bg-orange-100 border-orange-200'
-      case 'medium': return 'text-yellow-700 bg-yellow-100 border-yellow-200'
-      default: return 'text-blue-700 bg-blue-100 border-blue-200'
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+          console.error('Error fetching strategic failure:', error)
+        } else if (data) {
+          setStrategicFailure(data as StrategicFailure)
+        }
+      } catch (err) {
+        console.error('Error:', err)
+      } finally {
+        setLoading(false)
+      }
     }
+
+    fetchStrategicFailure()
+  }, [campaign.id])
+
+  // Calculate if campaign qualifies for strategic failure detection
+  const qualifiesForDiagnosis = () => {
+    // Per spec: drift < 1 day BUT performance < 70% target
+    const avgDrift = phases
+      .filter(p => p.status === 'completed' && p.drift_days !== null)
+      .reduce((sum, p) => sum + Math.abs(p.drift_days || 0), 0) / Math.max(phases.filter(p => p.status === 'completed').length, 1)
+    
+    const performanceHealth = campaign.performance_health || 100
+    
+    // Strategic failure: clean execution (low drift) but poor performance
+    return avgDrift < 1 && performanceHealth < 70
   }
 
-  const handleCreateTemplate = () => {
-    if (analysis) {
-      const template = { ...analysis, template_created: true }
-      setAnalysis(template)
-      onCreateTemplate?.(template)
-    }
+  const getHypothesisRanking = () => {
+    if (!strategicFailure) return []
+    
+    return [
+      { name: 'Creative Issues', score: strategicFailure.creative_hypothesis_score || 0, icon: Lightbulb },
+      { name: 'Targeting Mismatch', score: strategicFailure.targeting_hypothesis_score || 0, icon: Target },
+      { name: 'Timing Problems', score: strategicFailure.timing_hypothesis_score || 0, icon: AlertTriangle },
+      { name: 'Value Proposition', score: strategicFailure.value_prop_hypothesis_score || 0, icon: Zap },
+    ].sort((a, b) => b.score - a.score)
   }
 
-  // Check if this campaign qualifies for failure diagnosis
-  const qualifiesForDiagnosis = campaign && 
-    (campaign.performance_health < 80 || 
-     driftEvents.length > 1 || 
-     campaign.status === 'paused' || 
-     phases.filter(p => p.drift_days && p.drift_days > 2).length > 0)
+  const getDiagnosisColor = (confidence: number) => {
+    if (confidence >= 0.8) return 'text-green-700 bg-green-100 border-green-200'
+    if (confidence >= 0.6) return 'text-yellow-700 bg-yellow-100 border-yellow-200'
+    return 'text-orange-700 bg-orange-100 border-orange-200'
+  }
 
-  if (!qualifiesForDiagnosis) {
+  const formatPrimaryDiagnosis = (diagnosis: string) => {
+    return diagnosis.split('_').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ')
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="py-12">
+          <div className="text-center space-y-4">
+            <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mx-auto">
+              <Brain className="w-6 h-6 text-blue-600 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-900">Loading Diagnosis...</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Analyzing strategic failure patterns
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // If no strategic failure exists and doesn't qualify
+  if (!strategicFailure && !qualifiesForDiagnosis()) {
     return (
       <Card>
         <CardContent className="py-12">
@@ -333,7 +134,10 @@ export default function StrategicFailureDiagnosis({
             <div>
               <h3 className="font-medium text-gray-900">No Strategic Failures Detected</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Campaign is performing within acceptable parameters. Failure analysis will activate if issues arise.
+                Campaign execution and performance are within acceptable parameters.
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Strategic failure detection triggers when: drift {'<'} 1 day AND performance {'<'} 70% target
               </p>
             </div>
           </div>
@@ -342,322 +146,342 @@ export default function StrategicFailureDiagnosis({
     )
   }
 
+  // If qualifies but no diagnosis exists yet, show detection trigger
+  if (!strategicFailure && qualifiesForDiagnosis()) {
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Strategic Failure Detected</AlertTitle>
+        <AlertDescription className="space-y-2">
+          <p>
+            Campaign launched on time (low drift) but performance is below 70% of target. 
+            This indicates a strategic issue rather than operational execution problem.
+          </p>
+          <Button variant="outline" size="sm" className="mt-2">
+            Generate AI Diagnosis
+          </Button>
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  if (!strategicFailure) return null
+
+  const hypotheses = getHypothesisRanking()
+  const abTestSuggestions = strategicFailure.ab_test_suggestions || []
+
   return (
     <div className="space-y-6">
-      {/* Status Alert */}
-      {campaign.performance_health < 70 && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Strategic Failure Detected</AlertTitle>
-          <AlertDescription>
-            Campaign health score of {campaign.performance_health}% indicates systematic issues requiring strategic intervention.
-          </AlertDescription>
-        </Alert>
-      )}
+      {/* Detection Alert */}
+      <Alert variant="destructive">
+        <TrendingDown className="h-4 w-4" />
+        <AlertTitle>Strategic Failure Identified</AlertTitle>
+        <AlertDescription>
+          <strong>Detection Criteria:</strong> {strategicFailure.detection_criteria}
+        </AlertDescription>
+      </Alert>
 
-      {/* Failure Analysis Tabs */}
+      {/* Main Diagnosis Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="diagnosis">AI Diagnosis</TabsTrigger>
-          <TabsTrigger value="patterns">Pattern Library</TabsTrigger>
-          <TabsTrigger value="remediation">Remediation</TabsTrigger>
-          <TabsTrigger value="prevention">Prevention</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="diagnosis">Diagnosis</TabsTrigger>
+          <TabsTrigger value="hypotheses">Hypotheses</TabsTrigger>
+          <TabsTrigger value="abtests">A/B Tests</TabsTrigger>
         </TabsList>
 
-        {/* AI Diagnosis Tab */}
+        {/* Diagnosis Tab */}
         <TabsContent value="diagnosis" className="space-y-4">
-          {loading ? (
-            <Card>
-              <CardContent className="py-12">
-                <div className="text-center space-y-4">
-                  <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto">
-                    <Brain className="w-6 h-6 text-red-600 animate-pulse" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-900">Strategic Failure Analysis</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      AI analyzing failure patterns, root causes, and remediation strategies...
-                    </p>
-                  </div>
-                  <Progress value={60} className="w-64 mx-auto" />
-                </div>
-              </CardContent>
-            </Card>
-          ) : analysis ? (
-            <div className="space-y-4">
-              {/* Failure Overview */}
-              <Card>
-                <CardHeader>
+          {/* Primary Diagnosis Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
                   <CardTitle className="flex items-center gap-2">
-                    <TrendingDown className="w-5 h-5 text-red-600" />
-                    Strategic Failure Diagnosis
+                    <Brain className="w-5 h-5 text-red-600" />
+                    Primary Diagnosis
                   </CardTitle>
-                  <CardDescription>
-                    AI-powered analysis with {analysis.confidence_score}% confidence
+                  <CardDescription className="mt-1">
+                    AI-powered analysis using {strategicFailure.ai_model_used || 'system analysis'}
                   </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-red-600">
-                        ${analysis.impact_assessment.budget_waste}
+                </div>
+                <Badge className={getDiagnosisColor(strategicFailure.diagnosis_confidence)}>
+                  {Math.round(strategicFailure.diagnosis_confidence * 100)}% Confidence
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                <h3 className="font-semibold text-lg text-red-900">
+                  {formatPrimaryDiagnosis(strategicFailure.primary_diagnosis)}
+                </h3>
+                {strategicFailure.ai_analysis && (
+                  <p className="text-sm text-red-700 mt-2">
+                    {strategicFailure.ai_analysis}
+                  </p>
+                )}
+              </div>
+
+              {/* Evidence Points */}
+              {strategicFailure.evidence_points && strategicFailure.evidence_points.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Supporting Evidence:</h4>
+                  <div className="space-y-2">
+                    {strategicFailure.evidence_points.map((evidence, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm">
+                        <AlertTriangle className="w-4 h-4 text-orange-600 mt-0.5 shrink-0" />
+                        <span>{evidence}</span>
                       </div>
-                      <div className="text-sm text-muted-foreground">Budget Waste</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-orange-600">
-                        +{analysis.impact_assessment.timeline_delay}d
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recommended Actions */}
+              {strategicFailure.recommended_actions && strategicFailure.recommended_actions.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm flex items-center gap-2">
+                    <Zap className="w-4 h-4" />
+                    Recommended Actions:
+                  </h4>
+                  <div className="space-y-2">
+                    {strategicFailure.recommended_actions.map((action, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs flex items-center justify-center shrink-0 mt-0.5">
+                          {i + 1}
+                        </div>
+                        <span className="text-sm">{action}</span>
                       </div>
-                      <div className="text-sm text-muted-foreground">Timeline Delay</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-yellow-600">
-                        -{analysis.impact_assessment.kpi_shortfall}%
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Prevention Strategies */}
+              {strategicFailure.prevention_strategies && strategicFailure.prevention_strategies.length > 0 && (
+                <div className="space-y-2 pt-4 border-t">
+                  <h4 className="font-medium text-sm flex items-center gap-2">
+                    <Lightbulb className="w-4 h-4" />
+                    Future Prevention:
+                  </h4>
+                  <div className="space-y-2">
+                    {strategicFailure.prevention_strategies.map((strategy, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+                        <span>{strategy}</span>
                       </div>
-                      <div className="text-sm text-muted-foreground">KPI Shortfall</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Lesson Learned */}
+              {strategicFailure.lesson_learned && (
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <h4 className="font-medium text-sm text-blue-900 mb-1">Key Lesson:</h4>
+                  <p className="text-sm text-blue-700">{strategicFailure.lesson_learned}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Hypotheses Tab */}
+        <TabsContent value="hypotheses" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Ranked Failure Hypotheses</CardTitle>
+              <CardDescription>
+                Multiple potential root causes ranked by likelihood
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {hypotheses.map((hypothesis, index) => {
+                const Icon = hypothesis.icon
+                const isPrimary = index === 0
+                
+                return (
+                  <div
+                    key={hypothesis.name}
+                    className={`p-4 rounded-lg border-2 ${
+                      isPrimary 
+                        ? 'bg-red-50 border-red-300' 
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          isPrimary ? 'bg-red-200' : 'bg-gray-200'
+                        }`}>
+                          <Icon className={`w-4 h-4 ${isPrimary ? 'text-red-700' : 'text-gray-700'}`} />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-sm">{hypothesis.name}</h3>
+                          {isPrimary && (
+                            <Badge variant="destructive" className="mt-1">
+                              Primary Hypothesis
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-gray-900">
+                          {hypothesis.score}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Likelihood</div>
+                      </div>
                     </div>
-                    <div className="text-center">
-                      <Badge className={getImpactColor(analysis.impact_assessment.reputation_impact)}>
-                        {analysis.impact_assessment.reputation_impact} reputation impact
+                    <Progress value={hypothesis.score} className="h-2" />
+                  </div>
+                )
+              })}
+
+              {/* Interpretation Guide */}
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="font-medium text-sm text-blue-900 mb-2">How to Interpret:</h4>
+                <ul className="text-sm text-blue-700 space-y-1">
+                  <li>• <strong>80-100:</strong> Highly likely root cause - prioritize testing</li>
+                  <li>• <strong>60-79:</strong> Strong contributor - secondary testing</li>
+                  <li>• <strong>40-59:</strong> Possible factor - monitor closely</li>
+                  <li>• <strong>Below 40:</strong> Less likely but not ruled out</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* A/B Test Recommendations Tab */}
+        <TabsContent value="abtests" className="space-y-4">
+          {abTestSuggestions.length > 0 ? (
+            <div className="space-y-4">
+              {abTestSuggestions.map((test: ABTestSuggestion, index: number) => (
+                <Card key={index}>
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                          <FlaskConical className="w-4 h-4" />
+                          {test.test_type}
+                        </CardTitle>
+                        <CardDescription className="mt-1">
+                          {test.hypothesis}
+                        </CardDescription>
+                      </div>
+                      <Badge variant="outline">
+                        {test.recommended_duration_days} days
                       </Badge>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Root Causes */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Root Cause Analysis</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {analysis.root_causes.map((cause, i) => (
-                    <div key={i} className="flex items-start gap-3 p-3 bg-red-50 rounded-lg">
-                      <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
-                      <div>
-                        <div className="font-medium text-red-800">{cause}</div>
-                        {analysis.contributing_factors[i] && (
-                          <div className="text-sm text-red-600 mt-1">
-                            Contributing factor: {analysis.contributing_factors[i]}
-                          </div>
-                        )}
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Test Setup */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <h4 className="font-medium text-sm mb-2">Control Variant</h4>
+                        <p className="text-sm text-muted-foreground">{test.control_variant}</p>
+                      </div>
+                      <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <h4 className="font-medium text-sm mb-2">Test Variant</h4>
+                        <p className="text-sm text-blue-700">{test.test_variant}</p>
                       </div>
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
 
-              {/* Lessons Learned */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Lightbulb className="w-4 h-4" />
-                    Lessons Learned
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {analysis.lessons_learned.map((lesson, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
-                        <span className="text-sm">{lesson}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-
-              {/* Template Creation */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Create Prevention Template</CardTitle>
-                  <CardDescription>
-                    Convert this failure analysis into a reusable prevention template
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="template-notes">Additional Notes</Label>
-                    <Textarea
-                      id="template-notes"
-                      placeholder="Add context, specific details, or team insights..."
-                      value={customNotes}
-                      onChange={(e) => setCustomNotes(e.target.value)}
-                    />
-                  </div>
-                  <Button 
-                    onClick={handleCreateTemplate}
-                    disabled={analysis.template_created}
-                    className="w-full gap-2"
-                  >
-                    {analysis.template_created ? (
-                      <>
-                        <CheckCircle2 className="w-4 h-4" />
-                        Template Created
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="w-4 h-4" />
-                        Create Prevention Template
-                      </>
+                    {/* Setup Instructions */}
+                    {test.setup_instructions && test.setup_instructions.length > 0 && (
+                      <div>
+                        <h4 className="font-medium text-sm mb-2">Setup Instructions:</h4>
+                        <ol className="space-y-2">
+                          {test.setup_instructions.map((instruction: string, i: number) => (
+                            <li key={i} className="flex items-start gap-2 text-sm">
+                              <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-xs flex items-center justify-center shrink-0 mt-0.5">
+                                {i + 1}
+                              </span>
+                              <span>{instruction}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
                     )}
-                  </Button>
-                </CardContent>
-              </Card>
+
+                    {/* Success Criteria */}
+                    <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                      <h4 className="font-medium text-sm text-green-900 mb-1">
+                        Success Criteria:
+                      </h4>
+                      <p className="text-sm text-green-700">{test.success_criteria}</p>
+                    </div>
+
+                    {/* Expected Impact */}
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Expected Impact: </span>
+                        <span className="font-medium">{test.expected_impact}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Progress value={test.confidence_level * 100} className="w-24 h-2" />
+                        <span className="text-xs text-muted-foreground">
+                          {Math.round(test.confidence_level * 100)}% confidence
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <Button className="w-full gap-2">
+                      <FlaskConical className="w-4 h-4" />
+                      Set Up This Test
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           ) : (
             <Card>
-              <CardContent className="py-8">
-                <div className="text-center text-muted-foreground">
-                  No analysis available. Click refresh to run diagnosis.
+              <CardContent className="py-12">
+                <div className="text-center space-y-2">
+                  <FlaskConical className="w-12 h-12 text-gray-400 mx-auto" />
+                  <h3 className="font-medium text-gray-900">No A/B Test Suggestions</h3>
+                  <p className="text-sm text-muted-foreground">
+                    A/B test recommendations will be generated based on the diagnosis.
+                  </p>
                 </div>
               </CardContent>
             </Card>
           )}
-        </TabsContent>
-
-        {/* Pattern Library Tab */}
-        <TabsContent value="patterns" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Failure Pattern Library</CardTitle>
-              <CardDescription>
-                Common failure patterns across similar campaigns
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {FAILURE_PATTERNS.map((pattern) => (
-                <div
-                  key={pattern.id}
-                  className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                    selectedPattern?.id === pattern.id ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => setSelectedPattern(selectedPattern?.id === pattern.id ? null : pattern)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <h4 className="font-semibold text-sm">{pattern.name}</h4>
-                      <p className="text-sm text-muted-foreground">{pattern.description}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className={getImpactColor(pattern.impact_level)}>
-                        {pattern.impact_level}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        {pattern.frequency}% frequency
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {selectedPattern?.id === pattern.id && (
-                    <div className="mt-4 pt-4 border-t space-y-3">
-                      <div>
-                        <h5 className="font-medium text-sm mb-2">Warning Signs</h5>
-                        <ul className="text-sm text-muted-foreground space-y-1">
-                          {pattern.warning_signs.map((sign, i) => (
-                            <li key={i} className="flex items-start gap-2">
-                              <AlertTriangle className="w-3 h-3 text-yellow-600 mt-1 shrink-0" />
-                              {sign}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <h5 className="font-medium text-sm mb-2">Recovery Success Rate: {pattern.success_rate}%</h5>
-                        <Progress value={pattern.success_rate} className="h-2" />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Remediation Tab */}
-        <TabsContent value="remediation" className="space-y-4">
-          {analysis && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Remediation Action Plan</CardTitle>
-                <CardDescription>
-                  Step-by-step recovery strategy based on failure analysis
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {analysis.prevention_plan.map((action, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 border rounded-lg">
-                    <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-sm flex items-center justify-center shrink-0">
-                      {i + 1}
-                    </div>
-                    <div className="space-y-2">
-                      <div className="font-medium text-sm">{action}</div>
-                      <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline">
-                          Start Action
-                        </Button>
-                        <Badge variant="secondary">
-                          Status: {analysis.remediation_status}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* Prevention Tab */}
-        <TabsContent value="prevention" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5" />
-                Future Prevention Strategies
-              </CardTitle>
-              <CardDescription>
-                Systematic improvements to prevent similar failures
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {FAILURE_PATTERNS.slice(0, 2).map((pattern) => (
-                <div key={pattern.id} className="space-y-3">
-                  <h4 className="font-medium text-sm">{pattern.name} Prevention</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <h5 className="text-xs font-medium text-muted-foreground uppercase mb-2">
-                        Prevention Strategies
-                      </h5>
-                      <ul className="space-y-1">
-                        {pattern.prevention_strategies.map((strategy, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm">
-                            <CheckCircle2 className="w-3 h-3 text-green-600 mt-1 shrink-0" />
-                            {strategy}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <h5 className="text-xs font-medium text-muted-foreground uppercase mb-2">
-                        Recovery Actions
-                      </h5>
-                      <ul className="space-y-1">
-                        {pattern.recovery_actions.map((action, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm">
-                            <Zap className="w-3 h-3 text-blue-600 mt-1 shrink-0" />
-                            {action}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Resolution Status */}
+      {strategicFailure.resolved && (
+        <Card className="border-green-200 bg-green-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-green-900">
+              <CheckCircle2 className="w-5 h-5" />
+              Strategic Failure Resolved
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {strategicFailure.resolution_date && (
+                <p className="text-sm text-green-700">
+                  Resolved on {new Date(strategicFailure.resolution_date).toLocaleDateString()}
+                </p>
+              )}
+              {strategicFailure.resolution_actions && strategicFailure.resolution_actions.length > 0 && (
+                <div>
+                  <h4 className="font-medium text-sm text-green-900 mb-2">Actions Taken:</h4>
+                  <ul className="space-y-1">
+                    {strategicFailure.resolution_actions.map((action, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-green-700">
+                        <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+                        <span>{action}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
