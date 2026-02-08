@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -24,6 +24,15 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
+import {
   Activity,
   TrendingUp,
   TrendingDown,
@@ -35,8 +44,6 @@ import {
   ArrowDown,
   ArrowUp,
   Zap,
-  Target,
-  DollarSign,
   BarChart3,
   XCircle,
   Save,
@@ -51,15 +58,7 @@ import { KanbanBoard } from '@/components/kanban'
 import { useCampaignExecution } from '@/hooks/useCampaignExecution'
 import { cn } from '@/lib/utils'
 import { saveTemplate } from '@/lib/templates'
-import {
-  DEMO_AGE_DATA,
-  DEMO_FIT_SCORE,
-  DEMO_STRONG_ALIGNMENT,
-  DEMO_ADJUSTMENT_AREAS,
-  DEMO_RECOMMENDED_ACTIONS,
-} from '@/lib/demographicData'
 
-// Seeded drift events for demo
 const SEEDED_DRIFT_EVENTS: Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>[] = [
   {
     drift_type: 'negative',
@@ -115,124 +114,14 @@ const SEEDED_DRIFT_EVENTS: Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 
   },
 ]
 
-// Recommendation tier: Immediate (critical) | Tactical (DeepSeek) | Strategic (long-term)
-type RecommendationTier = 'immediate' | 'tactical' | 'strategic'
-
-interface Recommendation {
-  title: string
-  description: string
-  impact: 'high' | 'medium' | 'low'
-  effort: 'low' | 'medium' | 'high'
-  category: string
-  tier: RecommendationTier
-  icon: React.ReactNode
-}
-
-const AI_RECOMMENDATIONS: Recommendation[] = [
-  // Immediate - critical fixes, risk mitigation
-  {
-    title: 'Pause underperforming ad set',
-    description: 'Ad set "Brand A - Broad" has CTR below 0.5%. Pause to reduce wasted spend immediately.',
-    impact: 'high',
-    effort: 'low',
-    category: 'Performance',
-    tier: 'immediate',
-    icon: <AlertTriangle className="w-4 h-4" />,
-  },
-  {
-    title: 'Fix conversion tracking gap',
-    description: 'Last 24h conversions not firing. Check Meta Pixel and CAPI connection to avoid misreported ROAS.',
-    impact: 'high',
-    effort: 'low',
-    category: 'Tracking',
-    tier: 'immediate',
-    icon: <BarChart3 className="w-4 h-4" />,
-  },
-  {
-    title: 'Increase budget for top-performing channel',
-    description: 'Google Ads is outperforming by 40%. Reallocate 15% budget from underperforming channels.',
-    impact: 'high',
-    effort: 'low',
-    category: 'Budget',
-    tier: 'tactical',
-    icon: <DollarSign className="w-4 h-4" />,
-  },
-  {
-    title: 'Adjust creative rotation schedule',
-    description: 'Ad fatigue detected on Variant A. Recommend rotating in new creatives within 48 hours.',
-    impact: 'medium',
-    effort: 'medium',
-    category: 'Creative',
-    tier: 'tactical',
-    icon: <Zap className="w-4 h-4" />,
-  },
-  {
-    title: 'Extend optimization phase by 3 days',
-    description: 'Current ROAS trend suggests additional optimization could yield 0.5x improvement.',
-    impact: 'high',
-    effort: 'low',
-    category: 'Timeline',
-    tier: 'tactical',
-    icon: <Clock className="w-4 h-4" />,
-  },
-  {
-    title: 'Target audience refinement',
-    description: 'Segment B (25-34, urban) converting 2.3x better. Narrow targeting to this cohort. Powered by DeepSeek analysis.',
-    impact: 'high',
-    effort: 'medium',
-    category: 'Targeting',
-    tier: 'tactical',
-    icon: <Target className="w-4 h-4" />,
-  },
-  {
-    title: 'A/B test headline variants',
-    description: 'Run 2 headline variants for 1 week; current winner has +12% CTR in similar campaigns.',
-    impact: 'medium',
-    effort: 'medium',
-    category: 'Creative',
-    tier: 'tactical',
-    icon: <Zap className="w-4 h-4" />,
-  },
-  // Strategic - process, team, templates
-  {
-    title: 'Create campaign template from this setup',
-    description: 'This structure (phases, audiences, channels) could be reused. Save as template for future launches.',
-    impact: 'high',
-    effort: 'low',
-    category: 'Process',
-    tier: 'strategic',
-    icon: <Zap className="w-4 h-4" />,
-  },
-  {
-    title: 'Review team capacity for next quarter',
-    description: 'Current utilization suggests adding capacity for Q2 campaigns. Consider contractor or reallocation.',
-    impact: 'medium',
-    effort: 'high',
-    category: 'Team',
-    tier: 'strategic',
-    icon: <Target className="w-4 h-4" />,
-  },
-  {
-    title: 'Standardize approval cycle',
-    description: 'Reduce client delay by defining a 48h SLA for creative approval in campaign briefs.',
-    impact: 'high',
-    effort: 'medium',
-    category: 'Process',
-    tier: 'strategic',
-    icon: <Clock className="w-4 h-4" />,
-  },
-]
+type DriftFilterValue = 'all' | 'positive' | 'negative' | 'neutral'
 
 type RecommendationActionState = 'pending' | 'accepted' | 'rejected' | 'completed'
-type DriftFilterValue = 'all' | 'positive' | 'negative' | 'neutral'
 
 export default function CampaignTracker() {
   const { id } = useParams<{ id: string }>()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [loading, setLoading] = useState(true)
-  // Recommendation action tracking (key = `${tier}-${index}`)
-  const [recommendationStates, setRecommendationStates] = useState<Record<string, RecommendationActionState>>({})
-  const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({})
   // Drift classification filter
   const [driftFilter, setDriftFilter] = useState<DriftFilterValue>('all')
   // Save as Template (positive drift)
@@ -289,7 +178,11 @@ export default function CampaignTracker() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   const handleStartPhase = async (phaseId: string) => {
     const now = new Date().toISOString().split('T')[0]
@@ -318,8 +211,10 @@ export default function CampaignTracker() {
       (new Date(now).getTime() - new Date(phase.actual_start_date).getTime()) / (1000 * 60 * 60 * 24)
     )
     const driftDays = actualDays - phase.planned_duration_days
+    const driftType = driftDays > 1 ? 'negative' : driftDays < -1 ? 'positive' : 'neutral'
 
     try {
+      // Update the phase
       await supabase
         .from('execution_phases')
         .update({
@@ -327,7 +222,7 @@ export default function CampaignTracker() {
           actual_end_date: now,
           actual_duration_days: actualDays,
           drift_days: driftDays,
-          drift_type: driftDays > 1 ? 'negative' : driftDays < -1 ? 'positive' : 'neutral',
+          drift_type: driftType,
         })
         .eq('id', phaseId)
 
@@ -364,14 +259,125 @@ export default function CampaignTracker() {
     }
   }
 
-  const operationalHealth = campaign?.operational_health ?? 85
-  const performanceHealth = campaign?.performance_health ?? 72
-  const totalDrift = phases.reduce((acc, p) => acc + (p.drift_days || 0), 0)
+  // Calculate real health indicators based on campaign data
+  const calculateHealthIndicators = () => {
+    const completedPhases = phases.filter(p => p.status === 'completed')
+    const totalPhases = phases.length
+    
+    // Operational Health: Based on phase completion rate and drift
+    let operationalHealth = 100
+    if (totalPhases > 0) {
+      const completionRate = (completedPhases.length / totalPhases) * 100
+      const avgDrift = completedPhases.length > 0 
+        ? Math.abs(completedPhases.reduce((acc, p) => acc + (p.drift_days || 0), 0) / completedPhases.length)
+        : 0
+      
+      // Reduce health based on drift (more than 2 days average is concerning)
+      const driftPenalty = Math.min(avgDrift * 5, 30) // Max 30 point penalty
+      operationalHealth = Math.max(completionRate - driftPenalty, 0)
+    }
+    
+    // Performance Health: Use campaign data or calculate from phases
+    const performanceHealth = campaign?.performance_health ?? 
+      (campaign?.status === 'completed' ? 85 : 
+       campaign?.status === 'in_progress' ? 75 : 90)
+    
+    // Total drift calculation
+    const totalDrift = completedPhases.reduce((acc, p) => acc + Math.abs(p.drift_days || 0), 0)
+    
+    return {
+      operational: Math.round(operationalHealth),
+      performance: Math.round(performanceHealth),
+      totalDrift
+    }
+  }
+
+  const { operational: operationalHealth, performance: performanceHealth, totalDrift } = calculateHealthIndicators()
+
+  const handleSaveAsTemplate = async (driftEvent: Partial<DriftEvent> & Pick<DriftEvent, 'drift_type' | 'drift_days' | 'phase_name' | 'lesson_learned'>) => {
+    try {
+      if (!campaign) return
+
+      const templateData = {
+        name: `${campaign.campaign_type.replace(/_/g, ' ')} Template - ${driftEvent.lesson_learned?.substring(0, 30)}...`,
+        description: `Template created from successful campaign: ${campaign.name}. Key success: ${driftEvent.lesson_learned}`,
+        source_campaign_id: campaign.id,
+        source_campaign_name: campaign.name,
+        success_metrics: `${driftEvent.drift_type} drift of ${Math.abs(driftEvent.drift_days)} days in ${driftEvent.phase_name}`,
+        default_phases: JSON.stringify(phases.map(p => ({
+          phase_name: p.phase_name,
+          duration: p.planned_duration_days,
+          type: p.phase_type
+        }))),
+        recommended_timeline_days: phases.reduce((sum, p) => sum + p.planned_duration_days, 0),
+        suitable_campaign_types: [campaign.campaign_type],
+        suitable_industries: campaign.industry ? [campaign.industry] : undefined,
+        times_used: 0,
+        success_rate: 0.85,
+        key_success_factors: [driftEvent.lesson_learned || 'Process optimization'],
+        created_by: 'current_user', // TODO: Get from auth context
+        is_public: true,
+        status: 'active'
+      }
+
+      await supabase.from('campaign_templates').insert(templateData)
+
+      // Show success feedback (you could add a toast notification here)
+      console.log('Template saved successfully')
+    } catch (error) {
+      console.error('Error saving template:', error)
+    }
+  }
+
+  // Prepare phase drift chart data
+  const phaseDriftChartData = phases.map((phase) => ({
+    name: phase.phase_name,
+    planned: phase.planned_duration_days,
+    actual: phase.actual_duration_days || phase.planned_duration_days,
+    phase_number: phase.phase_number
+  }))
+
+  // Calculate drift summary stats
+  const driftSummary = {
+    avgDrift: phases.filter(p => p.drift_days != null).length > 0 
+      ? Math.round(phases.filter(p => p.drift_days != null).reduce((sum, p) => sum + (p.drift_days || 0), 0) / phases.filter(p => p.drift_days != null).length * 10) / 10
+      : 0,
+    positiveCount: driftEvents.filter(d => d.drift_type === 'positive').length,
+    negativeCount: driftEvents.filter(d => d.drift_type === 'negative').length,
+    phasesOnTrack: phases.filter(p => Math.abs(p.drift_days || 0) <= 1).length
+  }
 
   if (loading || executionLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    )
+  }
+
+  if (!campaign) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Campaign Not Found</h1>
+            <p className="text-muted-foreground mt-1">Campaign ID: {id}</p>
+          </div>
+        </div>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-yellow-800 mb-2">Demo Mode</h3>
+          <p className="text-yellow-700 mb-4">
+            This campaign doesn't exist in the database yet. You can:
+          </p>
+          <ul className="list-disc list-inside text-yellow-700 space-y-1 mb-4">
+            <li>Apply the seed data to your Supabase database</li>
+            <li>Create a new campaign from the dashboard</li>
+            <li>Check the database connection at <a href="/db-test" className="underline">/db-test</a></li>
+          </ul>
+          <div className="text-sm text-yellow-600">
+            Expected campaign IDs: camp-successful-001, camp-failure-003, camp-accountability-005
+          </div>
+        </div>
       </div>
     )
   }
@@ -456,10 +462,10 @@ export default function CampaignTracker() {
             <CardTitle className="text-sm font-medium">Drift Events</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{SEEDED_DRIFT_EVENTS.length}</div>
+            <div className="text-2xl font-bold">{driftEvents.length}</div>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs text-red-600">{SEEDED_DRIFT_EVENTS.filter(d => d.drift_type === 'negative').length} delays</span>
-              <span className="text-xs text-green-600">{SEEDED_DRIFT_EVENTS.filter(d => d.drift_type === 'positive').length} ahead</span>
+              <span className="text-xs text-red-600">{driftEvents.filter(d => d.drift_type === 'negative').length} delays</span>
+              <span className="text-xs text-green-600">{driftEvents.filter(d => d.drift_type === 'positive').length} ahead</span>
             </div>
           </CardContent>
         </Card>
@@ -1026,8 +1032,48 @@ export default function CampaignTracker() {
               </CardContent>
             </Card>
           </TabsContent>
-        </Tabs>
-      </div>
+
+        {/* Meta Ads Dashboard Tab */}
+        <TabsContent value="meta-ads" className="space-y-4">
+          {campaign && (
+            <MetaAdsDashboard
+              campaign={campaign}
+              metaPixelId={campaign.meta_pixel_id}
+              metaAccountId={campaign.meta_ads_account_id}
+            />
+          )}
+        </TabsContent>
+
+        {/* Strategic Failure Diagnosis Tab */}
+        <TabsContent value="diagnosis" className="space-y-4">
+          {campaign && (
+            <StrategicFailureDiagnosis
+              campaign={campaign}
+              phases={phases}
+              driftEvents={driftEvents}
+              onCreateTemplate={(diagnosis) => {
+                console.log('Created failure prevention template:', diagnosis)
+                // In production, this would save the template to the database
+              }}
+            />
+          )}
+        </TabsContent>
+
+        {/* AI Recommendations Tab */}
+        <TabsContent value="recommendations" className="space-y-4">
+          {campaign && (
+            <AIRecommendationsEngine
+              campaign={campaign}
+              phases={phases}
+              driftEvents={driftEvents}
+              onApplyRecommendation={(recommendation) => {
+                console.log('Applied recommendation:', recommendation)
+                // In production, this would trigger actual campaign modifications
+              }}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Save as Template dialog (from positive drift) */}
       <Dialog

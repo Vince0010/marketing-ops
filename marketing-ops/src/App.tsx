@@ -6,6 +6,7 @@ import CampaignValidate from './pages/CampaignValidate'
 import CampaignTracker from './pages/CampaignTracker'
 import CampaignAnalytics from './pages/CampaignAnalytics'
 import TeamCapacity from './pages/TeamCapacity'
+import DatabaseTest from './pages/DatabaseTest'
 import TemplateLibrary from './pages/TemplateLibrary'
 
 function App() {
@@ -18,8 +19,10 @@ function App() {
           <Route path="/campaigns/new" element={<CampaignCreate />} />
           <Route path="/campaigns/:id/validate" element={<CampaignValidate />} />
           <Route path="/campaigns/:id/tracker" element={<CampaignTracker />} />
+          <Route path="/campaign/:id" element={<CampaignTracker />} />
           <Route path="/campaigns/:id/analytics" element={<CampaignAnalytics />} />
           <Route path="/team" element={<TeamCapacity />} />
+          <Route path="/db-test" element={<DatabaseTest />} />
           <Route path="/templates" element={<TemplateLibrary />} />
         </Routes>
       </Layout>

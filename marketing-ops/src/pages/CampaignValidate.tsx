@@ -33,7 +33,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase } from '@/types/phase'
-import { getGateDecision } from '@/utils/calculations'
+import { getGateDecision, calculateDetailedRiskScore, type RiskAssessment, type RiskFactorResult } from '@/utils/calculations'
 import { formatCurrency } from '@/utils/formatting'
 import { DecisionStatusBadge } from '@/components/DecisionStatusBadge'
 
@@ -53,31 +53,79 @@ export default function CampaignValidate() {
   const [loading, setLoading] = useState(true)
   const [overrideDialogOpen, setOverrideDialogOpen] = useState(false)
   const [overrideReason, setOverrideReason] = useState('')
-  const [, setOverrideAction] = useState<'proceed' | 'adjust' | 'pause'>('proceed')
+  const [riskAssessment, setRiskAssessment] = useState<RiskAssessment | null>(null)
 
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [campaignRes, phasesRes, capacityRes] = await Promise.all([
+          supabase.from('campaigns').select('*').eq('id', id).single(),
+          supabase.from('execution_phases').select('*').eq('campaign_id', id).order('phase_number'),
+          supabase
+            .from('team_capacity')
+            .select('*, team_members!inner(name)')
+            .eq('campaign_id', id)
+        ])
+
+        if (campaignRes.data) {
+          setCampaign(campaignRes.data)
+          // Calculate risk assessment with real data
+          const overloadedCount = (capacityRes.data || []).filter(
+            (cap) => cap.utilization_percentage && cap.utilization_percentage > 90
+          ).length
+          const assessment = calculateDetailedRiskScore(
+            campaignRes.data,
+            phasesRes.data || [],
+            overloadedCount
+          )
+          setRiskAssessment(assessment)
+          
+          // Save risk score to database
+          await saveRiskScore(campaignRes.data.id, assessment)
+          
+          // Update campaign with new risk score
+          await supabase
+            .from('campaigns')
+            .update({ risk_score: assessment.overallScore })
+            .eq('id', campaignRes.data.id)
+        }
+        
+        if (phasesRes.data) setPhases(phasesRes.data)
+      } catch (error) {
+        console.error('Error fetching campaign:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
     fetchData()
   }, [id])
 
-  const fetchData = async () => {
+  const saveRiskScore = async (campaignId: string, assessment: RiskAssessment) => {
     try {
-      const [campaignRes, phasesRes] = await Promise.all([
-        supabase.from('campaigns').select('*').eq('id', id).single(),
-        supabase.from('execution_phases').select('*').eq('campaign_id', id).order('phase_number'),
-      ])
-
-      if (campaignRes.data) setCampaign(campaignRes.data)
-      if (phasesRes.data) setPhases(phasesRes.data)
+      await supabase.from('risk_scores').upsert({
+        campaign_id: campaignId,
+        overall_score: assessment.overallScore,
+        risk_level: assessment.riskLevel,
+        timeline_risk: assessment.factors.find((f: RiskFactorResult) => f.name === 'Timeline Feasibility')?.score,
+        budget_risk: assessment.factors.find((f: RiskFactorResult) => f.name === 'Budget Adequacy')?.score,
+        resource_risk: assessment.factors.find((f: RiskFactorResult) => f.name === 'Team Capacity')?.score,
+        performance_risk: assessment.factors.find((f: RiskFactorResult) => f.name === 'Historical Performance')?.score,
+        risk_factors: assessment.factors.filter((f: RiskFactorResult) => f.status !== 'pass').map((f: RiskFactorResult) => f.name),
+        mitigation_suggestions: assessment.mitigationSuggestions,
+        gate_recommendation: assessment.gateRecommendation,
+        gate_reason: assessment.gateReason,
+        calculated_by: 'system',
+        calculated_at: new Date().toISOString()
+      })
     } catch (error) {
-      console.error('Error fetching campaign:', error)
-    } finally {
-      setLoading(false)
+      console.error('Error saving risk score:', error)
     }
   }
 
-  // Calculate risk score from campaign data
-  const riskScore = campaign?.risk_score ?? 75
-  const gateDecision = getGateDecision(riskScore)
+  // Use calculated risk score from assessment
+  const riskScore = riskAssessment?.overallScore ?? campaign?.risk_score ?? 75
+  const gateDecision = riskAssessment?.gateRecommendation ?? getGateDecision(riskScore)
 
   const getRiskColor = (score: number) => {
     if (score >= 70) return 'text-green-600'
@@ -106,55 +154,32 @@ export default function CampaignValidate() {
     return 'destructive'
   }
 
-  // Generate risk factors based on campaign data
-  const riskFactors: RiskFactor[] = [
+  // Generate risk factors from calculated assessment
+  const riskFactors: RiskFactor[] = riskAssessment?.factors.map((factor: RiskFactorResult) => ({
+    name: factor.name,
+    score: factor.score,
+    status: factor.status,
+    detail: factor.detail,
+    icon: factor.name === 'Budget Adequacy' ? <DollarSign className="w-5 h-5" />
+      : factor.name === 'Timeline Feasibility' ? <Clock className="w-5 h-5" />
+      : factor.name === 'Team Capacity' ? <Users className="w-5 h-5" />
+      : factor.name === 'Historical Performance' ? <TrendingUp className="w-5 h-5" />
+      : <Zap className="w-5 h-5" />
+  })) ?? [
+    // Fallback for when assessment is not loaded yet
     {
-      name: 'Budget Allocation',
-      score: campaign && campaign.total_budget >= 5000 ? 90 : campaign && campaign.total_budget >= 1000 ? 70 : 40,
-      status: campaign && campaign.total_budget >= 5000 ? 'pass' : campaign && campaign.total_budget >= 1000 ? 'warn' : 'fail',
-      detail:
-        campaign && campaign.total_budget >= 5000
-          ? 'Budget is well-distributed and sufficient for objectives'
-          : 'Budget may be insufficient for planned scope',
-      icon: <DollarSign className="w-5 h-5" />,
-    },
-    {
-      name: 'Timeline Feasibility',
-      score: phases.length > 0 ? 85 : 60,
-      status: phases.length > 0 ? 'pass' : 'warn',
-      detail:
-        phases.length > 0
-          ? `${phases.length} phases planned with clear timeline`
-          : 'No execution phases defined yet',
-      icon: <Clock className="w-5 h-5" />,
-    },
-    {
-      name: 'Team Capacity',
-      score: 65,
-      status: 'warn',
-      detail: 'Consider additional resources for peak periods',
-      icon: <Users className="w-5 h-5" />,
-    },
-    {
-      name: 'Historical Performance',
-      score: 80,
-      status: 'pass',
-      detail: 'Similar campaigns have performed well historically',
-      icon: <TrendingUp className="w-5 h-5" />,
-    },
-    {
-      name: 'Creative Readiness',
-      score: 55,
-      status: 'warn',
-      detail: 'Creative assets need finalization before launch',
-      icon: <Zap className="w-5 h-5" />,
+      name: 'Risk Assessment Loading...',
+      score: 0,
+      status: 'warn' as const,
+      detail: 'Calculating risk factors...',
+      icon: <AlertCircle className="w-5 h-5" />,
     },
   ]
 
   const handleDecision = async (decision: 'proceed' | 'adjust' | 'pause', overridden = false) => {
     try {
       const updates: Record<string, unknown> = {
-        gate_decision: decision,
+        gate_status: decision,
         gate_overridden: overridden,
         status: decision === 'proceed' ? 'validated' : decision === 'pause' ? 'paused' : 'planning',
       }
@@ -163,6 +188,20 @@ export default function CampaignValidate() {
       }
 
       await supabase.from('campaigns').update(updates).eq('id', id)
+
+      // Insert override event if decision was overridden
+      if (overridden && riskAssessment) {
+        await supabase.from('override_events').insert({
+          campaign_id: id,
+          override_type: 'gate_decision',
+          original_recommendation: riskAssessment.gateRecommendation,
+          user_action: decision,
+          reason: overrideReason,
+          system_confidence: 100 - riskAssessment.overallScore, // Convert risk to confidence
+          risk_score_at_time: riskAssessment.overallScore,
+          overridden_by: 'current_user' // TODO: Get from auth context
+        })
+      }
 
       if (decision === 'proceed') {
         navigate(`/campaigns/${id}/tracker`)
