@@ -69,8 +69,16 @@ import MetaAdsDashboard from '@/components/meta/MetaAdsDashboard'
 import { ObservationModeBadge } from '@/components/ObservationModeBadge'
 =======
 import { ObservationModeBadge } from '@/components/ObservationModeBadge'
+import { DemographicAlignmentTracker } from '@/components/demographics/DemographicAlignmentTracker'
 import { cn } from '@/lib/utils'
 import { saveTemplate } from '@/lib/templates'
+import {
+  DEMO_AGE_DATA,
+  DEMO_FIT_SCORE,
+  DEMO_STRONG_ALIGNMENT,
+  DEMO_ADJUSTMENT_AREAS,
+  DEMO_RECOMMENDED_ACTIONS,
+} from '@/lib/demographicData'
 
 >>>>>>> 1fe4725 (Added Components)
 // Seeded drift events for demo
@@ -651,6 +659,7 @@ export default function CampaignTracker() {
         </Card>
       </div>
 
+<<<<<<< HEAD
       {/* Tabs */}
       <Tabs defaultValue="execution" className="space-y-4">
         <TabsList>
@@ -665,6 +674,21 @@ export default function CampaignTracker() {
         {/* Execution Timeline Tab */}
         <TabsContent value="execution" className="space-y-4">
         {/* Horizontal Timeline View */}
+=======
+      {/* Execution, Drift, Audience Insights, AI Recommendations */}
+      <div className="space-y-4">
+        <Tabs defaultValue="execution" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto flex-wrap gap-1 p-1">
+            <TabsTrigger value="execution" className="text-xs sm:text-sm py-2">Execution Timeline</TabsTrigger>
+            <TabsTrigger value="drift" className="text-xs sm:text-sm py-2">Drift Analysis</TabsTrigger>
+            <TabsTrigger value="audience" className="text-xs sm:text-sm py-2">Audience Insights</TabsTrigger>
+            <TabsTrigger value="recommendations" className="text-xs sm:text-sm py-2">AI Recommendations</TabsTrigger>
+          </TabsList>
+
+          {/* Execution Timeline Tab */}
+          <TabsContent value="execution" className="space-y-4 mt-4">
+          {/* Horizontal Timeline View */}
+>>>>>>> 32db48f (Added Many components, ref in tab 5)
           <Card>
             <CardHeader>
               <CardTitle>Phase Timeline</CardTitle>
@@ -1099,8 +1123,9 @@ export default function CampaignTracker() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+          </TabsContent>
 
+<<<<<<< HEAD
 <<<<<<< HEAD
         {/* Accountability Timeline Tab */}
         <TabsContent value="accountability" className="space-y-4">
@@ -1108,6 +1133,23 @@ export default function CampaignTracker() {
         {/* AI Recommendations Tab - 3 tiers */}
         <TabsContent value="recommendations" className="space-y-4">
 >>>>>>> 1fe4725 (Added Components)
+=======
+          {/* Audience Insights Tab */}
+          <TabsContent value="audience" className="space-y-4 mt-4">
+          <DemographicAlignmentTracker
+            ageData={DEMO_AGE_DATA}
+            fitScore={DEMO_FIT_SCORE}
+            strongAlignment={DEMO_STRONG_ALIGNMENT}
+            adjustmentAreas={DEMO_ADJUSTMENT_AREAS}
+            recommendedActions={DEMO_RECOMMENDED_ACTIONS}
+            variant="preliminary"
+            compact
+          />
+          </TabsContent>
+
+          {/* AI Recommendations Tab - 3 tiers */}
+          <TabsContent value="recommendations" className="space-y-4 mt-4">
+>>>>>>> 32db48f (Added Many components, ref in tab 5)
           <Card>
             <CardHeader>
               <CardTitle>Accountability Timeline</CardTitle>
@@ -1420,6 +1462,7 @@ export default function CampaignTracker() {
             </CardContent>
           </Card>
           </TabsContent>
+<<<<<<< HEAD
 
         {/* Meta Ads Dashboard Tab */}
         <TabsContent value="meta-ads" className="space-y-4">
@@ -1462,6 +1505,10 @@ export default function CampaignTracker() {
           )}
         </TabsContent>
       </Tabs>
+=======
+        </Tabs>
+      </div>
+>>>>>>> 32db48f (Added Many components, ref in tab 5)
 
       {/* Save as Template dialog (from positive drift) */}
       <Dialog

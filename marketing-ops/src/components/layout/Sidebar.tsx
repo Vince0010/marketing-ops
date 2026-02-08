@@ -20,10 +20,15 @@ import {
   Zap,
   FileText,
 <<<<<<< HEAD
+<<<<<<< HEAD
   Sun,
   Moon,
 =======
 >>>>>>> 1fe4725 (Added Components)
+=======
+  Sun,
+  Moon,
+>>>>>>> 32db48f (Added Many components, ref in tab 5)
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
