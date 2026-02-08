@@ -16,6 +16,7 @@ import {
   ArrowUp,
   BarChart3,
   Kanban,
+  Brain,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
@@ -31,9 +32,9 @@ import { ActionCardDriftPanel } from '@/components/kanban/ActionCardDriftPanel'
 import { calculateCampaignActionCardDrifts } from '@/utils/actionCardDrift'
 import AIRecommendationsEngine from '@/components/ai/AIRecommendationsEngine'
 import MetaAdsDashboard from '@/components/meta/MetaAdsDashboard'
-// import StrategicFailureDiagnosis from '@/components/diagnosis/StrategicFailureDiagnosis'
-// import { OverrideOutcomeAnalysis } from '@/components/diagnosis/OverrideOutcomeAnalysis'
+import StrategicFailureDiagnosis from '@/components/diagnosis/StrategicFailureDiagnosis'
 import type { OverrideEvent } from '@/types/database'
+import { detectStrategicFailure, createStrategicFailure } from '@/services/strategicFailureService'
 import { PerformanceCorrelation } from '@/components/correlation/PerformanceCorrelation'
 import { useWeeklyDataReports } from '@/hooks/useWeeklyDataReports'
 import type { AgeRow } from '@/components/demographics/DemographicAlignmentTracker'
@@ -163,6 +164,8 @@ export default function CampaignTracker() {
   const [, setOverrideEvent] = useState<OverrideEvent | null>(null)
   // Database drift events (action card drift)
   const [dbDriftEvents, setDbDriftEvents] = useState<DriftEvent[]>([])
+  // Strategic failure detection
+  const [generatingDiagnosis, setGeneratingDiagnosis] = useState(false)
 
   // Get execution data from hook
   const execution = useCampaignExecution(id || '')
@@ -359,6 +362,29 @@ export default function CampaignTracker() {
     await refetchExecution()
     await fetchDriftEvents()
   }
+
+  // Handle strategic failure diagnosis generation
+  const handleGenerateDiagnosis = useCallback(async () => {
+    if (!campaign) return
+    
+    setGeneratingDiagnosis(true)
+    try {
+      const { data, error } = await createStrategicFailure(campaign, phases)
+      
+      if (error) {
+        console.error('Error generating diagnosis:', error)
+        alert('Failed to generate diagnosis. See console for details.')
+      } else if (data) {
+        console.log('Strategic failure diagnosis created:', data)
+        // Refresh data to show new diagnosis
+        await fetchData()
+      }
+    } catch (err) {
+      console.error('Error:', err)
+    } finally {
+      setGeneratingDiagnosis(false)
+    }
+  }, [campaign, phases, fetchData])
 
   const handleStartPhase = async (phaseId: string) => {
     const now = new Date().toISOString().split('T')[0]
@@ -831,17 +857,73 @@ export default function CampaignTracker() {
 
           {/* Strategic Failure Diagnosis Tab */}
           <TabsContent value="diagnosis" className="space-y-4 mt-4">
-            {/* <StrategicFailureDiagnosis
-              campaign={campaign}
-              phases={phases}
-              driftEvents={driftEvents as unknown as DriftEvent[]}
-              onCreateTemplate={(_diagnosis: any) => {
-                console.log('Created failure prevention template:', _diagnosis)
-              }}
-            /> */}
-            <div className="text-center py-8 text-muted-foreground">
-              Strategic failure diagnosis component temporarily disabled
-            </div>
+            {campaign && (() => {
+              const detection = detectStrategicFailure(campaign, phases)
+              
+              // Show "Generate Diagnosis" button if qualifies but no diagnosis exists yet
+              if (detection.shouldTrigger && !loading) {
+                return (
+                  <Card className="border-yellow-200 bg-yellow-50">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-yellow-900">
+                        <AlertTriangle className="w-5 h-5" />
+                        Strategic Failure Detected
+                      </CardTitle>
+                      <CardDescription className="text-yellow-700">
+                        {detection.detectionCriteria}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="p-4 bg-white rounded-lg border border-yellow-200">
+                        <h4 className="font-medium text-sm mb-2">Detection Summary:</h4>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Average Drift:</span>
+                            <span className="font-medium ml-2">{detection.avgDrift.toFixed(1)} days</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Performance Health:</span>
+                            <span className="font-medium ml-2">{detection.performanceHealth}%</span>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-yellow-800">
+                        Clean execution with low drift indicates this is a <strong>strategic issue</strong> (creative, targeting, timing, or value proposition) rather than an operational problem.
+                      </p>
+                      <Button 
+                        onClick={handleGenerateDiagnosis}
+                        disabled={generatingDiagnosis}
+                        className="w-full gap-2"
+                      >
+                        {generatingDiagnosis ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Analyzing...
+                          </>
+                        ) : (
+                          <>
+                            <Brain className="w-4 h-4" />
+                            Generate AI Diagnosis
+                          </>
+                        )}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )
+              }
+              
+              // Otherwise show the diagnosis component (will handle its own states)
+              return (
+                <StrategicFailureDiagnosis
+                  campaign={campaign}
+                  phases={phases}
+                  driftEvents={driftEvents as unknown as DriftEvent[]}
+                  onCreateTemplate={(_diagnosis: any) => {
+                    console.log('Created failure prevention template:', _diagnosis)
+                  }}
+                />
+              )
+            })()}
           </TabsContent>
 
           {/* Accountability Timeline Tab */}
