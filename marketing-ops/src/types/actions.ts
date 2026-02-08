@@ -43,6 +43,7 @@ export interface MarketerAction {
     // Metadata
     tags?: string[]
     notes?: string
+    metadata?: Record<string, unknown>
 
     // Delay tracking
     delay_reason?: string

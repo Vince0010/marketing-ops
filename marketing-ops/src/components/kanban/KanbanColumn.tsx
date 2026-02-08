@@ -255,14 +255,14 @@ export function KanbanColumn({ phase, tasks, campaignId, onCreateTask, onTaskCli
                         className="w-full p-2 flex items-center justify-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors"
                     >
                         <Plus className="w-4 h-4" />
-                        Add task
+                        Add ad
                     </button>
                 )}
 
                 {/* Empty state */}
                 {tasks.length === 0 && !isAddingTask && (
                     <p className="text-center text-xs text-slate-400 dark:text-slate-500 py-4">
-                        Drop tasks here
+                        Drop ads here
                     </p>
                 )}
             </div>

@@ -29,7 +29,7 @@ interface ExternalExecutionData {
     error: string | null
     createTask: (taskData: MarketerActionInsert) => Promise<MarketerAction>
     updateTask: (taskId: string, updates: Partial<MarketerAction>) => Promise<MarketerAction>
-    moveTaskToPhase: (taskId: string, newPhaseId: string | null, oldPhaseId: string | null) => Promise<MarketerAction>
+    moveTaskToPhase: (taskId: string, newPhaseId: string | null, oldPhaseId: string | null, delayReason?: string) => Promise<MarketerAction>
     deleteTask: (taskId: string) => Promise<void>
     refetch: () => Promise<void>
 }
@@ -37,6 +37,38 @@ interface ExternalExecutionData {
 interface KanbanBoardProps {
     campaignId: string
     externalData?: ExternalExecutionData
+}
+
+/**
+ * Calculate time a task has spent in its current phase (in minutes)
+ */
+function calculateTimeInPhase(task: MarketerAction): number {
+    const storedMinutes = task.time_in_phase_minutes || 0
+    if (task.started_at) {
+        const startedAt = new Date(task.started_at)
+        const now = new Date()
+        const elapsedMs = now.getTime() - startedAt.getTime()
+        const elapsedMinutes = Math.floor(elapsedMs / 60000)
+        return storedMinutes + elapsedMinutes
+    }
+    return storedMinutes
+}
+
+/**
+ * Get per-card time budget from the phase's planned duration (8-hour workdays)
+ */
+function getPhaseBudgetMinutes(phase?: ExecutionPhase | null): number | null {
+    if (!phase?.planned_duration_days) return null
+    return phase.planned_duration_days * 8 * 60
+}
+
+function formatTime(minutes: number): string {
+    if (minutes <= 0) return '0m'
+    if (minutes < 60) return `${minutes}m`
+    const hours = Math.floor(minutes / 60)
+    const remainingMins = minutes % 60
+    if (remainingMins === 0) return `${hours}h`
+    return `${hours}h ${remainingMins}m`
 }
 
 export default function KanbanBoard({ campaignId, externalData }: KanbanBoardProps) {
@@ -48,7 +80,8 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
         newPhaseId: string | null,
         oldPhaseId: string | null,
         taskTitle: string,
-        daysLate: number
+        daysLate: number,
+        overByTime?: string,
     } | null>(null)
 
     // Use own hook if no external data provided
@@ -80,22 +113,15 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
     // Group tasks by phase
     const tasksByPhase = useMemo(() => {
         const grouped = new Map<string, MarketerAction[]>()
-
-        // Initialize with backlog
         grouped.set('backlog', [])
-
-        // Initialize all phases
         phases.forEach(phase => {
             grouped.set(phase.id, [])
         })
-
-        // Group tasks
         tasks.forEach(task => {
             const phaseId = task.phase_id || 'backlog'
             const existing = grouped.get(phaseId) || []
             grouped.set(phaseId, [...existing, task])
         })
-
         return grouped
     }, [phases, tasks])
 
@@ -105,7 +131,6 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
     }, [phases])
 
     // Calculate completed count per phase from history
-    // A task is "completed" in a phase when it has exited (exited_at is set)
     const completedByPhase = useMemo(() => {
         const counts = new Map<string, number>()
         history.forEach(entry => {
@@ -116,6 +141,22 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
         })
         return counts
     }, [history])
+
+    /**
+     * Determine if a move is forward (to a higher phase_number) or backward
+     */
+    const isForwardMove = (oldPhaseId: string | null, newPhaseId: string | null): boolean => {
+        // Moving from backlog to any phase is forward
+        if (!oldPhaseId && newPhaseId) return true
+        // Moving from any phase to backlog is backward
+        if (oldPhaseId && !newPhaseId) return false
+
+        const oldPhase = phases.find(p => p.id === oldPhaseId)
+        const newPhase = phases.find(p => p.id === newPhaseId)
+        if (!oldPhase || !newPhase) return true
+
+        return newPhase.phase_number > oldPhase.phase_number
+    }
 
     const handleDragStart = (event: DragStartEvent) => {
         const task = tasks.find(t => t.id === event.active.id)
@@ -138,48 +179,47 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
         // Don't do anything if dropped in same column
         if (newPhaseId === oldPhaseId) return
 
-        // Check for overdue task
-        if (task.due_date && newPhaseId !== oldPhaseId) {
+        const movingForward = isForwardMove(oldPhaseId, newPhaseId)
+
+        // Only gate forward moves — check time budget overdue
+        if (movingForward && oldPhaseId) {
+            const oldPhase = phases.find(p => p.id === oldPhaseId)
+            const budgetMinutes = getPhaseBudgetMinutes(oldPhase)
+            const timeSpent = calculateTimeInPhase(task)
+
+            if (budgetMinutes !== null && timeSpent > budgetMinutes) {
+                const overByMinutes = timeSpent - budgetMinutes
+                setPendingMove({
+                    taskId,
+                    newPhaseId,
+                    oldPhaseId,
+                    taskTitle: task.title,
+                    daysLate: 0,
+                    overByTime: formatTime(overByMinutes),
+                })
+                setIsDelayModalOpen(true)
+                return
+            }
+        }
+
+        // Also check due_date overdue (existing behavior)
+        if (movingForward && task.due_date && !task.delay_reason) {
             const now = new Date()
             const dueDate = new Date(task.due_date)
-            // Reset time part for accurate day comparison
             now.setHours(0, 0, 0, 0)
             dueDate.setHours(0, 0, 0, 0)
 
-            console.log('[KanbanBoard] Checking overdue:', {
-                taskTitle: task.title,
-                dueDate: task.due_date,
-                now: now.toISOString(),
-                dueDateObj: dueDate.toISOString(),
-                isOverdue: now > dueDate,
-                hasReason: !!task.delay_reason
-            })
-
             if (now > dueDate) {
-                // Task is overdue
-                // If it already has a delay reason, we might not need to ask again,
-                // allows updating reason or skipping. For now, let's ask if it acts as a "gate".
-                // Or maybe only if !task.delay_reason.
-                // Requirement: "promt and ask why it is late".
-                // Let's prompt if no reason exists OR if it's moving to a later phase (implies continuing work late).
-                // Simplest UX: check if late and reason is missing.
-
-                // Let's ask always if it's late to confirm the reason? 
-                // Getting the "stored for context" part implies we want to capture it.
-                // If I move it back and forth, do I answer every time?
-                // Let's check `!task.delay_reason`.
-                if (!task.delay_reason) {
-                    const daysLate = Math.ceil((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
-                    setPendingMove({
-                        taskId,
-                        newPhaseId,
-                        oldPhaseId,
-                        taskTitle: task.title,
-                        daysLate
-                    })
-                    setIsDelayModalOpen(true)
-                    return
-                }
+                const daysLate = Math.ceil((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
+                setPendingMove({
+                    taskId,
+                    newPhaseId,
+                    oldPhaseId,
+                    taskTitle: task.title,
+                    daysLate,
+                })
+                setIsDelayModalOpen(true)
+                return
             }
         }
 
@@ -217,7 +257,7 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
     }
 
     const handleDeleteTask = async (task: MarketerAction) => {
-        if (window.confirm(`Delete task "${task.title}"?`)) {
+        if (window.confirm(`Delete ad "${task.title}"?`)) {
             try {
                 await deleteTask(task.id)
             } catch (err) {
@@ -259,7 +299,7 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-                    Task Board
+                    Ad Deliverables Board
                 </h2>
                 <button
                     onClick={() => refetch()}
@@ -333,12 +373,13 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
                 onConfirm={handleDelayConfirm}
                 taskTitle={pendingMove?.taskTitle || ''}
                 daysLate={pendingMove?.daysLate || 0}
+                overByTime={pendingMove?.overByTime}
             />
 
             {/* Empty state */}
             {phases.length === 0 && tasks.length === 0 && (
                 <div className="text-center py-12 text-slate-500 dark:text-slate-400">
-                    <p>No phases or tasks yet.</p>
+                    <p>No phases or ads yet.</p>
                     <p className="text-sm mt-1">Create phases in the Stage Builder first.</p>
                 </div>
             )}

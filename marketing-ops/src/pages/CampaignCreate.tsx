@@ -12,6 +12,7 @@ import { createDefaultStages } from '@/lib/defaultStages'
 import { stagesToPhaseInserts } from '@/lib/stageUtils'
 import { SIMULATE_CAMPAIGN_ID, saveSimulatePayload } from '@/lib/simulate'
 import type { StageConfig } from '@/types/phase'
+import type { AdDeliverable } from '@/types/adDeliverable'
 import type {
   CampaignType, PrimaryObjective, PrimaryKPI,
   TargetAudience as TargetAudienceType, CreativeStrategy as CreativeStrategyType,
@@ -30,6 +31,7 @@ import ConstraintsRisks from '@/components/campaign-form/ConstraintsRisks'
 import TrackingSetup from '@/components/campaign-form/TrackingSetup'
 import CompetitiveContext from '@/components/campaign-form/CompetitiveContext'
 import StageBuilder from '@/components/stages/StageBuilder'
+import AdDeliverablesEditor from '@/components/campaign-form/AdDeliverablesEditor'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { FileText } from 'lucide-react'
 
@@ -131,6 +133,7 @@ export default function CampaignCreate() {
     return base
   })
   const [stages, setStages] = useState<StageConfig[]>(createDefaultStages())
+  const [adDeliverables, setAdDeliverables] = useState<AdDeliverable[]>([])
   const [currentStep, setCurrentStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -206,6 +209,30 @@ export default function CampaignCreate() {
         .insert(phaseInserts)
 
       if (phasesError) throw phasesError
+
+      // Create ad deliverable tasks in Kanban backlog
+      if (adDeliverables.length > 0) {
+        const now = new Date().toISOString()
+        const taskInserts = adDeliverables.map((ad) => ({
+          campaign_id: campaign.id,
+          title: ad.title.trim() || `${ad.platform} ${ad.post_type}`,
+          description: ad.description.trim() || null,
+          action_type: 'Ad Deliverable',
+          status: 'planned',
+          priority: 'medium',
+          phase_id: null,
+          timestamp: now,
+          metadata: { platform: ad.platform, post_type: ad.post_type },
+        }))
+
+        const { error: tasksError } = await supabase
+          .from('marketer_actions')
+          .insert(taskInserts)
+
+        if (tasksError) {
+          console.error('Failed to create ad deliverable tasks:', tasksError)
+        }
+      }
 
       navigate(`/campaigns/${campaign.id}/validate`)
     } catch (err: unknown) {
@@ -332,7 +359,24 @@ export default function CampaignCreate() {
           />
         )
       case 'stages':
-        return <StageBuilder stages={stages} onChange={setStages} />
+        return (
+          <div className="space-y-8">
+            <StageBuilder stages={stages} onChange={setStages} />
+            <div className="border-t pt-6">
+              <h3 className="text-md font-semibold mb-1 flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Ad Deliverables
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Define ads and posts for this campaign. These will be created as task cards in the Kanban backlog.
+              </p>
+              <AdDeliverablesEditor
+                deliverables={adDeliverables}
+                onChange={setAdDeliverables}
+              />
+            </div>
+          </div>
+        )
       case 'constraints':
         return (
           <ConstraintsRisks

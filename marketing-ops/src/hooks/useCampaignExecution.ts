@@ -153,6 +153,15 @@ export function useCampaignExecution(
             const now = new Date().toISOString()
             const optimisticStatus = isLastPhase ? 'completed' : (newPhaseId ? 'in_progress' : 'planned')
 
+            // Calculate carry-over time if moving back to a previous phase
+            let carryOverMinutes = 0
+            if (newPhaseId) {
+                const prevEntries = history.filter(
+                    h => h.action_id === taskId && h.phase_id === newPhaseId && h.exited_at !== null
+                )
+                carryOverMinutes = prevEntries.reduce((sum, h) => sum + (h.time_spent_minutes || 0), 0)
+            }
+
             setTasks(prev => prev.map(t =>
                 t.id === taskId
                     ? {
@@ -160,20 +169,33 @@ export function useCampaignExecution(
                         phase_id: newPhaseId,
                         status: optimisticStatus,
                         started_at: now,
-                        time_in_phase_minutes: 0,
+                        time_in_phase_minutes: carryOverMinutes,
                         delay_reason: delayReason || t.delay_reason,
                         ...(isLastPhase ? { completed_at: now } : {})
                     }
                     : t
             ))
 
-            // Close old history entry
+            // Close old history entry with time_spent_minutes
             if (oldPhaseId) {
-                setHistory(prev => prev.map(h =>
-                    h.action_id === taskId && h.exited_at === null
-                        ? { ...h, exited_at: now }
-                        : h
-                ))
+                setHistory(prev => prev.map(h => {
+                    if (h.action_id === taskId && h.exited_at === null) {
+                        // Calculate time spent from the task's current tracking
+                        const task = tasks.find(t => t.id === taskId)
+                        let timeSpent = 0
+                        if (task) {
+                            const stored = task.time_in_phase_minutes || 0
+                            if (task.started_at) {
+                                const elapsed = Math.floor((Date.now() - new Date(task.started_at).getTime()) / 60000)
+                                timeSpent = stored + elapsed
+                            } else {
+                                timeSpent = stored
+                            }
+                        }
+                        return { ...h, exited_at: now, time_spent_minutes: timeSpent }
+                    }
+                    return h
+                }))
             }
 
             // Add new history entry

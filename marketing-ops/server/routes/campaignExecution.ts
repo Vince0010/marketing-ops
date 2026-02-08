@@ -202,9 +202,32 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
             }
         }
 
-        // Close previous phase history entry if exists
+        // Close previous phase history entry and save time_spent_minutes
         if (oldPhaseId) {
-            const historyUpdate: any = { exited_at: nowIso }
+            // Get the task's current time tracking to calculate total time in old phase
+            const { data: currentTask } = await supabaseAdmin
+                .from('marketer_actions')
+                .select('started_at, time_in_phase_minutes')
+                .eq('id', taskId)
+                .single()
+
+            let timeSpentMinutes = 0
+            if (currentTask) {
+                const storedMinutes = currentTask.time_in_phase_minutes || 0
+                if (currentTask.started_at) {
+                    const startedAt = new Date(currentTask.started_at)
+                    const elapsedMs = now.getTime() - startedAt.getTime()
+                    const elapsedMinutes = Math.floor(elapsedMs / 60000)
+                    timeSpentMinutes = storedMinutes + elapsedMinutes
+                } else {
+                    timeSpentMinutes = storedMinutes
+                }
+            }
+
+            const historyUpdate: any = {
+                exited_at: nowIso,
+                time_spent_minutes: timeSpentMinutes,
+            }
             if (completionTiming) {
                 historyUpdate.completion_timing = completionTiming
             }
@@ -238,11 +261,30 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
             }
         }
 
+        // Look up previous time spent in the target phase (for carry-over on backward moves)
+        let carryOverMinutes = 0
+        if (newPhaseId) {
+            const { data: prevHistory } = await supabaseAdmin
+                .from('task_phase_history')
+                .select('time_spent_minutes')
+                .eq('action_id', taskId)
+                .eq('phase_id', newPhaseId)
+                .not('exited_at', 'is', null)
+                .order('exited_at', { ascending: false })
+
+            if (prevHistory && prevHistory.length > 0) {
+                carryOverMinutes = prevHistory.reduce(
+                    (sum: number, h: any) => sum + (h.time_spent_minutes || 0), 0
+                )
+                console.log('[API] Carrying over previous time:', carryOverMinutes, 'minutes for phase', newPhaseId)
+            }
+        }
+
         // Update the task
         const updates: any = {
             phase_id: newPhaseId,
             started_at: nowIso,
-            time_in_phase_minutes: 0,
+            time_in_phase_minutes: carryOverMinutes,
         }
 
         // Add delay_reason if provided

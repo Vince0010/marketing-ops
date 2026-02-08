@@ -568,15 +568,15 @@ export default function CampaignTracker() {
               />
             )}
             
-            {/* Task Board (Kanban) */}
+            {/* Ad Deliverables Board (Kanban) */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Kanban className="w-5 h-5" />
-                  Task Board
+                  Ad Deliverables Board
                 </CardTitle>
                 <CardDescription>
-                  Drag and drop tasks between phases. Changes sync in real-time.
+                  Drag and drop ads between phases. Changes sync in real-time.
                 </CardDescription>
               </CardHeader>
               <CardContent>

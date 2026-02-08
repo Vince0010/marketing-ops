@@ -1,4 +1,5 @@
-import { Clock, CheckCircle2, Circle, Timer, AlertCircle, XCircle, AlertTriangle, User, Calendar, Pencil, Trash2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Clock, CheckCircle2, Circle, Timer, AlertCircle, XCircle, AlertTriangle, Pencil, Trash2, Facebook, Instagram, MonitorPlay, Linkedin, Twitter, Youtube } from 'lucide-react'
 import type { MarketerAction } from '@/types/actions'
 import type { ExecutionPhase } from '@/types/phase'
 import { cn } from '@/lib/utils'
@@ -20,32 +21,32 @@ const statusIcons = {
     cancelled: XCircle,
 }
 
-const actionTypeColors: Record<string, string> = {
-    creative_change: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-    ad_copy_update: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-    budget_adjustment: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-    audience_targeting: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',
-    bidding_strategy: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-    placement_change: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
-    posting_schedule_change: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300',
-    other: 'bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-300',
+const platformConfig: Record<string, { icon: typeof Facebook; color: string; label: string }> = {
+    facebook: { icon: Facebook, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', label: 'Facebook' },
+    instagram: { icon: Instagram, color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300', label: 'Instagram' },
+    tiktok: { icon: MonitorPlay, color: 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200', label: 'TikTok' },
+    linkedin: { icon: Linkedin, color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300', label: 'LinkedIn' },
+    twitter: { icon: Twitter, color: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300', label: 'Twitter / X' },
+    youtube: { icon: Youtube, color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', label: 'YouTube' },
 }
 
-const priorityColors: Record<string, string> = {
-    low: 'bg-slate-200 dark:bg-slate-700',
-    medium: 'bg-blue-200 dark:bg-blue-800',
-    high: 'bg-amber-200 dark:bg-amber-800',
-    critical: 'bg-red-200 dark:bg-red-800',
+const postTypeLabels: Record<string, string> = {
+    image: 'Image',
+    video: 'Video',
+    carousel: 'Carousel',
+    story: 'Story',
+    reel: 'Reel',
 }
 
-/**
- * Calculate time in phase from started_at or use stored time_in_phase_minutes
- */
+function getAdInfo(metadata?: Record<string, unknown>): { platform: string | null; postType: string | null } {
+    if (!metadata) return { platform: null, postType: null }
+    const platform = typeof metadata.platform === 'string' ? metadata.platform : null
+    const postType = typeof metadata.post_type === 'string' ? metadata.post_type : null
+    return { platform, postType }
+}
+
 function calculateTimeInPhase(task: MarketerAction): number {
-    // If we have stored time_in_phase_minutes, use it as base
     const storedMinutes = task.time_in_phase_minutes || 0
-
-    // If task has started_at, calculate additional elapsed time
     if (task.started_at) {
         const startedAt = new Date(task.started_at)
         const now = new Date()
@@ -53,77 +54,62 @@ function calculateTimeInPhase(task: MarketerAction): number {
         const elapsedMinutes = Math.floor(elapsedMs / 60000)
         return storedMinutes + elapsedMinutes
     }
-
     return storedMinutes
 }
 
-/**
- * Format minutes into human-readable string
- */
 function formatTime(minutes: number): string {
-    if (minutes < 60) {
-        return `${minutes}m`
-    }
+    if (minutes <= 0) return '0m'
+    if (minutes < 60) return `${minutes}m`
     const hours = Math.floor(minutes / 60)
     const remainingMins = minutes % 60
-    if (remainingMins === 0) {
-        return `${hours}h`
-    }
+    if (remainingMins === 0) return `${hours}h`
     return `${hours}h ${remainingMins}m`
 }
 
 /**
- * Check if a task is overdue based on time spent in phase vs planned duration
- * A task is overdue if it has been in the phase longer than the phase's planned duration
+ * Get per-card time budget from the phase's planned duration.
+ * Each card gets the full phase duration as its own budget (8-hour workdays).
  */
-function isTaskOverdue(task: MarketerAction, phase?: ExecutionPhase | null): boolean {
-    if (!phase?.planned_duration_days) return false
-    if (task.status === 'completed') return false
-    if (!task.started_at) return false // Task hasn't started in this phase yet
-
-    // Calculate time spent in phase (in minutes)
-    const storedMinutes = task.time_in_phase_minutes || 0
-    const startedAt = new Date(task.started_at)
-    const now = new Date()
-    const elapsedMs = now.getTime() - startedAt.getTime()
-    const elapsedMinutes = Math.floor(elapsedMs / 60000)
-    const totalMinutesInPhase = storedMinutes + elapsedMinutes
-
-    // Convert planned duration to minutes (8-hour workdays)
-    const plannedMinutes = phase.planned_duration_days * 8 * 60
-
-    return totalMinutesInPhase > plannedMinutes
-}
-
-function formatDueDate(dateStr: string): string {
-    const date = new Date(dateStr)
-    const now = new Date()
-    now.setHours(0, 0, 0, 0)
-    date.setHours(0, 0, 0, 0)
-    const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-
-    if (diffDays < 0) return `${Math.abs(diffDays)}d overdue`
-    if (diffDays === 0) return 'Due today'
-    if (diffDays === 1) return 'Due tomorrow'
-    return `Due in ${diffDays}d`
+function getPhaseBudgetMinutes(phase?: ExecutionPhase | null): number | null {
+    if (!phase?.planned_duration_days) return null
+    return phase.planned_duration_days * 8 * 60
 }
 
 export function ActionCard({ task, phase, onClick, isDragging, onEdit, onDelete }: ActionCardProps) {
+    // Live timer: tick every 60 seconds to re-render time display
+    const [, setTick] = useState(0)
+    useEffect(() => {
+        // Only run timer for active tasks in a phase
+        if (!task.started_at || !task.phase_id || task.status === 'completed' || task.status === 'cancelled') return
+
+        const interval = setInterval(() => {
+            setTick(t => t + 1)
+        }, 60_000) // every minute
+
+        return () => clearInterval(interval)
+    }, [task.started_at, task.phase_id, task.status])
+
     const StatusIcon = statusIcons[task.status] || Circle
-    const isOverdue = isTaskOverdue(task, phase)
+    const { platform, postType } = getAdInfo(task.metadata)
+    const platformInfo = platform ? platformConfig[platform] : null
+    const PlatformIcon = platformInfo?.icon
 
-    // Calculate time metrics
-    const timeInPhaseMinutes = calculateTimeInPhase(task)
-    const estimatedMinutes = task.estimated_hours ? task.estimated_hours * 60 : null
-
-    // Determine if over/under estimate
-    const isOverEstimate = estimatedMinutes !== null && timeInPhaseMinutes > estimatedMinutes
-    const percentOfEstimate = estimatedMinutes
-        ? Math.round((timeInPhaseMinutes / estimatedMinutes) * 100)
+    // Time metrics
+    const timeSpentMinutes = calculateTimeInPhase(task)
+    const budgetMinutes = getPhaseBudgetMinutes(phase)
+    const remainingMinutes = budgetMinutes !== null ? Math.max(0, budgetMinutes - timeSpentMinutes) : null
+    const percentUsed = budgetMinutes !== null && budgetMinutes > 0
+        ? Math.min(Math.round((timeSpentMinutes / budgetMinutes) * 100), 999)
         : null
+    const isOverBudget = percentUsed !== null && percentUsed > 100
+    const isOverdue = budgetMinutes !== null && timeSpentMinutes > budgetMinutes && task.status !== 'completed'
 
-    // Check if due date is past
-    const isDueDateOverdue = task.due_date ? new Date(task.due_date) < new Date() && task.status !== 'completed' : false
+    // Progress bar color
+    const getProgressColor = (pct: number) => {
+        if (pct > 100) return 'bg-red-500 dark:bg-red-400'
+        if (pct > 80) return 'bg-amber-500 dark:bg-amber-400'
+        return 'bg-emerald-500 dark:bg-emerald-400'
+    }
 
     return (
         <div
@@ -132,7 +118,6 @@ export function ActionCard({ task, phase, onClick, isDragging, onEdit, onDelete 
                 "p-3 rounded-lg border transition-all group",
                 "hover:shadow-md cursor-grab",
                 isDragging && "opacity-50 rotate-2 shadow-xl",
-                // Overdue styling - red border and background
                 isOverdue
                     ? "bg-red-50 dark:bg-red-900/20 border-red-400 dark:border-red-600 border-2 shadow-red-100 dark:shadow-red-900/20"
                     : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm"
@@ -142,12 +127,32 @@ export function ActionCard({ task, phase, onClick, isDragging, onEdit, onDelete 
             {isOverdue && (
                 <div className="flex items-center gap-1.5 mb-2 px-2 py-1 bg-red-100 dark:bg-red-900/40 rounded text-xs font-medium text-red-700 dark:text-red-400">
                     <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>Overdue</span>
+                    <span>Over time budget</span>
+                </div>
+            )}
+
+            {/* Platform + Post Type badges */}
+            {(platformInfo || postType) && (
+                <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                    {platformInfo && (
+                        <span className={cn(
+                            "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium",
+                            platformInfo.color
+                        )}>
+                            {PlatformIcon && <PlatformIcon className="w-3 h-3" />}
+                            {platformInfo.label}
+                        </span>
+                    )}
+                    {postType && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                            {postTypeLabels[postType] || postType}
+                        </span>
+                    )}
                 </div>
             )}
 
             {/* Header with edit/delete buttons */}
-            <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="flex items-start justify-between gap-2 mb-1">
                 <h4 className={cn(
                     "text-sm font-medium line-clamp-2 flex-1",
                     isOverdue
@@ -162,7 +167,7 @@ export function ActionCard({ task, phase, onClick, isDragging, onEdit, onDelete 
                             <button
                                 onClick={onEdit}
                                 className="p-1 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
-                                title="Edit task"
+                                title="Edit"
                             >
                                 <Pencil className="w-3.5 h-3.5" />
                             </button>
@@ -171,33 +176,13 @@ export function ActionCard({ task, phase, onClick, isDragging, onEdit, onDelete 
                             <button
                                 onClick={onDelete}
                                 className="p-1 text-slate-400 hover:text-red-500 dark:hover:text-red-400 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
-                                title="Delete task"
+                                title="Delete"
                             >
                                 <Trash2 className="w-3.5 h-3.5" />
                             </button>
                         )}
                     </div>
                 )}
-            </div>
-
-            {/* Priority indicator + Type badge */}
-            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-                {task.priority && task.priority !== 'medium' && (
-                    <span className={cn(
-                        "inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium",
-                        task.priority === 'critical' && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-                        task.priority === 'high' && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-                        task.priority === 'low' && "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400",
-                    )}>
-                        {task.priority}
-                    </span>
-                )}
-                <span className={cn(
-                    "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
-                    actionTypeColors[task.action_type] || actionTypeColors.other
-                )}>
-                    {task.action_type.replace(/_/g, ' ')}
-                </span>
             </div>
 
             {/* Description preview */}
@@ -207,55 +192,72 @@ export function ActionCard({ task, phase, onClick, isDragging, onEdit, onDelete 
                 </p>
             )}
 
-            {/* Assignee */}
-            {task.assignee && (
-                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-2">
-                    <User className="w-3 h-3" />
-                    <span>{task.assignee}</span>
+            {/* Time tracker — only for cards assigned to a phase with a budget */}
+            {task.phase_id && budgetMinutes !== null && (
+                <div className="mb-2 space-y-1.5">
+                    {/* Time spent / budget / remaining */}
+                    <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-1.5">
+                            <Timer className={cn(
+                                "w-3.5 h-3.5",
+                                isOverBudget ? "text-red-500" : "text-slate-500 dark:text-slate-400"
+                            )} />
+                            <span className={cn(
+                                "font-medium",
+                                isOverBudget
+                                    ? "text-red-600 dark:text-red-400"
+                                    : "text-slate-700 dark:text-slate-300"
+                            )}>
+                                {formatTime(timeSpentMinutes)}
+                            </span>
+                            <span className="text-slate-400 dark:text-slate-500">
+                                / {formatTime(budgetMinutes)}
+                            </span>
+                        </div>
+                        {/* Percentage */}
+                        <span className={cn(
+                            "text-xs font-semibold",
+                            isOverBudget
+                                ? "text-red-600 dark:text-red-400"
+                                : (percentUsed ?? 0) > 80
+                                    ? "text-amber-600 dark:text-amber-400"
+                                    : "text-emerald-600 dark:text-emerald-400"
+                        )}>
+                            {percentUsed}%
+                        </span>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                            className={cn(
+                                "h-full rounded-full transition-all duration-500",
+                                getProgressColor(percentUsed ?? 0)
+                            )}
+                            style={{ width: `${Math.min(percentUsed ?? 0, 100)}%` }}
+                        />
+                    </div>
+
+                    {/* Remaining time */}
+                    <div className={cn(
+                        "text-xs",
+                        isOverBudget
+                            ? "text-red-600 dark:text-red-400 font-medium"
+                            : "text-slate-500 dark:text-slate-400"
+                    )}>
+                        {isOverBudget
+                            ? `Over by ${formatTime(timeSpentMinutes - budgetMinutes)}`
+                            : `${formatTime(remainingMinutes!)} remaining`
+                        }
+                    </div>
                 </div>
             )}
 
-            {/* Due date */}
-            {task.due_date && (
-                <div className={cn(
-                    "flex items-center gap-1.5 text-xs mb-2",
-                    isDueDateOverdue
-                        ? "text-red-600 dark:text-red-400 font-medium"
-                        : "text-slate-500 dark:text-slate-400"
-                )}>
-                    <Calendar className="w-3 h-3" />
-                    <span>{formatDueDate(task.due_date)}</span>
-                </div>
-            )}
-
-            {/* Estimated hours (always show if set, even without phase) */}
-            {task.estimated_hours && !task.phase_id && (
+            {/* Time display for cards in a phase WITHOUT a budget (no planned_duration_days) */}
+            {task.phase_id && budgetMinutes === null && task.started_at && (
                 <div className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium mb-2 bg-slate-50 text-slate-600 dark:bg-slate-700/50 dark:text-slate-400">
                     <Timer className="w-3.5 h-3.5" />
-                    <span>Est: {task.estimated_hours}h</span>
-                </div>
-            )}
-
-            {/* Time in phase indicator (for tasks assigned to a phase) */}
-            {task.phase_id && (
-                <div className={cn(
-                    "flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium mb-2",
-                    isOverEstimate
-                        ? "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400"
-                        : "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                )}>
-                    <Timer className="w-3.5 h-3.5" />
-                    <span>{formatTime(timeInPhaseMinutes)} in phase</span>
-                    {estimatedMinutes && (
-                        <span className="text-slate-400 dark:text-slate-500">
-                            / Est: {formatTime(estimatedMinutes)}
-                        </span>
-                    )}
-                    {percentOfEstimate !== null && percentOfEstimate > 100 && (
-                        <span className="ml-auto text-red-600 dark:text-red-400 font-semibold">
-                            +{percentOfEstimate - 100}%
-                        </span>
-                    )}
+                    <span>{formatTime(timeSpentMinutes)} in phase</span>
                 </div>
             )}
 
@@ -267,24 +269,18 @@ export function ActionCard({ task, phase, onClick, isDragging, onEdit, onDelete 
                 </div>
             )}
 
-            {/* Footer: Status + priority dot */}
+            {/* Footer: Status */}
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                 <div className="flex items-center gap-2">
                     <StatusIcon className="w-3.5 h-3.5" />
                     <span className="capitalize">{task.status.replace(/_/g, ' ')}</span>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    {/* Priority dot */}
-                    <span className={cn("w-2 h-2 rounded-full", priorityColors[task.priority] || priorityColors.medium)} />
-
-                    {/* Show completed_at if completed */}
-                    {task.status === 'completed' && task.completed_at && (
-                        <span className="text-green-600 dark:text-green-400">
-                            ✓ Done
-                        </span>
-                    )}
-                </div>
+                {task.status === 'completed' && task.completed_at && (
+                    <span className="text-green-600 dark:text-green-400">
+                        Done
+                    </span>
+                )}
             </div>
         </div>
     )

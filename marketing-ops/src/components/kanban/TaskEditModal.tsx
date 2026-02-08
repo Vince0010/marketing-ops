@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { X, Loader2, AlertTriangle, Calendar } from 'lucide-react'
-import type { MarketerAction, ActionPriority } from '@/types/actions'
+import { X, Loader2, AlertTriangle } from 'lucide-react'
+import type { MarketerAction } from '@/types/actions'
 import type { ExecutionPhase } from '@/types/phase'
+import type { AdPlatform, AdPostType } from '@/types/adDeliverable'
 import { cn } from '@/lib/utils'
 
 interface TaskEditModalProps {
@@ -11,62 +12,52 @@ interface TaskEditModalProps {
     onClose: () => void
 }
 
-const COMMON_ACTION_TYPES = [
-    'Creative Asset',
-    'Copy Review',
-    'Legal Approval',
-    'Platform Setup',
-    'Audience Targeting',
-    'Budget Allocation',
-    'Performance Review',
-    'Optimization',
-    'Reporting',
-    'Custom',
+const PLATFORMS: { value: AdPlatform; label: string }[] = [
+    { value: 'facebook', label: 'Facebook' },
+    { value: 'instagram', label: 'Instagram' },
+    { value: 'tiktok', label: 'TikTok' },
+    { value: 'linkedin', label: 'LinkedIn' },
+    { value: 'twitter', label: 'Twitter / X' },
+    { value: 'youtube', label: 'YouTube' },
 ]
 
-const priorities: { value: ActionPriority; label: string; color: string }[] = [
-    { value: 'low', label: 'Low', color: 'bg-slate-500' },
-    { value: 'medium', label: 'Medium', color: 'bg-blue-500' },
-    { value: 'high', label: 'High', color: 'bg-amber-500' },
-    { value: 'critical', label: 'Critical', color: 'bg-red-500' },
+const POST_TYPES: { value: AdPostType; label: string }[] = [
+    { value: 'image', label: 'Image' },
+    { value: 'video', label: 'Video' },
+    { value: 'carousel', label: 'Carousel' },
+    { value: 'story', label: 'Story' },
+    { value: 'reel', label: 'Reel' },
 ]
 
-/**
- * Check if a task is overdue based on time spent in phase vs planned duration
- */
 function isTaskOverdue(task: MarketerAction, phase?: ExecutionPhase | null): boolean {
     if (!phase?.planned_duration_days) return false
     if (task.status === 'completed') return false
-    if (!task.started_at) return false // Task hasn't started in this phase yet
+    if (!task.started_at) return false
 
-    // Calculate time spent in phase (in minutes)
     const storedMinutes = task.time_in_phase_minutes || 0
     const startedAt = new Date(task.started_at)
     const now = new Date()
     const elapsedMs = now.getTime() - startedAt.getTime()
     const elapsedMinutes = Math.floor(elapsedMs / 60000)
     const totalMinutesInPhase = storedMinutes + elapsedMinutes
-
-    // Convert planned duration to minutes (8-hour workdays)
     const plannedMinutes = phase.planned_duration_days * 8 * 60
 
     return totalMinutesInPhase > plannedMinutes
 }
 
 export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalProps) {
+    const existingPlatform = (task.metadata?.platform as string) || 'facebook'
+    const existingPostType = (task.metadata?.post_type as string) || 'image'
+
     const [title, setTitle] = useState(task.title)
     const [description, setDescription] = useState(task.description || '')
-    const [actionType, setActionType] = useState(task.action_type)
-    const [priority, setPriority] = useState<ActionPriority>(task.priority)
-    const [assignee, setAssignee] = useState(task.assignee || '')
-    const [dueDate, setDueDate] = useState(task.due_date?.split('T')[0] || '')
+    const [platform, setPlatform] = useState<string>(existingPlatform)
+    const [postType, setPostType] = useState<string>(existingPostType)
     const [delayReason, setDelayReason] = useState(task.delay_reason || '')
-    const [estimatedHours, setEstimatedHours] = useState(task.estimated_hours?.toString() || '')
     const [isSaving, setIsSaving] = useState(false)
 
     const isOverdue = isTaskOverdue(task, phase)
 
-    // Close on escape key
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose()
@@ -84,14 +75,10 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
             const updates: Partial<MarketerAction> = {
                 title: title.trim(),
                 description: description.trim() || undefined,
-                action_type: actionType,
-                priority,
-                assignee: assignee.trim() || undefined,
-                due_date: dueDate ? new Date(dueDate).toISOString() : undefined,
-                estimated_hours: estimatedHours ? parseFloat(estimatedHours) : undefined,
+                action_type: 'Ad Deliverable',
+                metadata: { platform, post_type: postType },
             }
 
-            // Include delay reason if task is overdue
             if (isOverdue && delayReason.trim()) {
                 updates.delay_reason = delayReason.trim()
             }
@@ -123,7 +110,7 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
                                 ? "text-red-700 dark:text-red-400"
                                 : "text-slate-800 dark:text-slate-100"
                         )}>
-                            {isOverdue ? 'Edit Overdue Task' : 'Edit Task'}
+                            {isOverdue ? 'Edit Overdue Ad' : 'Edit Ad Deliverable'}
                         </h2>
                     </div>
                     <button
@@ -138,7 +125,7 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
                 {isOverdue && (
                     <div className="px-6 py-3 bg-red-100 dark:bg-red-900/30 border-b border-red-200 dark:border-red-800">
                         <p className="text-sm text-red-700 dark:text-red-400">
-                            <strong>This task is overdue.</strong> The phase deadline was{' '}
+                            <strong>This ad is overdue.</strong> The phase deadline was{' '}
                             {phase?.planned_end_date && new Date(phase.planned_end_date).toLocaleDateString()}.
                             Please provide a reason for the delay.
                         </p>
@@ -147,6 +134,39 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                    {/* Platform & Post Type */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                Platform
+                            </label>
+                            <select
+                                value={platform}
+                                onChange={(e) => setPlatform(e.target.value)}
+                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
+                            >
+                                {PLATFORMS.map(p => (
+                                    <option key={p.value} value={p.value}>{p.label}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                Post Type
+                            </label>
+                            <select
+                                value={postType}
+                                onChange={(e) => setPostType(e.target.value)}
+                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
+                            >
+                                {POST_TYPES.map(pt => (
+                                    <option key={pt.value} value={pt.value}>{pt.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
                     {/* Title */}
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -156,7 +176,7 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
                             type="text"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
                             required
                         />
                     </div>
@@ -170,85 +190,7 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             rows={3}
-                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                        />
-                    </div>
-
-                    {/* Type & Priority */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                Type
-                            </label>
-                            <select
-                                value={actionType}
-                                onChange={(e) => setActionType(e.target.value)}
-                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                                {COMMON_ACTION_TYPES.map(type => (
-                                    <option key={type} value={type}>{type}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                Priority
-                            </label>
-                            <select
-                                value={priority}
-                                onChange={(e) => setPriority(e.target.value as ActionPriority)}
-                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                                {priorities.map(p => (
-                                    <option key={p.value} value={p.value}>{p.label}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Assignee & Estimated Hours */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                Assignee
-                            </label>
-                            <input
-                                type="text"
-                                value={assignee}
-                                onChange={(e) => setAssignee(e.target.value)}
-                                placeholder="Name or email..."
-                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                Estimated Hours
-                            </label>
-                            <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                value={estimatedHours}
-                                onChange={(e) => setEstimatedHours(e.target.value)}
-                                placeholder="e.g. 4"
-                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Due Date */}
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                            <Calendar className="w-4 h-4 inline mr-1" />
-                            Due Date
-                        </label>
-                        <input
-                            type="date"
-                            value={dueDate}
-                            onChange={(e) => setDueDate(e.target.value)}
-                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500 resize-none"
                         />
                     </div>
 
@@ -263,7 +205,7 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
                                 value={delayReason}
                                 onChange={(e) => setDelayReason(e.target.value)}
                                 rows={2}
-                                placeholder="Please explain why this task is delayed..."
+                                placeholder="Please explain why this ad is delayed..."
                                 className="w-full px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
                                 required={isOverdue}
                             />
@@ -285,7 +227,7 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
                             className={cn(
                                 "px-4 py-2 text-sm text-white rounded-lg flex items-center gap-2",
                                 title.trim() && !isSaving && (!isOverdue || delayReason.trim())
-                                    ? "bg-blue-500 hover:bg-blue-600"
+                                    ? "bg-rose-500 hover:bg-rose-600"
                                     : "bg-slate-300 dark:bg-slate-600 cursor-not-allowed"
                             )}
                         >
