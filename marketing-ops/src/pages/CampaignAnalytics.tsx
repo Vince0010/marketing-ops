@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Progress } from '@/components/ui/progress'
 import {
   BarChart,
   Bar,
@@ -26,48 +27,19 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-<<<<<<< HEAD
-<<<<<<< HEAD
   FileX,
-=======
-  FlaskConical,
-  Lightbulb,
-  TestTube,
-  ClipboardList,
->>>>>>> 1fe4725 (Added Components)
-=======
-  ArrowUp,
-  ArrowDown,
-  MapPin,
   Target,
   Lightbulb,
->>>>>>> 32db48f (Added Many components, ref in tab 5)
+  MapPin,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase } from '@/types/phase'
 import type { PerformanceMetric, StakeholderAction } from '@/types/database'
 import { formatCurrency } from '@/utils/formatting'
-<<<<<<< HEAD
-<<<<<<< HEAD
-export default function CampaignAnalytics() {
-  const { id } = useParams<{ id: string }>()
-  const [campaign, setCampaign] = useState<Campaign | null>(null)
-  const [phases, setPhases] = useState<ExecutionPhase[]>([])
-  const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetric[]>([])
-  const [stakeholderActions, setStakeholderActions] = useState<StakeholderAction[]>([])
-=======
-=======
-import { Progress } from '@/components/ui/progress'
 import { DemographicAlignmentTracker } from '@/components/demographics/DemographicAlignmentTracker'
-import {
-  DEMO_AGE_DATA,
-  DEMO_FIT_SCORE,
-  DEMO_STRONG_ALIGNMENT,
-  DEMO_ADJUSTMENT_AREAS,
-  DEMO_RECOMMENDED_ACTIONS,
-} from '@/lib/demographicData'
->>>>>>> 32db48f (Added Many components, ref in tab 5)
 
 // Seeded phase drift data for BarChart
 const PHASE_DRIFT_DATA = [
@@ -217,11 +189,16 @@ const RECOMMENDATIONS_TESTING = [
   'Consider expanding targeting to include similar profiles to 45-54 success group',
 ]
 
+const DEMO_STRONG_ALIGNMENT = INSIGHTS_STRONG
+const DEMO_ADJUSTMENT_AREAS = INSIGHTS_MISMATCH
+const DEMO_RECOMMENDED_ACTIONS = RECOMMENDATIONS_IMMEDIATE
+
 export default function CampaignAnalytics() {
   const { id } = useParams<{ id: string }>()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
-  const [, setPhases] = useState<ExecutionPhase[]>([])
->>>>>>> 1fe4725 (Added Components)
+  const [phases, setPhases] = useState<ExecutionPhase[]>([])
+  const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetric[]>([])
+  const [stakeholderActions, setStakeholderActions] = useState<StakeholderAction[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -308,26 +285,6 @@ export default function CampaignAnalytics() {
     : []
   const totalDrift = phaseDriftData.reduce((acc, p) => acc + Math.abs(p.drift), 0)
 
-<<<<<<< HEAD
-=======
-  // Strategic diagnosis: flag if any channel underperforms
-  const underperformingChannels = CHANNEL_DATA.filter((c) => c.roas < 2.5)
-  const totalDrift = PHASE_DRIFT_DATA.reduce((acc, p) => acc + p.drift, 0)
-<<<<<<< HEAD
-  const targetRoas = 2.5
-  const lastRoas = ROAS_TREND_DATA.length > 0 ? ROAS_TREND_DATA[ROAS_TREND_DATA.length - 1].roas : 0
-  const performancePercentOfTarget = targetRoas > 0 ? (lastRoas / targetRoas) * 100 : 0
-  const minimalDrift = totalDrift <= 2
-  const poorPerformance = performancePercentOfTarget < 70
-  const failureDetected = minimalDrift && poorPerformance
-
-  useEffect(() => {
-    if (failureDetected && !showDiagnosisPanel) setShowDiagnosisPanel(true)
-  }, [failureDetected])
->>>>>>> 1fe4725 (Added Components)
-=======
->>>>>>> 32db48f (Added Many components, ref in tab 5)
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -336,232 +293,49 @@ export default function CampaignAnalytics() {
     )
   }
 
-  if (!hasPerformanceData && !campaign) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Campaign Analytics</h1>
-            <p className="text-muted-foreground mt-1">Campaign {id}</p>
-          </div>
-        </div>
-        <Alert>
-          <FileX className="h-4 w-4" />
-          <AlertTitle>No Data Available</AlertTitle>
-          <AlertDescription>
-            This campaign doesn't have performance data yet. Analytics will be available once the campaign has started collecting metrics.
-          </AlertDescription>
-        </Alert>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Campaign Analytics</h1>
           <p className="text-muted-foreground mt-1">{campaign?.name || `Campaign ${id}`}</p>
         </div>
-        <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">
-          <CheckCircle2 className="w-4 h-4 mr-1" />
-          Completed
-        </Badge>
       </div>
 
-      {/* Strategic Diagnosis Alert */}
-      {totalDrift > 3 && (
-        <Alert className="border-orange-300 bg-orange-50">
-          <AlertTriangle className="h-4 w-4 text-orange-600" />
-          <AlertTitle className="text-orange-800">Strategic Diagnosis</AlertTitle>
-          <AlertDescription className="text-orange-700">
-            This campaign experienced +{totalDrift} days of total drift across execution phases.
-            The Creative and Compliance phases were primary contributors. Consider adding buffer days
-            and parallel review processes in future campaign templates.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {underperformingChannels.length > 0 && (
-        <Alert className="border-yellow-300 bg-yellow-50">
-          <TrendingDown className="h-4 w-4 text-yellow-600" />
-          <AlertTitle className="text-yellow-800">Channel Performance Warning</AlertTitle>
-          <AlertDescription className="text-yellow-700">
-            {underperformingChannels.map((c) => c.channel).join(', ')}{' '}
-            {underperformingChannels.length === 1 ? 'is' : 'are'} performing below the target ROAS of 2.5x.
-            Consider reallocating budget to higher-performing channels in future campaigns.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* KPI Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <DollarSign className="w-4 h-4" />
-              Total Spend
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalSpend)}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {campaign?.total_budget ? `${Math.round((totalSpend / campaign.total_budget) * 100)}% of budget` : 'No budget set'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" />
-              ROAS
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${avgROAS >= (campaign?.target_value || 2.5) ? 'text-green-600' : 'text-red-600'}`}>
-              {avgROAS.toFixed(1)}x
-            </div>
-            <p className={`text-xs mt-1 ${avgROAS >= (campaign?.target_value || 2.5) ? 'text-green-600' : 'text-red-600'}`}>
-              {campaign?.target_value ? 
-                `${avgROAS >= campaign.target_value ? '+' : ''}${Math.round(((avgROAS / campaign.target_value) - 1) * 100)}% vs target` :
-                'No target set'
-              }
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Conversions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalConversions.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {performanceMetrics.length > 0 ? `Avg ${Math.round(totalConversions / performanceMetrics.length)} per day` : 'No data yet'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
-              CTR
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{(avgCTR * 100).toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Industry avg: 2.1%
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tabs */}
-      <Tabs defaultValue="performance" className="space-y-4">
-        <TabsList className="flex flex-wrap">
+      <Tabs defaultValue="performance" className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="channels">Channel Breakdown</TabsTrigger>
-          <TabsTrigger value="timeline">Timeline Analysis</TabsTrigger>
-          <TabsTrigger value="audience">Audience Insights</TabsTrigger>
+          <TabsTrigger value="channels">Channels</TabsTrigger>
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          <TabsTrigger value="audience">Audience</TabsTrigger>
           <TabsTrigger value="accountability">Accountability</TabsTrigger>
         </TabsList>
 
-        {/* Performance Tab - ROAS LineChart */}
         <TabsContent value="performance" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>ROAS Trend Over Campaign Duration</CardTitle>
-              <CardDescription>
-                {hasPerformanceData ? 
-                  `Actual ROAS vs target over ${performanceMetrics.length} data points` : 
-                  'Performance data will be shown here once available'
-                }
-              </CardDescription>
+              <CardTitle>Performance Summary</CardTitle>
+              <CardDescription>Campaign metrics and KPI tracking</CardDescription>
             </CardHeader>
             <CardContent>
-<<<<<<< HEAD
-              {hasPerformanceData ? (
-                <ResponsiveContainer width="100%" height={350}>
-                  <LineChart data={roasTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="day" fontSize={12} />
-                    <YAxis fontSize={12} tickFormatter={(v) => `${v}x`} />
-                    <Tooltip
-                      formatter={(value: number | undefined, name: string | undefined) => [
-                        (name === 'spend' ? formatCurrency(value || 0) : `${value || 0}x`),
-                        (name === 'roas' ? 'Actual ROAS' : name === 'target' ? 'Target ROAS' : 'Spend'),
-                      ]}
-                    />
-                    <Legend />
-                    <ReferenceLine y={campaign?.target_value || 2.5} stroke="#ef4444" strokeDasharray="5 5" label="Target" />
-                    <Line
-                      type="monotone"
-                      dataKey="roas"
-                      stroke="#2563eb"
-                      strokeWidth={3}
-                      dot={{ fill: '#2563eb', r: 4 }}
-                      name="Actual ROAS"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="target"
-                      stroke="#dc2626"
-                      strokeWidth={1}
-                      strokeDasharray="5 5"
-                      dot={false}
-                      name="Target ROAS"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-350 flex items-center justify-center border-2 border-dashed rounded-lg">
-                  <div className="text-center">
-                    <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                    <p className="text-muted-foreground">No performance data available yet</p>
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Total Spend</p>
+                  <p className="text-2xl font-bold">{formatCurrency(totalSpend)}</p>
                 </div>
-              )}
-=======
-              <ResponsiveContainer width="100%" height={350}>
-                <LineChart data={ROAS_TREND_DATA}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="day" fontSize={12} />
-                  <YAxis fontSize={12} tickFormatter={(v) => `${v}x`} />
-                  <Tooltip
-                    formatter={(value, name) => [
-                      value == null ? '' : name === 'spend' ? `$${Number(value).toLocaleString()}` : `${value}x`,
-                      name === 'roas' ? 'Actual ROAS' : name === 'target' ? 'Target ROAS' : 'Spend',
-                    ]}
-                  />
-                  <Legend />
-                  <ReferenceLine y={2.5} stroke="#ef4444" strokeDasharray="5 5" label="Target" />
-                  <Line
-                    type="monotone"
-                    dataKey="roas"
-                    stroke="#2563eb"
-                    strokeWidth={3}
-                    dot={{ fill: '#2563eb', r: 4 }}
-                    name="Actual ROAS"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="target"
-                    stroke="#dc2626"
-                    strokeWidth={1}
-                    strokeDasharray="5 5"
-                    dot={false}
-                    name="Target ROAS"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
->>>>>>> 1fe4725 (Added Components)
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Revenue</p>
+                  <p className="text-2xl font-bold text-green-600">{formatCurrency(totalRevenue)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Avg ROAS</p>
+                  <p className="text-2xl font-bold text-blue-600">{avgROAS.toFixed(1)}x</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Conversions</p>
+                  <p className="text-2xl font-bold text-purple-600">{totalConversions}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -666,7 +440,6 @@ export default function CampaignAnalytics() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-<<<<<<< HEAD
               {phaseDriftData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={350}>
                   <BarChart data={phaseDriftData}>
@@ -687,19 +460,6 @@ export default function CampaignAnalytics() {
                   </div>
                 </div>
               )}
-=======
-              <ResponsiveContainer width="100%" height={350}>
-                <BarChart data={PHASE_DRIFT_DATA}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" fontSize={12} />
-                  <YAxis fontSize={12} label={{ value: 'Days', angle: -90, position: 'insideLeft' }} />
-                  <Tooltip formatter={(value) => [value != null ? `${value} days` : '']} />
-                  <Legend />
-                  <Bar dataKey="planned" fill="#93c5fd" name="Planned (days)" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="actual" fill="#2563eb" name="Actual (days)" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
->>>>>>> 1fe4725 (Added Components)
             </CardContent>
           </Card>
 
@@ -765,8 +525,6 @@ export default function CampaignAnalytics() {
           )}
         </TabsContent>
 
-<<<<<<< HEAD
-=======
         {/* Audience Insights Tab - Demographic analysis */}
         <TabsContent value="audience" className="space-y-4">
           {/* Display rule banner */}
@@ -810,7 +568,7 @@ export default function CampaignAnalytics() {
                       <XAxis type="number" domain={[0, 50]} tickFormatter={(v) => `${v}%`} fontSize={11} />
                       <YAxis type="category" dataKey="range" width={45} fontSize={11} />
                       <Bar dataKey="goal" fill="#2563eb" name="Goal %" radius={[0, 4, 4, 0]} />
-                      <Tooltip formatter={(v: number) => [`${v}%`, 'Goal']} />
+                      <Tooltip formatter={(v: number | undefined) => [`${v ?? 0}%`, 'Goal']} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -866,9 +624,10 @@ export default function CampaignAnalytics() {
                       <YAxis type="category" dataKey="range" width={45} fontSize={11} />
                       <Bar dataKey="actual" fill="#16a34a" name="Actual %" radius={[0, 4, 4, 0]} />
                       <Tooltip
-                        formatter={(v: number, _name: string, props: { payload?: { diff?: number } }) => {
+                        formatter={(v: number | undefined, _name: string | undefined, props: { payload?: { diff?: number } }) => {
                           const diff = props?.payload?.diff
-                          return [diff != null && diff !== 0 ? `${v}% (${diff > 0 ? '+' : ''}${diff}% vs goal)` : `${v}%`, 'Actual']
+                          const value = v ?? 0
+                          return [diff != null && diff !== 0 ? `${value}% (${diff > 0 ? '+' : ''}${diff}% vs goal)` : `${value}%`, 'Actual']
                         }}
                       />
                     </BarChart>
@@ -1037,7 +796,6 @@ export default function CampaignAnalytics() {
             </CardContent>
           </Card>
         </TabsContent>
->>>>>>> 32db48f (Added Many components, ref in tab 5)
 
         {/* Accountability Tab */}
         <TabsContent value="accountability">
