@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -7,6 +7,15 @@ import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
 import {
   Activity,
   TrendingUp,
@@ -18,53 +27,18 @@ import {
   ArrowRight,
   ArrowDown,
   ArrowUp,
-  Minus,
   Zap,
-  Target,
-  DollarSign,
   BarChart3,
+  Save,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Campaign } from '@/types/campaign'
 import type { ExecutionPhase, DriftEvent } from '@/types/phase'
 import type { StakeholderAction } from '@/types/database'
 import { formatDate } from '@/utils/formatting'
-
-// AI Recommendations for demo
-const AI_RECOMMENDATIONS = [
-  {
-    title: 'Increase budget for top-performing channel',
-    description: 'Google Ads is outperforming by 40%. Reallocate 15% budget from underperforming channels.',
-    impact: 'high',
-    effort: 'low',
-    category: 'Budget',
-    icon: <DollarSign className="w-4 h-4" />,
-  },
-  {
-    title: 'Adjust creative rotation schedule',
-    description: 'Ad fatigue detected on Variant A. Recommend rotating in new creatives within 48 hours.',
-    impact: 'medium',
-    effort: 'medium',
-    category: 'Creative',
-    icon: <Zap className="w-4 h-4" />,
-  },
-  {
-    title: 'Extend optimization phase by 3 days',
-    description: 'Current ROAS trend suggests additional optimization could yield 0.5x improvement.',
-    impact: 'high',
-    effort: 'low',
-    category: 'Timeline',
-    icon: <Clock className="w-4 h-4" />,
-  },
-  {
-    title: 'Target audience refinement',
-    description: 'Segment B (25-34, urban) converting 2.3x better. Narrow targeting to this cohort.',
-    impact: 'high',
-    effort: 'medium',
-    category: 'Targeting',
-    icon: <Target className="w-4 h-4" />,
-  },
-]
+import AIRecommendationsEngine from '@/components/ai/AIRecommendationsEngine'
+import StrategicFailureDiagnosis from '@/components/diagnosis/StrategicFailureDiagnosis'
+import MetaAdsDashboard from '@/components/meta/MetaAdsDashboard'
 
 export default function CampaignTracker() {
   const { id } = useParams<{ id: string }>()
@@ -74,18 +48,18 @@ export default function CampaignTracker() {
   const [stakeholderActions, setStakeholderActions] = useState<StakeholderAction[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    fetchData()
-  }, [id])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
+      console.log('Fetching data for campaign ID:', id)
       const [campaignRes, phasesRes, driftRes, stakeholderRes] = await Promise.all([
         supabase.from('campaigns').select('*').eq('id', id).single(),
         supabase.from('execution_phases').select('*').eq('campaign_id', id).order('phase_number'),
         supabase.from('drift_events').select('*').eq('campaign_id', id).order('created_at', { ascending: false }),
         supabase.from('stakeholder_actions').select('*').eq('campaign_id', id).order('requested_date', { ascending: false }),
       ])
+
+      console.log('Campaign response:', campaignRes)
+      console.log('Phases response:', phasesRes)
 
       if (campaignRes.data) setCampaign(campaignRes.data)
       if (phasesRes.data) setPhases(phasesRes.data)
@@ -96,7 +70,11 @@ export default function CampaignTracker() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   const handleStartPhase = async (phaseId: string) => {
     const now = new Date().toISOString().split('T')[0]
@@ -277,10 +255,90 @@ export default function CampaignTracker() {
 
   const { operational: operationalHealth, performance: performanceHealth, totalDrift } = calculateHealthIndicators()
 
+  const handleSaveAsTemplate = async (driftEvent: DriftEvent) => {
+    try {
+      if (!campaign) return
+
+      const templateData = {
+        name: `${campaign.campaign_type.replace(/_/g, ' ')} Template - ${driftEvent.lesson_learned?.substring(0, 30)}...`,
+        description: `Template created from successful campaign: ${campaign.name}. Key success: ${driftEvent.lesson_learned}`,
+        source_campaign_id: campaign.id,
+        source_campaign_name: campaign.name,
+        success_metrics: `${driftEvent.drift_type} drift of ${Math.abs(driftEvent.drift_days)} days in ${driftEvent.phase_name}`,
+        default_phases: JSON.stringify(phases.map(p => ({
+          phase_name: p.phase_name,
+          duration: p.planned_duration_days,
+          type: p.phase_type
+        }))),
+        recommended_timeline_days: phases.reduce((sum, p) => sum + p.planned_duration_days, 0),
+        suitable_campaign_types: [campaign.campaign_type],
+        suitable_industries: campaign.industry ? [campaign.industry] : undefined,
+        times_used: 0,
+        success_rate: 0.85,
+        key_success_factors: [driftEvent.lesson_learned || 'Process optimization'],
+        created_by: 'current_user', // TODO: Get from auth context
+        is_public: true,
+        status: 'active'
+      }
+
+      await supabase.from('campaign_templates').insert(templateData)
+
+      // Show success feedback (you could add a toast notification here)
+      console.log('Template saved successfully')
+    } catch (error) {
+      console.error('Error saving template:', error)
+    }
+  }
+
+  // Prepare phase drift chart data
+  const phaseDriftChartData = phases.map((phase) => ({
+    name: phase.phase_name,
+    planned: phase.planned_duration_days,
+    actual: phase.actual_duration_days || phase.planned_duration_days,
+    phase_number: phase.phase_number
+  }))
+
+  // Calculate drift summary stats
+  const driftSummary = {
+    avgDrift: phases.filter(p => p.drift_days != null).length > 0 
+      ? Math.round(phases.filter(p => p.drift_days != null).reduce((sum, p) => sum + (p.drift_days || 0), 0) / phases.filter(p => p.drift_days != null).length * 10) / 10
+      : 0,
+    positiveCount: driftEvents.filter(d => d.drift_type === 'positive').length,
+    negativeCount: driftEvents.filter(d => d.drift_type === 'negative').length,
+    phasesOnTrack: phases.filter(p => Math.abs(p.drift_days || 0) <= 1).length
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    )
+  }
+
+  if (!campaign) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Campaign Not Found</h1>
+            <p className="text-muted-foreground mt-1">Campaign ID: {id}</p>
+          </div>
+        </div>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-yellow-800 mb-2">Demo Mode</h3>
+          <p className="text-yellow-700 mb-4">
+            This campaign doesn't exist in the database yet. You can:
+          </p>
+          <ul className="list-disc list-inside text-yellow-700 space-y-1 mb-4">
+            <li>Apply the seed data to your Supabase database</li>
+            <li>Create a new campaign from the dashboard</li>
+            <li>Check the database connection at <a href="/db-test" className="underline">/db-test</a></li>
+          </ul>
+          <div className="text-sm text-yellow-600">
+            Expected campaign IDs: camp-successful-001, camp-failure-003, camp-accountability-005
+          </div>
+        </div>
       </div>
     )
   }
@@ -372,6 +430,8 @@ export default function CampaignTracker() {
           <TabsTrigger value="execution">Execution Timeline</TabsTrigger>
           <TabsTrigger value="drift">Drift Analysis</TabsTrigger>
           <TabsTrigger value="accountability">Accountability</TabsTrigger>
+          <TabsTrigger value="meta-ads">Meta Ads</TabsTrigger>
+          <TabsTrigger value="diagnosis">Failure Diagnosis</TabsTrigger>
           <TabsTrigger value="recommendations">AI Recommendations</TabsTrigger>
         </TabsList>
 
@@ -517,6 +577,82 @@ export default function CampaignTracker() {
             </Alert>
           )}
 
+          {/* Drift Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Average Drift</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold ${driftSummary.avgDrift > 0 ? 'text-red-600' : driftSummary.avgDrift < 0 ? 'text-green-600' : 'text-gray-600'}`}>
+                  {driftSummary.avgDrift > 0 ? '+' : ''}{driftSummary.avgDrift}d
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Per completed phase</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Positive Drifts</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">{driftSummary.positiveCount}</div>
+                <p className="text-xs text-muted-foreground mt-1">Ahead of schedule</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Negative Drifts</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">{driftSummary.negativeCount}</div>
+                <p className="text-xs text-muted-foreground mt-1">Behind schedule</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">On Track</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-gray-600">{driftSummary.phasesOnTrack}</div>
+                <p className="text-xs text-muted-foreground mt-1">Within ±1 day</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Phase Drift Bar Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Phase Timeline Analysis</CardTitle>
+              <CardDescription>Planned vs actual duration for each phase</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={phaseDriftChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                      fontSize={12}
+                    />
+                    <YAxis 
+                      label={{ value: 'Days', angle: -90, position: 'insideLeft' }}
+                      fontSize={12}
+                    />
+                    <Tooltip />
+                    <Bar dataKey="planned" fill="#e5e7eb" name="Planned Days" />
+                    <Bar dataKey="actual" fill="#3b82f6" name="Actual Days" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Drift Events</CardTitle>
@@ -585,13 +721,19 @@ export default function CampaignTracker() {
                         </div>
                       )}
 
-                      {event.drift_type === 'positive' && event.template_created && (
+                      {event.drift_type === 'positive' && (
                         <div className="bg-green-50 p-3 rounded-lg">
                           <p className="text-sm">
                             <TrendingUp className="w-4 h-4 inline mr-1 text-green-600" />
                             <span className="font-medium text-green-800">💡 Success Pattern Detected</span>
                           </p>
-                          <Button size="sm" variant="outline" className="mt-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="mt-2 gap-2"
+                            onClick={() => handleSaveAsTemplate(event)}
+                          >
+                            <Save className="w-4 h-4" />
                             Save as Template
                           </Button>
                         </div>
@@ -726,58 +868,45 @@ export default function CampaignTracker() {
           </Card>
         </TabsContent>
 
+        {/* Meta Ads Dashboard Tab */}
+        <TabsContent value="meta-ads" className="space-y-4">
+          {campaign && (
+            <MetaAdsDashboard
+              campaign={campaign}
+              metaPixelId={campaign.meta_pixel_id}
+              metaAccountId={campaign.meta_ads_account_id}
+            />
+          )}
+        </TabsContent>
+
+        {/* Strategic Failure Diagnosis Tab */}
+        <TabsContent value="diagnosis" className="space-y-4">
+          {campaign && (
+            <StrategicFailureDiagnosis
+              campaign={campaign}
+              phases={phases}
+              driftEvents={driftEvents}
+              onCreateTemplate={(diagnosis) => {
+                console.log('Created failure prevention template:', diagnosis)
+                // In production, this would save the template to the database
+              }}
+            />
+          )}
+        </TabsContent>
+
         {/* AI Recommendations Tab */}
         <TabsContent value="recommendations" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>AI-Powered Recommendations</CardTitle>
-              <CardDescription>
-                Actionable suggestions based on campaign performance and drift analysis
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {AI_RECOMMENDATIONS.map((rec, i) => (
-                <div key={i} className="border rounded-lg p-4 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-                        {rec.icon}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-sm">{rec.title}</p>
-                        <p className="text-sm text-muted-foreground">{rec.description}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      {rec.category}
-                    </Badge>
-                    <Badge
-                      variant={rec.impact === 'high' ? 'default' : 'secondary'}
-                      className={rec.impact === 'high' ? 'bg-green-600' : ''}
-                    >
-                      {rec.impact} impact
-                    </Badge>
-                    <Badge
-                      variant={rec.effort === 'low' ? 'default' : 'secondary'}
-                      className={rec.effort === 'low' ? 'bg-blue-600' : ''}
-                    >
-                      {rec.effort} effort
-                    </Badge>
-                    <div className="flex-1" />
-                    <Button size="sm" variant="outline">
-                      Apply
-                    </Button>
-                    <Button size="sm" variant="ghost">
-                      Dismiss
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          {campaign && (
+            <AIRecommendationsEngine
+              campaign={campaign}
+              phases={phases}
+              driftEvents={driftEvents}
+              onApplyRecommendation={(recommendation) => {
+                console.log('Applied recommendation:', recommendation)
+                // In production, this would trigger actual campaign modifications
+              }}
+            />
+          )}
         </TabsContent>
       </Tabs>
     </div>

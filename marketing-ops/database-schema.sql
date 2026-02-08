@@ -1,5 +1,25 @@
 -- Marketing Ops Tracking System - Database Schema
 -- Phase 1: Core Tables for Full Functionality
+--
+-- USAGE: Run this entire file in the Supabase SQL Editor.
+-- It will drop all existing tables and recreate them from scratch.
+-- Then run seed-data.sql to populate with demo data.
+
+-- ============================================================================
+-- DROP EXISTING TABLES (clean slate)
+-- ============================================================================
+DROP TABLE IF EXISTS performance_metrics CASCADE;
+DROP TABLE IF EXISTS strategic_failures CASCADE;
+DROP TABLE IF EXISTS campaign_templates CASCADE;
+DROP TABLE IF EXISTS override_events CASCADE;
+DROP TABLE IF EXISTS recommendations CASCADE;
+DROP TABLE IF EXISTS stakeholder_actions CASCADE;
+DROP TABLE IF EXISTS risk_scores CASCADE;
+DROP TABLE IF EXISTS drift_events CASCADE;
+DROP TABLE IF EXISTS execution_phases CASCADE;
+DROP TABLE IF EXISTS team_capacity CASCADE;
+DROP TABLE IF EXISTS campaigns CASCADE;
+DROP TABLE IF EXISTS team_members CASCADE;
 
 -- ============================================================================
 -- 1. CAMPAIGNS TABLE
@@ -139,7 +159,17 @@ CREATE TABLE drift_events (
   -- Performance Impact
   performance_impact TEXT CHECK (performance_impact IN ('positive', 'negative', 'neutral', 'unknown')),
   cost_impact DECIMAL(10,2), -- Additional cost incurred due to drift
-  
+
+  -- Phase Timeline Context (denormalized for easy querying per phase)
+  phase_name TEXT,
+  planned_duration INTEGER,
+  actual_duration INTEGER,
+  root_cause TEXT,
+  attribution TEXT, -- Who/what caused the drift
+  impact_on_timeline TEXT,
+  actionable_insight TEXT,
+  template_worthy BOOLEAN DEFAULT FALSE,
+
   recorded_by TEXT, -- Who recorded this drift event
   recorded_at TIMESTAMPTZ DEFAULT NOW()
 );

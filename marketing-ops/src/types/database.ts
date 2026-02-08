@@ -8,6 +8,8 @@ import type {
   DriftEvent as DriftEventRow,
 } from './phase'
 
+export type DriftEvent = DriftEventRow
+
 // Additional database table types
 export interface RiskScore {
   id: string
@@ -78,6 +80,46 @@ export interface StakeholderAction {
   logged_at?: string
 }
 
+export interface OverrideEvent {
+  id: string
+  campaign_id: string
+  created_at: string
+  override_type: 'gate_decision' | 'timeline' | 'budget' | 'resource'
+  original_recommendation: 'proceed' | 'adjust' | 'pause'
+  user_action: 'proceed' | 'adjust' | 'pause'
+  reason: string
+  system_confidence?: number
+  risk_score_at_time?: number
+  outcome?: 'success' | 'failure' | 'partial_success'
+  outcome_explanation?: string
+  lesson_learned?: string
+  system_was_correct?: boolean
+  overridden_by?: string
+  reviewed_at?: string
+  reviewer_notes?: string
+}
+
+export interface CampaignTemplate {
+  id: string
+  created_at: string
+  name: string
+  description: string
+  source_campaign_id?: string
+  source_campaign_name?: string
+  success_metrics?: string
+  default_phases?: Record<string, unknown>
+  recommended_timeline_days?: number
+  suitable_campaign_types?: string[]
+  suitable_industries?: string[]
+  times_used?: number
+  success_rate?: number
+  key_success_factors?: string[]
+  created_by?: string
+  is_public?: boolean
+  status?: 'active' | 'archived' | 'draft'
+  last_used_at?: string
+}
+
 export interface TeamMember {
   id: string
   created_at: string
@@ -92,6 +134,22 @@ export interface TeamMember {
   start_date?: string
   preferred_campaign_types?: string[]
   max_concurrent_campaigns?: number
+}
+
+export interface TeamCapacity {
+  id: string
+  created_at: string
+  updated_at: string
+  team_member_id: string
+  campaign_id: string
+  phase_id?: string
+  allocated_hours: number
+  week_starting: string
+  actual_hours?: number
+  utilization_percentage?: number
+  allocation_status?: 'planned' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
+  notes?: string
+  campaigns?: { id: string; name: string } // For join data
 }
 
 export interface PerformanceMetric {
@@ -163,10 +221,25 @@ export type Database = {
         Insert: Omit<StakeholderAction, 'id' | 'created_at'> & Record<string, unknown>
         Update: Partial<Omit<StakeholderAction, 'id' | 'created_at'>> & Record<string, unknown>
       }
+      override_events: {
+        Row: OverrideEvent
+        Insert: Omit<OverrideEvent, 'id' | 'created_at'> & Record<string, unknown>
+        Update: Partial<Omit<OverrideEvent, 'id' | 'created_at'>> & Record<string, unknown>
+      }
+      campaign_templates: {
+        Row: CampaignTemplate
+        Insert: Omit<CampaignTemplate, 'id' | 'created_at'> & Record<string, unknown>
+        Update: Partial<Omit<CampaignTemplate, 'id' | 'created_at'>> & Record<string, unknown>
+      }
       team_members: {
         Row: TeamMember
         Insert: Omit<TeamMember, 'id' | 'created_at'> & Record<string, unknown>
         Update: Partial<Omit<TeamMember, 'id' | 'created_at'>> & Record<string, unknown>
+      }
+      team_capacity: {
+        Row: TeamCapacity
+        Insert: Omit<TeamCapacity, 'id' | 'created_at' | 'updated_at'> & Record<string, unknown>
+        Update: Partial<Omit<TeamCapacity, 'id' | 'created_at' | 'updated_at'>> & Record<string, unknown>
       }
       performance_metrics: {
         Row: PerformanceMetric

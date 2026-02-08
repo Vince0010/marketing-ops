@@ -4,32 +4,36 @@ import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Users, Calendar, AlertCircle, TrendingUp, Clock, UserX } from 'lucide-react'
+import { Users, AlertCircle, TrendingUp, Clock, UserX } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
-interface TeamMember {
+interface TeamMemberRow {
   id: string
   name: string
   role: string
-  email: string
-  utilization_target: number
+  email?: string
+  department?: string
+  weekly_capacity_hours?: number
+  status?: string
 }
 
-interface TeamCapacity {
+interface TeamCapacityRow {
   id: string
-  member_id: string
+  team_member_id: string
+  campaign_id: string
+  phase_id?: string
   week_starting: string
-  total_hours_available: number
-  hours_allocated: number
-  utilization_percentage: number
-  is_overloaded: boolean
-  campaign_assignments: string[]
-  member?: TeamMember
+  allocated_hours: number
+  actual_hours?: number
+  utilization_percentage?: number
+  allocation_status?: string
+  notes?: string
+  team_members?: TeamMemberRow
+  campaigns?: { id: string; name: string }
 }
 
 export default function TeamCapacity() {
-  const [teamCapacity, setTeamCapacity] = useState<TeamCapacity[]>([])
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
+  const [teamCapacity, setTeamCapacity] = useState<TeamCapacityRow[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -38,28 +42,17 @@ export default function TeamCapacity() {
 
   const fetchTeamData = async () => {
     try {
-      const [capacityRes, membersRes] = await Promise.all([
-        supabase
-          .from('team_capacity')
-          .select(`
-            *,
-            team_members (*)
-          `)
-          .order('utilization_percentage', { ascending: false }),
-        supabase
-          .from('team_members')
-          .select('*')
-          .order('name')
-      ])
+      const capacityRes = await supabase
+        .from('team_capacity')
+        .select(`
+          *,
+          team_members (*),
+          campaigns (id, name)
+        `)
+        .order('allocated_hours', { ascending: false })
 
       if (capacityRes.data) {
-        setTeamCapacity(capacityRes.data.map(item => ({
-          ...item,
-          member: item.team_members
-        })))
-      }
-      if (membersRes.data) {
-        setTeamMembers(membersRes.data)
+        setTeamCapacity(capacityRes.data)
       }
     } catch (error) {
       console.error('Error fetching team data:', error)
@@ -80,8 +73,8 @@ export default function TeamCapacity() {
     return 'border-green-200 bg-green-50'
   }
 
-  const getUtilizationBadge = (utilization: number, isOverloaded?: boolean) => {
-    if (isOverloaded) {
+  const getUtilizationBadge = (utilization: number) => {
+    if (utilization >= 100) {
       return <Badge variant="destructive" className="text-xs">Overloaded</Badge>
     }
     if (utilization >= 90) {
@@ -95,11 +88,11 @@ export default function TeamCapacity() {
 
   // Calculate summary stats
   const totalMembers = teamCapacity.length
-  const avgUtilization = totalMembers > 0 
-    ? teamCapacity.reduce((sum, tc) => sum + tc.utilization_percentage, 0) / totalMembers 
+  const avgUtilization = totalMembers > 0
+    ? teamCapacity.reduce((sum, tc) => sum + (tc.utilization_percentage || 0), 0) / totalMembers
     : 0
-  const overloadedCount = teamCapacity.filter(tc => tc.is_overloaded).length
-  const totalHours = teamCapacity.reduce((sum, tc) => sum + tc.hours_allocated, 0)
+  const overloadedCount = teamCapacity.filter(tc => (tc.utilization_percentage || 0) >= 100).length
+  const totalHours = teamCapacity.reduce((sum, tc) => sum + tc.allocated_hours, 0)
 
   if (loading) {
     return (
@@ -209,83 +202,85 @@ export default function TeamCapacity() {
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {teamCapacity.map((tc) => (
-              <div 
-                key={tc.id} 
-                className={`border rounded-lg p-4 ${getUtilizationBg(tc.utilization_percentage)}`}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      <AvatarFallback>
-                        {tc.member?.name
-                          .split(' ')
-                          .map((n) => n[0])
-                          .join('')
-                          .toUpperCase() || 'TM'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <h3 className="font-semibold">{tc.member?.name || 'Unknown Member'}</h3>
-                      <p className="text-sm text-muted-foreground">{tc.member?.role}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    {getUtilizationBadge(tc.utilization_percentage, tc.is_overloaded)}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Utilization</span>
-                    <span className={`font-semibold ${getUtilizationColor(tc.utilization_percentage)}`}>
-                      {tc.utilization_percentage.toFixed(0)}%
-                    </span>
-                  </div>
-                  
-                  <Progress 
-                    value={tc.utilization_percentage} 
-                    className={`h-2 ${tc.utilization_percentage >= 90 ? '[&>div]:bg-red-500' : tc.utilization_percentage >= 80 ? '[&>div]:bg-yellow-500' : '[&>div]:bg-green-500'}`}
-                  />
-
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Hours Allocated</span>
-                      <p className="font-medium">{tc.hours_allocated}h / {tc.total_hours_available}h</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Target Utilization</span>
-                      <p className="font-medium">{tc.member?.utilization_target || 85}%</p>
-                    </div>
-                  </div>
-
-                  {tc.campaign_assignments && tc.campaign_assignments.length > 0 && (
-                    <div>
-                      <span className="text-muted-foreground text-sm">Assigned Campaigns</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {tc.campaign_assignments.map((campaign, idx) => (
-                          <Badge key={idx} variant="outline" className="text-xs">
-                            {campaign}
-                          </Badge>
-                        ))}
+            {teamCapacity.map((tc) => {
+              const utilization = tc.utilization_percentage || 0
+              const member = tc.team_members
+              const weeklyCapacity = member?.weekly_capacity_hours || 40
+              return (
+                <div
+                  key={tc.id}
+                  className={`border rounded-lg p-4 ${getUtilizationBg(utilization)}`}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar>
+                        <AvatarFallback>
+                          {member?.name
+                            ?.split(' ')
+                            .map((n) => n[0])
+                            .join('')
+                            .toUpperCase() || 'TM'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <h3 className="font-semibold">{member?.name || 'Unknown Member'}</h3>
+                        <p className="text-sm text-muted-foreground">{member?.role}</p>
                       </div>
                     </div>
-                  )}
-
-                  {tc.is_overloaded && (
-                    <div className="mt-3 p-2 bg-red-100 border border-red-200 rounded text-sm">
-                      <div className="flex items-center gap-1 text-red-700">
-                        <AlertCircle className="w-3 h-3" />
-                        <span className="font-medium">Overload Warning</span>
-                      </div>
-                      <p className="text-red-600 text-xs mt-1">
-                        This team member is operating beyond capacity. Consider reallocating work or extending timelines.
-                      </p>
+                    <div className="text-right">
+                      {getUtilizationBadge(utilization)}
                     </div>
-                  )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Utilization</span>
+                      <span className={`font-semibold ${getUtilizationColor(utilization)}`}>
+                        {utilization.toFixed(0)}%
+                      </span>
+                    </div>
+
+                    <Progress
+                      value={Math.min(utilization, 100)}
+                      className={`h-2 ${utilization >= 90 ? '[&>div]:bg-red-500' : utilization >= 80 ? '[&>div]:bg-yellow-500' : '[&>div]:bg-green-500'}`}
+                    />
+
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Hours Allocated</span>
+                        <p className="font-medium">{tc.allocated_hours}h / {weeklyCapacity}h</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Status</span>
+                        <p className="font-medium capitalize">{tc.allocation_status || 'planned'}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Campaign</span>
+                        <p className="font-medium text-blue-600 truncate" title={tc.campaigns?.name}>
+                          {tc.campaigns?.name || 'Unknown Campaign'}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Week Starting</span>
+                        <p className="font-medium">{new Date(tc.week_starting).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+
+                    {utilization >= 100 && (
+                      <div className="mt-3 p-2 bg-red-100 border border-red-200 rounded text-sm">
+                        <div className="flex items-center gap-1 text-red-700">
+                          <AlertCircle className="w-3 h-3" />
+                          <span className="font-medium">Overload Warning</span>
+                        </div>
+                        <p className="text-red-600 text-xs mt-1">
+                          This team member is operating beyond capacity. Consider reallocating work or extending timelines.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
 
             {teamCapacity.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">

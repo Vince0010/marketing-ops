@@ -40,8 +40,8 @@ export interface Campaign {
   // Timeline
   start_date: string
   end_date: string
-  actual_launch_date?: string
-  actual_completion_date?: string
+  actual_start_date?: string
+  actual_end_date?: string
 
   // Budget
   total_budget: number
@@ -77,7 +77,7 @@ export interface Campaign {
 
   // Risk & Validation
   risk_score?: number
-  gate_decision?: 'proceed' | 'adjust' | 'pause'
+  gate_status?: 'proceed' | 'adjust' | 'pause'
   gate_overridden?: boolean
   override_reason?: string
 
@@ -87,6 +87,9 @@ export interface Campaign {
   drift_count: number
   positive_drift_count: number
   negative_drift_count: number
+
+  // Computed
+  final_cost?: number
 }
 
 export interface TargetAudience {
