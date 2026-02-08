@@ -72,7 +72,8 @@ router.post('/:campaignId/tasks', async (req: Request, res: Response) => {
             'campaign_id', 'title', 'description', 'action_type', 'status',
             'timestamp', 'metadata', 'created_by', 'phase_id',
             'estimated_hours', 'started_at', 'completed_at', 'time_in_phase_minutes',
-            'delay_reason', 'due_date', 'priority', 'assignee', 'completed_phases'
+            'delay_reason', 'due_date', 'priority', 'assignee', 'completed_phases',
+            'planned_timeline'
         ]
 
         const taskData: Record<string, unknown> = { campaign_id: campaignId }
@@ -124,7 +125,8 @@ router.patch('/:campaignId/tasks/:taskId', async (req: Request, res: Response) =
             'title', 'description', 'action_type', 'status',
             'timestamp', 'metadata', 'phase_id',
             'estimated_hours', 'started_at', 'completed_at', 'time_in_phase_minutes',
-            'delay_reason', 'due_date', 'priority', 'assignee', 'completed_phases'
+            'delay_reason', 'due_date', 'priority', 'assignee', 'completed_phases',
+            'planned_timeline'
         ]
 
         const updates: Record<string, unknown> = {}
@@ -237,11 +239,12 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
         }
 
         // Close previous phase history entry and save time_spent_minutes
+        let completedPhaseData: { phaseId: string; phaseName: string; timeSpentMinutes: number } | null = null
         if (oldPhaseId) {
             // Get the task's current time tracking to calculate total time in old phase
             const { data: currentTask } = await supabaseAdmin
                 .from('marketer_actions')
-                .select('started_at, time_in_phase_minutes, completed_phases')
+                .select('started_at, time_in_phase_minutes, completed_phases, planned_timeline')
                 .eq('id', taskId)
                 .single()
 
@@ -259,6 +262,21 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
                     timeSpentMinutes = currentTask.time_in_phase_minutes || 0
                 }
                 console.log('[API] Closing history entry with time:', timeSpentMinutes, 'minutes (elapsed since', currentTask.started_at, ')')
+
+                // Get the old phase details for drift analysis
+                const { data: oldPhaseData } = await supabaseAdmin
+                    .from('execution_phases')
+                    .select('phase_name, planned_duration_days')
+                    .eq('id', oldPhaseId)
+                    .single()
+
+                if (oldPhaseData) {
+                    completedPhaseData = {
+                        phaseId: oldPhaseId,
+                        phaseName: oldPhaseData.phase_name,
+                        timeSpentMinutes
+                    }
+                }
             }
 
             const historyUpdate: any = {
@@ -298,10 +316,10 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
             }
         }
 
-        // Get the current task data (completed_phases and time tracking)
+        // Get the current task data (completed_phases and planned_timeline for drift analysis)
         const { data: currentTaskData } = await supabaseAdmin
             .from('marketer_actions')
-            .select('completed_phases')
+            .select('completed_phases, planned_timeline')
             .eq('id', taskId)
             .single()
 
@@ -394,6 +412,81 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
             completionTiming,
             hasDelayReason: !!delayReason
         })
+
+        // Generate drift analysis for the completed phase
+        if (completedPhaseData && currentTaskData) {
+            try {
+                // Get the old phase details for drift event
+                const { data: phaseDetails } = await supabaseAdmin
+                    .from('execution_phases')
+                    .select('planned_duration_days')
+                    .eq('id', completedPhaseData.phaseId)
+                    .single()
+
+                // Try to get planned minutes from planned_timeline, or fall back to phase planned duration
+                const plannedTimeline = currentTaskData.planned_timeline as any
+                let plannedMinutes = 0
+                
+                if (plannedTimeline && plannedTimeline[completedPhaseData.phaseId]) {
+                    plannedMinutes = plannedTimeline[completedPhaseData.phaseId].planned_minutes || 0
+                } else if (phaseDetails?.planned_duration_days) {
+                    // Fall back to phase planned duration (convert days to minutes with 8-hour workdays)
+                    plannedMinutes = phaseDetails.planned_duration_days * 8 * 60
+                    console.log('[API] No planned_timeline found, using phase planned duration:', phaseDetails.planned_duration_days, 'days =', plannedMinutes, 'minutes')
+                }
+                
+                // Only create drift event if we have a planned duration to compare against
+                if (plannedMinutes > 0) {
+                    const actualMinutes = completedPhaseData.timeSpentMinutes
+                    const driftMinutes = actualMinutes - plannedMinutes
+                    const driftDays = Math.round((driftMinutes / 60) / 8 * 10) / 10 // Convert to 8-hour workdays
+                    
+                    let driftType: 'positive' | 'negative' | 'neutral' = 'neutral'
+                    if (driftMinutes < -60) driftType = 'positive' // More than 1 hour ahead
+                    else if (driftMinutes > 60) driftType = 'negative' // More than 1 hour behind
+                    
+                    const actualHours = Math.round(actualMinutes / 60 * 10) / 10
+                    const plannedHours = Math.round(plannedMinutes / 60 * 10) / 10
+
+                    const driftEvent = {
+                        campaign_id: campaignId,
+                        phase_id: completedPhaseData.phaseId,
+                        drift_days: Math.round(driftDays),
+                        drift_type: driftType,
+                        phase_name: completedPhaseData.phaseName,
+                        planned_duration: phaseDetails?.planned_duration_days || Math.round(plannedMinutes / 60 / 8),
+                        actual_duration: Math.round(actualMinutes / 60 / 8),
+                        root_cause: driftType === 'negative' && delayReason ? delayReason : null,
+                        reason: driftType === 'positive'
+                            ? `Action card completed ${Math.abs(Math.round(driftDays))} day(s) ahead of planned timeline`
+                            : driftType === 'negative'
+                            ? `Action card took ${Math.abs(Math.round(driftDays))} day(s) longer than planned`
+                            : 'Action card completed on schedule',
+                        impact_description: `Action card "${data.title}" spent ${actualHours}h in ${completedPhaseData.phaseName} phase (planned: ${plannedHours}h)`,
+                    }
+                    
+                    const { error: driftError } = await supabaseAdmin
+                        .from('drift_events')
+                        .insert([driftEvent])
+                    
+                    if (driftError) {
+                        console.error('[API] Error creating drift event:', driftError)
+                    } else {
+                        console.log('[API] Created drift event for phase:', completedPhaseData.phaseName, {
+                            plannedMinutes,
+                            actualMinutes,
+                            driftMinutes,
+                            driftDays,
+                            driftType
+                        })
+                    }
+                } else {
+                    console.log('[API] Skipping drift event generation - no planned duration available for phase:', completedPhaseData.phaseName)
+                }
+            } catch (driftError) {
+                console.error('[API] Error generating drift analysis:', driftError)
+            }
+        }
 
         // Broadcast to SSE clients
         sseService.broadcast(campaignId, 'task-moved', data)

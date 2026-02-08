@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -6,41 +6,15 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts'
 import {
   Activity,
   TrendingUp,
   TrendingDown,
   AlertTriangle,
-  Play,
-  CheckCircle2,
   Clock,
-  ArrowRight,
   ArrowDown,
   ArrowUp,
-  Zap,
   BarChart3,
-  Save,
   Kanban,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -50,7 +24,6 @@ import { ObservationModeBadge } from '@/components/ObservationModeBadge'
 import { DemographicAlignmentTracker } from '@/components/demographics/DemographicAlignmentTracker'
 import { useCampaignExecution } from '@/hooks/useCampaignExecution'
 import { cn } from '@/lib/utils'
-import { saveTemplate } from '@/lib/templates'
 import {
   DEMO_AGE_DATA,
   DEMO_FIT_SCORE,
@@ -76,8 +49,6 @@ type CalculatedDriftEvent = Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' |
   elapsed_days?: number
   remaining_days?: number
 }
-
-type DriftFilterValue = 'all' | 'positive' | 'negative' | 'neutral' | 'projected'
 
 interface StakeholderAction {
   id: string
@@ -157,16 +128,12 @@ export default function CampaignTracker() {
   const { id } = useParams<{ id: string }>()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [loading, setLoading] = useState(true)
-  // Drift classification filter
-  const [driftFilter, setDriftFilter] = useState<DriftFilterValue>('all')
   // Tick state for live drift recalculation (every 60s)
   const [driftTick, setDriftTick] = useState(0)
-  // Save as Template (positive drift)
-  const [saveTemplateEventIndex, setSaveTemplateEventIndex] = useState<number | null>(null)
-  const [templateName, setTemplateName] = useState('')
-  const [templateDescription, setTemplateDescription] = useState('')
   // Override event for learning loop
-  const [overrideEvent, setOverrideEvent] = useState<OverrideEvent | null>(null)
+  const [, setOverrideEvent] = useState<OverrideEvent | null>(null)
+  // Database drift events (action card drift)
+  const [dbDriftEvents, setDbDriftEvents] = useState<DriftEvent[]>([])
 
   // Get execution data from hook
   const execution = useCampaignExecution(id || '')
@@ -295,21 +262,12 @@ export default function CampaignTracker() {
     [] // Don't pass driftEvents here - the hook fetches drift_events from DB
   )
 
-  // Helper to get tasks for a specific phase
-  const getTasksForPhase = (phaseId: string | null) => {
-    return tasks.filter(t => t.phase_id === phaseId)
-  }
-
-  useEffect(() => {
-    fetchData()
-  }, [id])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const { data } = await supabase.from('campaigns').select('*').eq('id', id).single()
       if (data) {
         setCampaign(data)
-        
+
         // Fetch override event if campaign has override
         if (data.gate_overridden) {
           const { data: override } = await supabase
@@ -319,7 +277,7 @@ export default function CampaignTracker() {
             .order('created_at', { ascending: false })
             .limit(1)
             .single()
-          
+
           if (override) setOverrideEvent(override as OverrideEvent)
         }
       }
@@ -328,6 +286,40 @@ export default function CampaignTracker() {
     } finally {
       setLoading(false)
     }
+  }, [id])
+
+  const fetchDriftEvents = useCallback(async () => {
+    if (!id) return
+    try {
+      const { data, error } = await supabase
+        .from('drift_events')
+        .select('*')
+        .eq('campaign_id', id)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setDbDriftEvents(data || [])
+      console.log('[CampaignTracker] Loaded drift events from database:', data?.length || 0)
+    } catch (error) {
+      console.error('[CampaignTracker] Error loading drift events:', error)
+    }
+  }, [id])
+
+  useEffect(() => {
+    fetchData()
+    fetchDriftEvents()
+  }, [id, fetchData, fetchDriftEvents])
+
+  // Refetch drift events whenever tasks change (after moves, status changes, etc.)
+  useEffect(() => {
+    if (id && tasks.length > 0) {
+      fetchDriftEvents()
+    }
+  }, [tasks, id, fetchDriftEvents])
+
+  const handleRefreshDriftAnalysis = async () => {
+    await refetchExecution()
+    await fetchDriftEvents()
   }
 
   const handleStartPhase = async (phaseId: string) => {
@@ -446,57 +438,6 @@ export default function CampaignTracker() {
   }
 
   const { operational: operationalHealth, performance: performanceHealth, totalDrift } = calculateHealthIndicators()
-
-  const handleSaveAsTemplate = async (driftEvent: Partial<DriftEvent> & Pick<DriftEvent, 'drift_type' | 'drift_days' | 'phase_name' | 'lesson_learned'>) => {
-    try {
-      if (!campaign) return
-
-      const templateData = {
-        name: `${campaign.campaign_type.replace(/_/g, ' ')} Template - ${driftEvent.lesson_learned?.substring(0, 30)}...`,
-        description: `Template created from successful campaign: ${campaign.name}. Key success: ${driftEvent.lesson_learned}`,
-        source_campaign_id: campaign.id,
-        source_campaign_name: campaign.name,
-        success_metrics: `${driftEvent.drift_type} drift of ${Math.abs(driftEvent.drift_days)} days in ${driftEvent.phase_name}`,
-        default_phases: JSON.stringify(phases.map(p => ({
-          phase_name: p.phase_name,
-          duration: p.planned_duration_days,
-          type: p.phase_type
-        }))),
-        recommended_timeline_days: phases.reduce((sum, p) => sum + p.planned_duration_days, 0),
-        suitable_campaign_types: [campaign.campaign_type],
-        suitable_industries: campaign.industry ? [campaign.industry] : undefined,
-        times_used: 0,
-        success_rate: 0.85,
-        key_success_factors: [driftEvent.lesson_learned || 'Process optimization'],
-        created_by: 'current_user',
-        is_public: true,
-        status: 'active'
-      }
-
-      await supabase.from('campaign_templates').insert(templateData)
-      console.log('Template saved successfully')
-    } catch (error) {
-      console.error('Error saving template:', error)
-    }
-  }
-
-  // Prepare phase drift chart data
-  const phaseDriftChartData = phases.map((phase) => ({
-    name: phase.phase_name,
-    planned: phase.planned_duration_days,
-    actual: phase.actual_duration_days || phase.planned_duration_days,
-    phase_number: phase.phase_number
-  }))
-
-  // Calculate drift summary stats
-  const driftSummary = {
-    avgDrift: phases.filter(p => p.drift_days != null).length > 0
-      ? Math.round(phases.filter(p => p.drift_days != null).reduce((sum, p) => sum + (p.drift_days || 0), 0) / phases.filter(p => p.drift_days != null).length * 10) / 10
-      : 0,
-    positiveCount: driftEvents.filter(d => d.drift_type === 'positive').length,
-    negativeCount: driftEvents.filter(d => d.drift_type === 'negative').length,
-    phasesOnTrack: phases.filter(p => Math.abs(p.drift_days || 0) <= 1).length
-  }
 
   if (loading || executionLoading) {
     return (
@@ -670,12 +611,6 @@ export default function CampaignTracker() {
                 {id && <KanbanBoard campaignId={id} externalData={execution} />}
               </CardContent>
             </Card>
-
-            {/* Action Card Drift Analysis */}
-            <ActionCardDriftPanel 
-              driftAnalyses={actionCardDrifts}
-              loading={executionLoading}
-            />
           </TabsContent>
 
           {/* Override Learning Tab */}
@@ -693,310 +628,95 @@ export default function CampaignTracker() {
 
           {/* Drift Analysis Tab */}
           <TabsContent value="drift" className="space-y-4 mt-4">
-            {totalDrift > 2 && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Significant Timeline Drift</AlertTitle>
-                <AlertDescription>
-                  Total drift of +{totalDrift} days detected. Review root causes below and consider timeline adjustment.
-                </AlertDescription>
-              </Alert>
-            )}
+            {/* Ad Deliverable Drift Analysis (per action card, calculated from history) */}
+            <ActionCardDriftPanel
+              driftAnalyses={actionCardDrifts}
+              loading={executionLoading}
+              onRefresh={handleRefreshDriftAnalysis}
+            />
 
-            {/* Drift Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Database Drift Events (generated on phase transitions) */}
+            {dbDriftEvents.length > 0 && (
               <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium">Average Drift</CardTitle>
+                <CardHeader>
+                  <CardTitle>Phase Transition Drift Events</CardTitle>
+                  <CardDescription>
+                    Drift recorded each time an ad deliverable completes a phase
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className={`text-2xl font-bold ${driftSummary.avgDrift > 0 ? 'text-expedition-checkpoint' : driftSummary.avgDrift < 0 ? 'text-expedition-evergreen' : 'text-muted-foreground'}`}>
-                    {driftSummary.avgDrift > 0 ? '+' : ''}{driftSummary.avgDrift}d
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">Per completed phase</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium">Positive Drifts</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-expedition-evergreen">{driftSummary.positiveCount}</div>
-                  <p className="text-xs text-muted-foreground mt-1">Ahead of schedule</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium">Negative Drifts</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-expedition-checkpoint">{driftSummary.negativeCount}</div>
-                  <p className="text-xs text-muted-foreground mt-1">Behind schedule</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium">On Track</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-muted-foreground">{driftSummary.phasesOnTrack}</div>
-                  <p className="text-xs text-muted-foreground mt-1">Within +/-1 day</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Phase Drift Bar Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Phase Timeline Analysis</CardTitle>
-                <CardDescription>Planned vs actual duration for each phase</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={phaseDriftChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="name"
-                        angle={-45}
-                        textAnchor="end"
-                        height={80}
-                        fontSize={12}
-                      />
-                      <YAxis
-                        label={{ value: 'Days', angle: -90, position: 'insideLeft' }}
-                        fontSize={12}
-                      />
-                      <Tooltip />
-                      <Bar dataKey="planned" fill="#e5e7eb" name="Planned Days" />
-                      <Bar dataKey="actual" fill="#3b82f6" name="Actual Days" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Drift Events</CardTitle>
-                <CardDescription>Track deviations from planned timeline. Filter by sentiment to spot patterns.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Drift classification summary */}
-                {(() => {
-                  const positiveCount = driftEvents.filter((e) => e.drift_type === 'positive').length
-                  const negativeCount = driftEvents.filter((e) => e.drift_type === 'negative').length
-                  const neutralCount = driftEvents.filter((e) => e.drift_type === 'neutral').length
-                  const projectedCount = driftEvents.filter((e) => e.projected).length
-                  return (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium text-muted-foreground">Summary:</span>
-                      <Badge variant="outline" className="bg-expedition-evergreen/10 text-expedition-evergreen border-expedition-evergreen/40">
-                        {positiveCount} Positive
-                      </Badge>
-                      <Badge variant="outline" className="bg-expedition-checkpoint/10 text-expedition-checkpoint border-expedition-checkpoint/40">
-                        {negativeCount} Negative
-                      </Badge>
-                      <Badge variant="outline" className="bg-muted text-muted-foreground border-border">
-                        {neutralCount} Neutral
-                      </Badge>
-                      {projectedCount > 0 && (
-                        <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-400/40 dark:bg-blue-950/30 dark:text-blue-400">
-                          {projectedCount} Live
-                        </Badge>
-                      )}
-                    </div>
-                  )
-                })()}
-
-                {/* Filter buttons */}
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant={driftFilter === 'all' ? 'default' : 'outline'}
-                    onClick={() => setDriftFilter('all')}
-                  >
-                    All
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={driftFilter === 'positive' ? 'default' : 'outline'}
-                    className={driftFilter === 'positive' ? 'bg-expedition-evergreen hover:bg-expedition-evergreen/90' : ''}
-                    onClick={() => setDriftFilter('positive')}
-                  >
-                    Positive
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={driftFilter === 'negative' ? 'default' : 'outline'}
-                    className={driftFilter === 'negative' ? 'bg-expedition-checkpoint hover:bg-expedition-checkpoint/90' : ''}
-                    onClick={() => setDriftFilter('negative')}
-                  >
-                    Negative
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={driftFilter === 'neutral' ? 'default' : 'outline'}
-                    className={driftFilter === 'neutral' ? 'bg-expedition-slate hover:bg-expedition-slate/90' : ''}
-                    onClick={() => setDriftFilter('neutral')}
-                  >
-                    Neutral
-                  </Button>
-                  {driftEvents.some(d => d.projected) && (
-                    <Button
-                      size="sm"
-                      variant={driftFilter === 'projected' ? 'default' : 'outline'}
-                      className={driftFilter === 'projected' ? 'bg-blue-500 hover:bg-blue-600' : ''}
-                      onClick={() => setDriftFilter('projected')}
-                    >
-                      Live ({driftEvents.filter(d => d.projected).length})
-                    </Button>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  {driftEvents.filter(
-                    (event) => driftFilter === 'all' || event.drift_type === driftFilter || (driftFilter === 'projected' && event.projected)
-                  ).map((event, idx) => {
-                    const isPositive = event.drift_type === 'positive'
-                    const isNegative = event.drift_type === 'negative'
-                    const isNeutral = event.drift_type === 'neutral'
-                    const isProjected = event.projected
-                    const cardBorder = isProjected
-                      ? 'border-dashed border-blue-400/50 bg-blue-50/30 dark:bg-blue-950/20'
-                      : isPositive
+                  <div className="space-y-3">
+                    {dbDriftEvents.map((event) => {
+                      const isPositive = event.drift_type === 'positive'
+                      const isNegative = event.drift_type === 'negative'
+                      const cardBorder = isPositive
                         ? 'border-expedition-evergreen/40 bg-expedition-evergreen/10'
                         : isNegative
                           ? 'border-expedition-checkpoint/40 bg-expedition-checkpoint/10'
                           : 'border-border bg-muted/50'
-                    return (
-                      <div key={idx} className={cn('border-2 rounded-lg p-4 space-y-3', cardBorder)}>
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-2">
-                            {isProjected ? (
-                              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                                <Activity className="w-4 h-4 text-blue-500" />
-                              </div>
-                            ) : isNegative ? (
-                              <div className="w-8 h-8 rounded-full bg-expedition-checkpoint/20 flex items-center justify-center">
-                                <ArrowUp className="w-4 h-4 text-expedition-checkpoint" />
-                              </div>
-                            ) : isPositive ? (
-                              <div className="w-8 h-8 rounded-full bg-expedition-evergreen/20 flex items-center justify-center">
-                                <ArrowDown className="w-4 h-4 text-expedition-evergreen" />
-                              </div>
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                                <Clock className="w-4 h-4 text-muted-foreground" />
-                              </div>
-                            )}
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <p className="font-semibold text-sm">{event.phase_name}</p>
-                                {isProjected && (
-                                  <Badge variant="outline" className="text-blue-600 border-blue-400 text-xs dark:text-blue-400 dark:border-blue-500">
-                                    <Clock className="w-3 h-3 mr-1" /> Live
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                Planned: {event.planned_duration}d | {isProjected ? 'Elapsed' : 'Actual'}: {event.actual_duration}d
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end gap-1">
-                            <Badge
-                              variant={isProjected ? 'outline' : isNegative ? 'destructive' : isPositive ? 'default' : 'secondary'}
-                              className={cn(
-                                isPositive && !isProjected && 'bg-expedition-evergreen',
-                                isProjected && isNegative && 'text-red-600 border-red-400 dark:text-red-400',
-                                isProjected && isPositive && 'text-green-600 border-green-400 dark:text-green-400',
-                                isProjected && isNeutral && 'text-blue-600 border-blue-400 dark:text-blue-400',
+                      return (
+                        <div key={event.id} className={cn('border-2 rounded-lg p-4 space-y-2', cardBorder)}>
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-2">
+                              {isNegative ? (
+                                <div className="w-8 h-8 rounded-full bg-expedition-checkpoint/20 flex items-center justify-center">
+                                  <ArrowUp className="w-4 h-4 text-expedition-checkpoint" />
+                                </div>
+                              ) : isPositive ? (
+                                <div className="w-8 h-8 rounded-full bg-expedition-evergreen/20 flex items-center justify-center">
+                                  <ArrowDown className="w-4 h-4 text-expedition-evergreen" />
+                                </div>
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                                  <Clock className="w-4 h-4 text-muted-foreground" />
+                                </div>
                               )}
-                            >
-                              {event.drift_days > 0 ? '+' : ''}{event.drift_days}d
-                              {isPositive && ' ahead'}
-                              {isNegative && ' behind'}
-                              {isNeutral && ' on time'}
-                            </Badge>
-                            {isProjected && event.remaining_days !== undefined && (
-                              <span className={cn(
-                                "text-xs",
-                                event.remaining_days > 0 ? "text-blue-500" : "text-red-500"
-                              )}>
-                                {event.remaining_days > 0
-                                  ? `${event.remaining_days}d remaining`
-                                  : `${Math.abs(event.remaining_days)}d over budget`}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <Separator />
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">{isProjected ? 'Delay Reasons' : 'Root Cause'}</span>
-                            <p className="font-medium">{event.root_cause}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Attribution</span>
-                            <p className="font-medium">{event.attribution}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">{isProjected ? 'Projected Impact' : 'Impact'}</span>
-                            <p className="font-medium">{event.impact_on_timeline}</p>
-                          </div>
-                          {!isProjected && (
-                            <div>
-                              <span className="text-muted-foreground">Lesson Learned</span>
-                              <p className="font-medium">{event.lesson_learned}</p>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-semibold text-sm">{event.phase_name}</p>
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      isPositive && 'border-expedition-evergreen text-expedition-evergreen',
+                                      isNegative && 'border-expedition-checkpoint text-expedition-checkpoint'
+                                    )}
+                                  >
+                                    {event.drift_days > 0 ? '+' : ''}{event.drift_days}d
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  Recorded: {formatDate(event.created_at || '')}
+                                </p>
+                              </div>
                             </div>
-                          )}
+                          </div>
+
+                          <div className="text-sm space-y-2">
+                            <p className="text-muted-foreground">{event.impact_description}</p>
+                            {event.reason && (
+                              <p className="text-foreground"><span className="font-medium">Reason:</span> {event.reason}</p>
+                            )}
+                            {event.root_cause && (
+                              <p className="text-foreground"><span className="font-medium">Root Cause:</span> {event.root_cause}</p>
+                            )}
+                            <div className="grid grid-cols-2 gap-2 pt-2 text-xs">
+                              <div>
+                                <span className="text-muted-foreground">Planned:</span>
+                                <span className="ml-1 font-medium">{event.planned_duration}d</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Actual:</span>
+                                <span className="ml-1 font-medium">{event.actual_duration}d</span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-
-                        {event.actionable_insight && (
-                          <div className={cn(
-                            "p-3 rounded-lg border",
-                            isProjected
-                              ? "bg-blue-50/50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
-                              : "bg-expedition-trail/10 border-expedition-trail/20"
-                          )}>
-                            <p className="text-sm">
-                              <Zap className={cn("w-4 h-4 inline mr-1", isProjected ? "text-blue-500" : "text-expedition-trail")} />
-                              <span className="font-medium text-expedition-navy dark:text-white">Insight:</span>{' '}
-                              <span className="text-foreground">{event.actionable_insight}</span>
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Save as Template - positive completed drift only */}
-                        {isPositive && !isProjected && (
-                          <div className="bg-expedition-evergreen/10 p-3 rounded-lg border border-expedition-evergreen/20">
-                            <p className="text-sm">
-                              <TrendingUp className="w-4 h-4 inline mr-1 text-expedition-evergreen" />
-                              <span className="font-medium text-expedition-evergreen">Success Pattern Detected</span>
-                            </p>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="mt-2 gap-2"
-                              onClick={() => handleSaveAsTemplate(event)}
-                            >
-                              <Save className="w-4 h-4" />
-                              Save as Template
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Correlation Analysis Tab */}
@@ -1182,76 +902,6 @@ export default function CampaignTracker() {
 
         </Tabs>
 
-        {/* Save as Template dialog (from positive drift) */}
-        <Dialog
-          open={saveTemplateEventIndex !== null}
-          onOpenChange={(open) => {
-            if (!open) {
-              setSaveTemplateEventIndex(null)
-              setTemplateName('')
-              setTemplateDescription('')
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Create template from success</DialogTitle>
-              <DialogDescription>
-                Save this positive drift as a reusable template. Phase structure, durations, and lessons will be available for new campaigns.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="template-name">Template name</Label>
-                <Input
-                  id="template-name"
-                  placeholder="e.g. Campaign Setup - Reuse"
-                  value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="template-desc">Description</Label>
-                <Textarea
-                  id="template-desc"
-                  placeholder="What made this successful? When to use?"
-                  rows={3}
-                  value={templateDescription}
-                  onChange={(e) => setTemplateDescription(e.target.value)}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSaveTemplateEventIndex(null)
-                  setTemplateName('')
-                  setTemplateDescription('')
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="bg-expedition-evergreen hover:bg-expedition-evergreen/90 gap-1.5"
-                onClick={() => {
-                  const event = saveTemplateEventIndex != null ? driftEvents[saveTemplateEventIndex] : null
-                  saveTemplate({
-                    name: templateName.trim() || 'Untitled template',
-                    description: templateDescription.trim(),
-                    sourcePhaseName: event?.phase_name,
-                  })
-                  setSaveTemplateEventIndex(null)
-                  setTemplateName('')
-                  setTemplateDescription('')
-                }}
-              >
-                <Save className="w-4 h-4" />
-                Save template
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </div>
   )

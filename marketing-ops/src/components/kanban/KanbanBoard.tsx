@@ -190,6 +190,21 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
 
         const movingForward = isForwardMove(oldPhaseId, newPhaseId)
 
+        // Prevent skipping phases when moving forward
+        if (movingForward && oldPhaseId && newPhaseId) {
+            const oldPhase = phases.find(p => p.id === oldPhaseId)
+            const newPhase = phases.find(p => p.id === newPhaseId)
+            
+            if (oldPhase && newPhase) {
+                const phaseDiff = newPhase.phase_number - oldPhase.phase_number
+                if (phaseDiff > 1) {
+                    // User is trying to skip phases
+                    alert(`Cannot skip phases. Please move the card sequentially through each phase.\n\nCurrent phase: ${oldPhase.phase_name} (${oldPhase.phase_number})\nTarget phase: ${newPhase.phase_name} (${newPhase.phase_number})\n\nPlease move to phase ${oldPhase.phase_number + 1} first.`)
+                    return
+                }
+            }
+        }
+
         // Check if moving BACKWARD to a previously completed phase
         if (!movingForward && newPhaseId && task.completed_phases?.includes(newPhaseId)) {
             // Get the phase name and previous time spent

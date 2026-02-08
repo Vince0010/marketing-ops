@@ -271,7 +271,15 @@ export function ActionCard({ task, phase, onClick, isDragging, onEdit, onDelete 
                     <span>{formatTime(timeSpentMinutes)} in phase</span>
                 </div>
             )}
-
+            {/* Completed Phases Count Badge */}
+            {task.completed_phases && task.completed_phases.length > 0 && (
+                <div className="mb-2 px-2 py-1 bg-green-50 dark:bg-green-900/20 rounded text-xs flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3 h-3 text-green-600 dark:text-green-400" />
+                    <span className="text-green-700 dark:text-green-300 font-medium">
+                        {task.completed_phases.length} {task.completed_phases.length === 1 ? 'phase' : 'phases'} completed
+                    </span>
+                </div>
+            )}
             {/* Delay reason indicator */}
             {task.delay_reason && (
                 <div className="flex items-start gap-1.5 mb-2 px-2 py-1.5 bg-amber-50 dark:bg-amber-900/20 rounded text-xs text-amber-700 dark:text-amber-400">

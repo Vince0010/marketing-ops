@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { TrendingUp, TrendingDown, Minus, Clock, Facebook, Instagram, MonitorPlay, Linkedin, Twitter, Youtube } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { TrendingUp, TrendingDown, Minus, Clock, Facebook, Instagram, MonitorPlay, Linkedin, Twitter, Youtube, RefreshCw } from 'lucide-react'
 import type { ActionCardDriftAnalysis } from '@/types/actions'
 import { formatMinutes, getDriftStatusColor, getDriftStatusBadgeColor } from '@/utils/actionCardDrift'
 import { cn } from '@/lib/utils'
@@ -8,6 +9,7 @@ import { cn } from '@/lib/utils'
 interface ActionCardDriftPanelProps {
     driftAnalyses: ActionCardDriftAnalysis[]
     loading?: boolean
+    onRefresh?: () => void
 }
 
 const platformIcons: Record<string, typeof Facebook> = {
@@ -19,7 +21,7 @@ const platformIcons: Record<string, typeof Facebook> = {
     youtube: Youtube,
 }
 
-export function ActionCardDriftPanel({ driftAnalyses, loading }: ActionCardDriftPanelProps) {
+export function ActionCardDriftPanel({ driftAnalyses, loading, onRefresh }: ActionCardDriftPanelProps) {
     if (loading) {
         return (
             <Card>
@@ -40,13 +42,41 @@ export function ActionCardDriftPanel({ driftAnalyses, loading }: ActionCardDrift
         return (
             <Card>
                 <CardHeader>
-                    <CardTitle>Ad Deliverable Drift Analysis</CardTitle>
-                    <CardDescription>No action cards with planned timelines found</CardDescription>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle>Ad Deliverable Drift Analysis</CardTitle>
+                            <CardDescription>No action cards with planned timelines found</CardDescription>
+                        </div>
+                        {onRefresh && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={onRefresh}
+                                className="gap-2"
+                            >
+                                <RefreshCw className="w-4 h-4" />
+                                Refresh
+                            </Button>
+                        )}
+                    </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="text-center py-8 text-muted-foreground">
-                        <Clock className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                        <p>Action cards will appear here once they have planned timelines</p>
+                    <div className="text-center py-8">
+                        <Clock className="w-12 h-12 mx-auto mb-3 opacity-50 text-muted-foreground" />
+                        <p className="text-muted-foreground mb-4">
+                            Action cards need planned timelines to show drift analysis
+                        </p>
+                        <div className="text-sm text-muted-foreground space-y-2">
+                            <p><strong>Why am I seeing this?</strong></p>
+                            <ul className="list-disc list-inside space-y-1 text-left max-w-md mx-auto">
+                                <li>Cards were created manually (not during campaign creation)</li>
+                                <li>Campaign phases weren't defined when cards were created</li>
+                                <li>Cards were migrated from an older version</li>
+                            </ul>
+                            <p className="mt-4"><strong>Solution:</strong></p>
+                            <p>New cards created from now on will automatically include planned timelines.</p>
+                            <p>Try creating a new action card to see drift analysis in action!</p>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
@@ -174,32 +204,61 @@ export function ActionCardDriftPanel({ driftAnalyses, loading }: ActionCardDrift
                                     </div>
                                 )}
 
-                                {/* Phase Breakdown (expandable details) */}
-                                <details className="text-xs">
-                                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                                        View phase breakdown
-                                    </summary>
-                                    <div className="mt-2 space-y-2 pl-2 border-l-2 border-slate-200 dark:border-slate-700">
-                                        {drift.phase_drifts.map((phaseDrift) => (
-                                            <div key={phaseDrift.phase_id} className="flex items-center justify-between gap-2">
-                                                <span className="text-muted-foreground">{phaseDrift.phase_name}</span>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-muted-foreground">
-                                                        {formatMinutes(phaseDrift.planned_minutes)}
+                                {/* Phase Breakdown - Visual Progress Bars */}
+                                <div className="space-y-2 pt-2 border-t">
+                                    <div className="text-xs font-medium text-muted-foreground mb-2">Phase-by-Phase Breakdown</div>
+                                    {drift.phase_drifts.map((phaseDrift) => {
+                                        const maxMinutes = Math.max(phaseDrift.planned_minutes, phaseDrift.actual_minutes)
+                                        const plannedWidth = maxMinutes > 0 ? (phaseDrift.planned_minutes / maxMinutes) * 100 : 0
+                                        const actualWidth = maxMinutes > 0 ? (phaseDrift.actual_minutes / maxMinutes) * 100 : 0
+                                        
+                                        return (
+                                            <div key={phaseDrift.phase_id} className="space-y-1">
+                                                <div className="flex items-center justify-between text-xs">
+                                                    <span className="font-medium text-slate-700 dark:text-slate-300">
+                                                        {phaseDrift.phase_name}
                                                     </span>
-                                                    <span>→</span>
-                                                    <span className="font-medium">
-                                                        {formatMinutes(phaseDrift.actual_minutes)}
-                                                    </span>
-                                                    <span className={cn('font-medium min-w-[60px] text-right', getDriftStatusColor(phaseDrift.status))}>
-                                                        {phaseDrift.drift_minutes > 0 ? '+' : ''}
-                                                        {formatMinutes(phaseDrift.drift_minutes)}
-                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge 
+                                                            variant="outline" 
+                                                            className={cn('text-xs px-1.5 py-0', getDriftStatusBadgeColor(phaseDrift.status))}
+                                                        >
+                                                            {phaseDrift.drift_minutes > 0 ? '+' : ''}
+                                                            {formatMinutes(phaseDrift.drift_minutes)}
+                                                        </Badge>
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {/* Planned bar */}
+                                                    <div className="space-y-0.5">
+                                                        <div className="text-[10px] text-muted-foreground">Planned: {formatMinutes(phaseDrift.planned_minutes)}</div>
+                                                        <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                            <div
+                                                                className="h-full bg-blue-400 dark:bg-blue-500 transition-all"
+                                                                style={{ width: `${plannedWidth}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    {/* Actual bar */}
+                                                    <div className="space-y-0.5">
+                                                        <div className="text-[10px] text-muted-foreground">Actual: {formatMinutes(phaseDrift.actual_minutes)}</div>
+                                                        <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                            <div
+                                                                className={cn(
+                                                                    "h-full transition-all",
+                                                                    phaseDrift.status === 'ahead' ? 'bg-green-500' :
+                                                                    phaseDrift.status === 'behind' ? 'bg-red-500' :
+                                                                    'bg-slate-400'
+                                                                )}
+                                                                style={{ width: `${actualWidth}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                </details>
+                                        )
+                                    })}
+                                </div>
                             </div>
                         )
                     })}

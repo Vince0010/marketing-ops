@@ -87,6 +87,20 @@ export function useCampaignExecution(
     // Create task with immediate local update
     const createTask = useCallback(async (taskData: MarketerActionInsert): Promise<MarketerAction> => {
         try {
+            // Auto-generate planned_timeline if not provided and phases exist
+            if (!taskData.planned_timeline && phases.length > 0) {
+                const plannedTimelineMap: Record<string, { phase_name: string; planned_minutes: number; phase_number: number }> = {}
+                phases.forEach(phase => {
+                    plannedTimelineMap[phase.id] = {
+                        phase_name: phase.phase_name,
+                        planned_minutes: phase.planned_duration_days * 8 * 60, // Convert days to minutes (8-hour workdays)
+                        phase_number: phase.phase_number
+                    }
+                })
+                taskData.planned_timeline = plannedTimelineMap
+                console.log('[useCampaignExecution] Auto-generated planned_timeline for new task:', plannedTimelineMap)
+            }
+
             const newTask = await campaignExecutionService.createTask(taskData)
 
             // Immediately update local state
