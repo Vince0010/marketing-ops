@@ -11,7 +11,7 @@ export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
       {/* Overlay for mobile */}
@@ -29,7 +29,7 @@ export default function Layout({ children }: LayoutProps) {
             variant="outline"
             size="icon"
             onClick={() => setSidebarOpen(true)}
-            className="bg-white shadow-md"
+            className="bg-card shadow-md"
           >
             <Menu className="h-5 w-5" />
           </Button>

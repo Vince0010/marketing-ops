@@ -55,10 +55,10 @@ import AIRecommendationsEngine from '@/components/ai/AIRecommendationsEngine'
 import StrategicFailureDiagnosis from '@/components/diagnosis/StrategicFailureDiagnosis'
 import MetaAdsDashboard from '@/components/meta/MetaAdsDashboard'
 import { ObservationModeBadge } from '@/components/ObservationModeBadge'
+// Seeded drift events for demo
 import { cn } from '@/lib/utils'
 import { saveTemplate } from '@/lib/templates'
 
-// Seeded drift events for demo
 const SEEDED_DRIFT_EVENTS: Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'>[] = [
   {
     drift_type: 'negative',
@@ -639,7 +639,7 @@ export default function CampaignTracker() {
 
         {/* Execution Timeline Tab */}
         <TabsContent value="execution" className="space-y-4">
-          {/* Horizontal Timeline View */}
+        {/* Horizontal Timeline View */}
           <Card>
             <CardHeader>
               <CardTitle>Phase Timeline</CardTitle>
@@ -765,10 +765,10 @@ export default function CampaignTracker() {
               })}
             </CardContent>
           </Card>
-        </TabsContent>
+          </TabsContent>
 
-        {/* Drift Analysis Tab */}
-        <TabsContent value="drift" className="space-y-4">
+          {/* Drift Analysis Tab */}
+          <TabsContent value="drift" className="space-y-4 mt-4">
           {totalDrift > 2 && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
@@ -1141,7 +1141,7 @@ export default function CampaignTracker() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+          </TabsContent>
 
         {/* Accountability Tab */}
         <TabsContent value="accountability" className="space-y-4">
