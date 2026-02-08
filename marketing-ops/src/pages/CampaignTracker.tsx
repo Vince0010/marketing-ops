@@ -26,13 +26,6 @@ import { DemographicAlignmentTracker } from '@/components/demographics/Demograph
 import { useCampaignExecution } from '@/hooks/useCampaignExecution'
 import { cn } from '@/lib/utils'
 import { campaignCompletionService } from '@/services/campaignCompletionService'
-import {
-  DEMO_AGE_DATA,
-  DEMO_FIT_SCORE,
-  DEMO_STRONG_ALIGNMENT,
-  DEMO_ADJUSTMENT_AREAS,
-  DEMO_RECOMMENDED_ACTIONS,
-} from '@/lib/demographicData'
 import { KanbanBoard } from '@/components/kanban'
 import { ActionCardDriftPanel } from '@/components/kanban/ActionCardDriftPanel'
 import { calculateCampaignActionCardDrifts } from '@/utils/actionCardDrift'
@@ -43,6 +36,7 @@ import MetaAdsDashboard from '@/components/meta/MetaAdsDashboard'
 import type { OverrideEvent } from '@/types/database'
 import { PerformanceCorrelation } from '@/components/correlation/PerformanceCorrelation'
 import { useWeeklyDataReports } from '@/hooks/useWeeklyDataReports'
+import type { AgeRow } from '@/components/demographics/DemographicAlignmentTracker'
 
 // DriftEvent type for calculated drift events
 type CalculatedDriftEvent = Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' | 'created_at'> & {
@@ -50,6 +44,38 @@ type CalculatedDriftEvent = Omit<DriftEvent, 'id' | 'campaign_id' | 'phase_id' |
   projected?: boolean
   elapsed_days?: number
   remaining_days?: number
+}
+
+/**
+ * Transform campaign target_audience demographics into age data for DemographicAlignmentTracker
+ * Distributes target age ranges evenly across the demographic
+ * Actual data will come from Meta Ads performance later
+ */
+function transformCampaignDemographicsToAgeData(campaign: Campaign | null): AgeRow[] {
+  const allAgeRanges = ['18-24', '25-34', '35-44', '45-54', '55-64', '65+']
+  
+  if (!campaign?.target_audience?.demographics?.age_range?.length) {
+    // No targeting specified - return all zeros
+    return allAgeRanges.map(range => ({
+      range,
+      goal: 0,
+      actual: 0,
+      diff: 0
+    }))
+  }
+
+  const targetedRanges = campaign.target_audience.demographics.age_range
+  const goalPercentPerRange = Math.round(100 / targetedRanges.length)
+  
+  return allAgeRanges.map(range => {
+    const isTargeted = targetedRanges.includes(range)
+    return {
+      range,
+      goal: isTargeted ? goalPercentPerRange : 0,
+      actual: 0, // Will be populated from Meta Ads data in future
+      diff: 0 // Will calculate when actual data is available
+    }
+  })
 }
 
 interface StakeholderAction {
@@ -756,15 +782,42 @@ export default function CampaignTracker() {
 
           {/* Audience Insights Tab */}
           <TabsContent value="audience" className="space-y-4 mt-4">
-            <DemographicAlignmentTracker
-              ageData={DEMO_AGE_DATA}
-              fitScore={DEMO_FIT_SCORE}
-              strongAlignment={DEMO_STRONG_ALIGNMENT}
-              adjustmentAreas={DEMO_ADJUSTMENT_AREAS}
-              recommendedActions={DEMO_RECOMMENDED_ACTIONS}
-              variant="preliminary"
-              compact
-            />
+            {campaign?.target_audience?.demographics ? (
+              <DemographicAlignmentTracker
+                ageData={transformCampaignDemographicsToAgeData(campaign)}
+                fitScore={0} // Will be calculated from Meta Ads performance data
+                strongAlignment={
+                  campaign.target_audience.demographics.age_range
+                    ? [`Targeting ${campaign.target_audience.demographics.age_range.join(', ')} age groups`]
+                    : []
+                }
+                adjustmentAreas={[
+                  'No performance data available yet',
+                  'Meta Ads data will populate after campaign launch'
+                ]}
+                recommendedActions={[
+                  'Launch campaign to start collecting audience data',
+                  'Monitor Meta Ads demographics in Meta Ads tab',
+                  'Actual vs target alignment will appear after 7+ days'
+                ]}
+                variant="preliminary"
+                compact
+              />
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Audience Insights</CardTitle>
+                  <CardDescription>
+                    No target audience demographics specified for this campaign
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    Edit the campaign to add target audience demographics (age, gender, location) to see insights here.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Meta Ads Dashboard Tab */}
