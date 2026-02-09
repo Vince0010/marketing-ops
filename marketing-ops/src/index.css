@@ -5,14 +5,14 @@
 /* Expedition color palette – exploration-inspired, data-driven */
 @layer base {
   :root {
-    /* Expedition palette (HSL for opacity support) */
-    --expedition-navy: 211 64% 16%;        /* #0F2A44 – headers, nav, structure */
-    --trail-blue: 216 76% 50%;             /* #1F6AE1 – actions, links, active */
-    --evergreen: 158 62% 31%;             /* #1E7F5C – success, completed */
-    --summit-teal: 176 61% 43%;           /* #2BB0A6 – in-progress, highlights */
-    --signal-orange: 28 86% 62%;          /* #F2994A – warnings, deadlines */
-    --checkpoint-red: 6 76% 57%;          /* #E5533D – blocked, critical */
-    --mist-gray: 210 20% 96%;             /* #F4F6F8 – backgrounds, cards */
+    /* Expedition palette (aligned to brand spec) */
+    --expedition-navy: 209 59% 27%;        /* #1C486F – primary text & headings */
+    --trail-blue: 199 49% 40%;             /* #347698 – primary brand & key interactive */
+    --evergreen: 127 37% 24%;              /* #26532B – positive action & success */
+    --summit-teal: 196 48% 55%;            /* #50A6C9 – secondary & accent */
+    --signal-orange: 28 86% 62%;           /* custom amber – warnings */
+    --checkpoint-red: 6 76% 57%;           /* cautious red – critical */
+    --mist-gray: 210 12% 97%;              /* light gray ~ #9F9F9D @ 5% */
     --base-white: 0 0% 100%;              /* #FFFFFF – canvas */
     --slate: 220 9% 46%;                  /* #6B7280 – secondary text */
 

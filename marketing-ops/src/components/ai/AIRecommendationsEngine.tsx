@@ -416,9 +416,15 @@ export default function AIRecommendationsEngine({
 
   const getTierColor = (tier: Tier) => {
     switch (tier) {
-      case 'immediate': return 'bg-red-100 text-red-800 border-red-200'
-      case 'tactical': return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'strategic': return 'bg-purple-100 text-purple-800 border-purple-200'
+      case 'immediate':
+        // Immediate: success / action green
+        return 'border-[#26532B]/40 bg-[#26532B]/10 text-[#26532B]'
+      case 'tactical':
+        // Tactical: primary brand blue
+        return 'border-[#347698]/40 bg-[#347698]/10 text-[#347698]'
+      case 'strategic':
+        // Strategic: dark navy
+        return 'border-[#1C486F]/40 bg-[#1C486F]/10 text-[#1C486F]'
     }
   }
 
@@ -491,19 +497,19 @@ export default function AIRecommendationsEngine({
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{tierCounts.all}</div>
+              <div className="text-2xl font-bold text-[#1C486F]">{tierCounts.all}</div>
               <div className="text-sm text-muted-foreground">Total</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-red-600">{tierCounts.immediate}</div>
+              <div className="text-2xl font-bold text-[#26532B]">{tierCounts.immediate}</div>
               <div className="text-sm text-muted-foreground">Immediate</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{tierCounts.tactical}</div>
+              <div className="text-2xl font-bold text-[#347698]">{tierCounts.tactical}</div>
               <div className="text-sm text-muted-foreground">Tactical</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">{tierCounts.strategic}</div>
+              <div className="text-2xl font-bold text-[#1C486F]">{tierCounts.strategic}</div>
               <div className="text-sm text-muted-foreground">Strategic</div>
             </div>
           </div>

@@ -11,19 +11,25 @@ const CONFIG: Record<
   proceed: {
     label: 'Proceed',
     sublabel: 'Good to launch',
-    className: 'border-expedition-evergreen/40 bg-expedition-evergreen/10 text-expedition-evergreen',
+    // Positive approval: success green
+    className:
+      'border-[#26532B]/40 bg-[#26532B]/10 text-[#26532B]',
     Icon: CheckCircle2,
   },
   adjust: {
     label: 'Adjust',
     sublabel: 'Needs changes',
-    className: 'border-expedition-signal/40 bg-expedition-signal/10 text-expedition-signal',
+    // Attention required: sky blue accent
+    className:
+      'border-[#50A6C9]/40 bg-[#50A6C9]/10 text-[#347698]',
     Icon: AlertTriangle,
   },
   pause: {
     label: 'Pause',
     sublabel: 'Should not proceed',
-    className: 'border-expedition-checkpoint/40 bg-expedition-checkpoint/10 text-expedition-checkpoint',
+    // Neutral / paused: structured warm gray
+    className:
+      'border-[#9F9F9D]/40 bg-[#9F9F9D]/10 text-[#1C486F]',
     Icon: XCircle,
   },
 }

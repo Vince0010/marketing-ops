@@ -17,7 +17,6 @@ import {
   Settings,
   LogOut,
   Bell,
-  Zap,
   FileText,
   Sun,
   Moon,
@@ -67,18 +66,14 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   }
 
   return (
-    <aside className={`w-64 bg-expedition-navy border-r border-white/10 fixed left-0 top-0 bottom-0 flex flex-col z-50 transition-transform duration-300 ease-in-out ${
+    <aside className={`w-64 bg-[#051524] border-r border-white/10 fixed left-0 top-0 bottom-0 flex flex-col z-50 transition-transform duration-300 ease-in-out ${
       isOpen ? 'translate-x-0' : '-translate-x-full'
     } md:translate-x-0`}>
-      {/* Logo */}
-      <div className="p-6">
+      {/* Logo / Header */}
+      <div className="p-6 bg-[#babab8] border-b border-white/10">
         <Link to="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-expedition-trail rounded-lg flex items-center justify-center">
-            <Zap className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xl font-bold text-white">
-            MarketingOps<span className="text-expedition-summit">.ai</span>
-          </span>
+          <img src="/src/assets/EXPEDITION-logo2.png" alt="Expedition" className="h-8 w-8" />
+          <span className="text-xl font-bold text-[#26532b]">EXPEDITION</span>
         </Link>
       </div>
 
@@ -86,14 +81,14 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
       {/* Theme switch: Light / Dark */}
       <div className="p-4">
-        <p className="text-xs font-medium text-white/60 mb-2">Theme</p>
+        <p className="text-xs font-medium text-white/70 mb-2">Theme</p>
         <div className="flex rounded-lg border border-white/10 bg-white/5 p-0.5">
           <button
             type="button"
             onClick={() => setDark(false)}
             className={cn(
-              'flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors',
-              !dark ? 'bg-expedition-trail text-white shadow-sm' : 'text-white/70 hover:text-white'
+              'flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors duration-150 ease-in-out',
+              !dark ? 'bg-[#347698] text-white shadow-sm' : 'text-white/70 hover:text-white'
             )}
             aria-pressed={!dark}
             aria-label="Light mode"
@@ -105,8 +100,8 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             type="button"
             onClick={() => setDark(true)}
             className={cn(
-              'flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors',
-              dark ? 'bg-expedition-trail text-white shadow-sm' : 'text-white/70 hover:text-white'
+              'flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors duration-150 ease-in-out',
+              dark ? 'bg-[#347698] text-white shadow-sm' : 'text-white/70 hover:text-white'
             )}
             aria-pressed={dark}
             aria-label="Dark mode"
@@ -126,8 +121,8 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             <Button
               variant="ghost"
               className={cn(
-                'w-full justify-start gap-3 text-white/90 hover:text-white hover:bg-white/10',
-                isActive(link.href) && 'bg-expedition-trail text-white hover:bg-expedition-trail/90'
+                'w-full justify-start gap-3 rounded-none border-b border-white/5 text-white/80 hover:text-white hover:bg-transparent',
+                isActive(link.href) && 'border-b-2 border-[#26532B] text-white font-semibold'
               )}
             >
               {link.icon}
