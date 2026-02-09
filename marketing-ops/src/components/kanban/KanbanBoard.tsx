@@ -190,6 +190,16 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
 
         const movingForward = isForwardMove(oldPhaseId, newPhaseId)
 
+        // Validate phase exists if moving to a phase (not backlog)
+        if (newPhaseId) {
+            const newPhase = phases.find(p => p.id === newPhaseId)
+            if (!newPhase) {
+                console.error('[KanbanBoard] Target phase not found:', newPhaseId, 'Available phases:', phases.map(p => ({ id: p.id, name: p.phase_name })))
+                alert('Invalid phase. The target phase does not exist. Please refresh the page and try again.')
+                return
+            }
+        }
+
         // Prevent skipping phases when moving forward
         if (movingForward && oldPhaseId && newPhaseId) {
             const oldPhase = phases.find(p => p.id === oldPhaseId)
@@ -271,9 +281,13 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
         }
 
         try {
+            console.log('[KanbanBoard] Executing move:', { taskId, from: oldPhaseId, to: newPhaseId })
             await moveTaskToPhase(taskId, newPhaseId, oldPhaseId)
+            console.log('[KanbanBoard] Move completed successfully')
         } catch (err) {
-            console.error('Failed to move task:', err)
+            console.error('[KanbanBoard] Failed to move task:', err)
+            const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+            alert(`Failed to move card: ${errorMsg}\\n\\nCheck the browser console for details. Make sure the backend server is running (npm run dev:all).`)
         }
     }
 
@@ -367,16 +381,33 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
 
     if (executionError) {
         return (
-            <div className="flex flex-col items-center justify-center h-64 gap-4">
-                <AlertCircle className="w-12 h-12 text-red-500" />
-                <p className="text-red-600 dark:text-red-400">{executionError}</p>
-                <button
-                    onClick={() => refetch()}
-                    className="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
-                >
-                    <RefreshCw className="w-4 h-4" />
-                    Retry
-                </button>
+            <div className="p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <div className="flex items-start gap-4">
+                    <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-400 flex-shrink-0" />
+                    <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-red-900 dark:text-red-100 mb-2">
+                            Failed to load Kanban board
+                        </h3>
+                        <p className="text-sm text-red-700 dark:text-red-300 mb-3">{executionError}</p>
+                        {executionError.includes('backend server') && (
+                            <div className="mt-3 p-3 bg-red-100 dark:bg-red-900/40 rounded-lg">
+                                <p className="text-sm font-medium text-red-900 dark:text-red-200 mb-2">
+                                    To start the backend server:
+                                </p>
+                                <code className="block bg-red-200 dark:bg-red-900/60 p-2 rounded text-sm font-mono text-red-900 dark:text-red-100">
+                                    cd marketing-ops && npm run dev:all
+                                </code>
+                            </div>
+                        )}
+                        <button
+                            onClick={() => refetch()}
+                            className="mt-4 px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center gap-2 transition-colors"
+                        >
+                            <RefreshCw className="w-4 h-4" />
+                            Retry Connection
+                        </button>
+                    </div>
+                </div>
             </div>
         )
     }

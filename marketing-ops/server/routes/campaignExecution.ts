@@ -239,7 +239,7 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
         }
 
         // Close previous phase history entry and save time_spent_minutes
-        let completedPhaseData: { phaseId: string; phaseName: string; timeSpentMinutes: number } | null = null
+        let completedPhaseData: { phaseId: string; phaseName: string; timeSpentMinutes: number; totalTimeInPhase: number } | null = null
         if (oldPhaseId) {
             // Get the task's current time tracking to calculate total time in old phase
             const { data: currentTask } = await supabaseAdmin
@@ -271,10 +271,28 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
                     .single()
 
                 if (oldPhaseData) {
+                    // Calculate TOTAL time spent in this phase (including all previous visits)
+                    const { data: allHistory } = await supabaseAdmin
+                        .from('task_phase_history')
+                        .select('time_spent_minutes')
+                        .eq('action_id', taskId)
+                        .eq('phase_id', oldPhaseId)
+                        .not('exited_at', 'is', null)
+                    
+                    const previousTime = allHistory?.reduce((sum, h) => sum + (h.time_spent_minutes || 0), 0) || 0
+                    const totalTimeInPhase = previousTime + timeSpentMinutes
+                    
+                    console.log('[API] Total time in phase for drift event:', {
+                        currentSession: timeSpentMinutes,
+                        previousSessions: previousTime,
+                        total: totalTimeInPhase
+                    })
+                    
                     completedPhaseData = {
                         phaseId: oldPhaseId,
                         phaseName: oldPhaseData.phase_name,
-                        timeSpentMinutes
+                        timeSpentMinutes,
+                        totalTimeInPhase
                     }
                 }
             }
@@ -375,10 +393,26 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
                 updates.completed_phases = completedPhases.filter((id: string) => id !== newPhaseId)
                 console.log('[API] Removing phase from completed (now in-progress):', newPhaseId)
             }
-            // If leaving a phase, mark it as completed
+            // If leaving a phase AND moving forward, mark it as completed
             else if (oldPhaseId && !completedPhases.includes(oldPhaseId)) {
-                updates.completed_phases = [...completedPhases, oldPhaseId]
-                console.log('[API] Marking phase as completed:', oldPhaseId)
+                // Determine if moving forward by comparing phase numbers
+                const { data: phases } = await supabaseAdmin
+                    .from('execution_phases')
+                    .select('id, phase_number')
+                    .eq('campaign_id', campaignId)
+                
+                const oldPhaseNum = phases?.find(p => p.id === oldPhaseId)?.phase_number || 0
+                const newPhaseNum = newPhaseId ? (phases?.find(p => p.id === newPhaseId)?.phase_number || 999) : -1
+                
+                const isMovingForward = newPhaseNum > oldPhaseNum
+                
+                if (isMovingForward) {
+                    updates.completed_phases = [...completedPhases, oldPhaseId]
+                    console.log('[API] Forward move - marking phase as completed:', oldPhaseId)
+                } else {
+                    updates.completed_phases = completedPhases
+                    console.log('[API] Backward move - NOT marking phase as completed:', oldPhaseId)
+                }
             }
             // No change needed
             else if (!updates.completed_phases) {
@@ -437,7 +471,7 @@ router.post('/:campaignId/tasks/:taskId/move', async (req: Request, res: Respons
                 
                 // Only create drift event if we have a planned duration to compare against
                 if (plannedMinutes > 0) {
-                    const actualMinutes = completedPhaseData.timeSpentMinutes
+                    const actualMinutes = completedPhaseData.totalTimeInPhase // Use TOTAL time including all previous visits
                     const driftMinutes = actualMinutes - plannedMinutes
                     const driftDays = Math.round((driftMinutes / 60) / 8 * 10) / 10 // Convert to 8-hour workdays
                     

@@ -56,7 +56,14 @@ export function useCampaignExecution(
             setHistory(data.history)
         } catch (err) {
             console.error('[useCampaignExecution] Error fetching data:', err)
-            setError(err instanceof Error ? err.message : 'Failed to load data')
+            const errorMessage = err instanceof Error ? err.message : 'Failed to load data'
+            
+            // Provide more helpful error message if backend is down
+            if (errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
+                setError('Cannot connect to backend server. Make sure the API server is running on port 3001. Run: npm run dev:all')
+            } else {
+                setError(errorMessage)
+            }
         } finally {
             setLoading(false)
         }
@@ -162,7 +169,7 @@ export function useCampaignExecution(
         if (!campaignId) throw new Error('No campaign ID')
 
         try {
-            // Find phase and task using functional updates to avoid stale closures
+            // Find phase using functional update to get current state (avoid stale closure)
             let phase: ExecutionPhase | null = null
             let isLastPhase = false
             
@@ -171,10 +178,11 @@ export function useCampaignExecution(
                     const foundPhase = currentPhases.find(p => p.id === newPhaseId)
                     if (foundPhase) {
                         phase = foundPhase
-                        isLastPhase = foundPhase.phase_number === Math.max(...currentPhases.map(p => p.phase_number))
+                        const maxPhaseNum = Math.max(...currentPhases.map(p => p.phase_number))
+                        isLastPhase = foundPhase.phase_number === maxPhaseNum
                     }
                 }
-                return currentPhases // No change
+                return currentPhases // No change, just reading
             })
             
             // Debug logging
@@ -183,10 +191,11 @@ export function useCampaignExecution(
                 newPhaseId,
                 oldPhaseId,
                 foundPhase: phase?.phase_name || 'null',
+                totalPhasesAvailable: phases.length
             })
             
             if (newPhaseId && !phase) {
-                console.error('[Hook] Phase not found! newPhaseId:', newPhaseId)
+                console.error('[Hook] Phase not found! newPhaseId:', newPhaseId, 'Available phases:', phases.map(p => ({ id: p.id, name: p.phase_name })))
                 throw new Error(`Phase ${newPhaseId} not found`)
             }
             
