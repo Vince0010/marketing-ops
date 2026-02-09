@@ -2,86 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ========== Marketing Expedition Theme ========== */
-/* Campaigns = Summit attempts | Phases = Base camps | KPIs = Altitude | Team = Expedition crew */
+/* ========== Analytics Dashboard Theme ========== */
 
 @layer base {
   :root {
-    /* Mountain Expedition palette */
-    --summit-night: 222 47% 11%;           /* #0f172a – Summit Night Sky */
-    --mountain-shadow: 215 28% 17%;       /* #1e293b – Mountain Shadow */
-    --snow-cap: 210 40% 98%;               /* #f8fafc – Snow Cap (text primary) */
-    --glacial-blue: 217 91% 60%;           /* #3b82f6 – Glacial Blue (accent) */
-    --expedition-navy: 211 64% 16%;
-    --trail-blue: 216 76% 50%;
-    --evergreen: 158 62% 31%;
-    --summit-teal: 176 61% 43%;
-    --signal-orange: 28 86% 62%;
-    --checkpoint-red: 6 76% 57%;
-    --mist-gray: 210 20% 96%;
+    /* Core palette */
+    --ink-black: 207 68% 8%;              /* #051524 */
+    --rosewood: 127 37% 24%;              /* #26532B (Forest Green) */
+    --cerulean: 199 49% 40%;              /* #347698 */
+    --yale-blue: 209 59% 27%;             /* #1C486F */
+    --turquoise-surf: 196 48% 55%;        /* #50A6C9 */
+    --grey-olive: 60 1% 62%;              /* #9F9F9D */
     --base-white: 0 0% 100%;
-    --slate: 220 9% 46%;
+    --rosewood-dark: 127 37% 17%;         /* #1B3D20 (Forest Deep) */
 
-    --background: var(--mist-gray);
-    --foreground: var(--summit-night);
-    --card: var(--base-white);
-    --card-foreground: var(--summit-night);
-    --popover: var(--base-white);
-    --popover-foreground: var(--summit-night);
-    --primary: var(--glacial-blue);
-    --primary-foreground: var(--snow-cap);
-    --secondary: var(--mountain-shadow);
-    --secondary-foreground: var(--snow-cap);
-    --muted: var(--mist-gray);
-    --muted-foreground: var(--slate);
-    --accent: var(--glacial-blue);
-    --accent-foreground: var(--snow-cap);
-    --destructive: var(--checkpoint-red);
-    --destructive-foreground: var(--snow-cap);
-    --border: 214 20% 90%;
-    --input: 214 20% 90%;
-    --ring: var(--glacial-blue);
+    /* ===== Light mode (default) ===== */
+    --background: 210 20% 97%;            /* #F4F5F7 soft gray */
+    --foreground: 210 24% 16%;            /* #1E2632 near-black */
+    --card: 0 0% 100%;                    /* white */
+    --card-foreground: 210 24% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 24% 16%;
+    --primary: var(--rosewood);
+    --primary-foreground: var(--base-white);
+    --secondary: 210 16% 93%;             /* #EBECF0 */
+    --secondary-foreground: 210 24% 16%;
+    --muted: 210 16% 95%;                 /* #F0F1F4 */
+    --muted-foreground: 210 10% 46%;      /* #6B7280 */
+    --accent: var(--turquoise-surf);
+    --accent-foreground: var(--ink-black);
+    --destructive: var(--rosewood-dark);
+    --destructive-foreground: var(--base-white);
+    --border: 210 14% 89%;               /* #E0E2E6 */
+    --input: 210 14% 89%;
+    --ring: var(--cerulean);
     --radius: 0.5rem;
 
-    --success: var(--evergreen);
-    --warning: var(--signal-orange);
-    --in-progress: var(--summit-teal);
-    --critical: var(--checkpoint-red);
+    --success: var(--rosewood);
+    --warning: var(--cerulean);
+    --in-progress: var(--cerulean);
+    --critical: var(--rosewood-dark);
 
-    /* Expedition gradients (for use in CSS) */
-    --gradient-bg: linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #0f1a2e 50%, #0c1628 75%, #0a1324 100%);
-    --gradient-header: linear-gradient(90deg, #0f172a, #1e293b, #0f172a);
-    --gradient-card-success: linear-gradient(145deg, #1e3a8a, #3b82f6);
-    --gradient-card-warning: linear-gradient(145deg, #92400e, #f59e0b);
-    --gradient-card-alert: linear-gradient(145deg, #991b1b, #ef4444);
-
-    /* Elevation shadows */
-    --shadow-base: 0 1px 3px rgba(0, 0, 0, 0.1);
-    --shadow-camp-1: 0 4px 6px rgba(0, 0, 0, 0.1);
+    /* Light elevation shadows */
+    --shadow-base: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --shadow-camp-1: 0 4px 6px rgba(0, 0, 0, 0.08);
     --shadow-camp-2: 0 10px 15px rgba(0, 0, 0, 0.1);
-    --shadow-camp-3: 0 20px 25px rgba(0, 0, 0, 0.15);
-    --shadow-summit: 0 25px 50px rgba(0, 0, 0, 0.25);
+    --shadow-camp-3: 0 20px 25px rgba(0, 0, 0, 0.12);
+    --shadow-summit: 0 25px 50px rgba(0, 0, 0, 0.15);
   }
 
-  .dark {
-    --background: 222 47% 8%;
-    --foreground: var(--snow-cap);
-    --card: 215 28% 14%;
-    --card-foreground: var(--snow-cap);
-    --popover: 215 28% 14%;
-    --popover-foreground: var(--snow-cap);
-    --primary: var(--glacial-blue);
-    --primary-foreground: var(--snow-cap);
-    --secondary: var(--mountain-shadow);
-    --secondary-foreground: var(--snow-cap);
-    --muted: 215 25% 18%;
-    --muted-foreground: 220 9% 60%;
-    --accent: var(--glacial-blue);
-    --accent-foreground: var(--snow-cap);
-    --border: 215 28% 22%;
-    --input: 215 28% 22%;
-    --ring: var(--glacial-blue);
-  }
+  /* Dark mode removed — light mode only */
 }
 
 @layer base {
@@ -95,7 +65,7 @@
   }
 }
 
-/* Expedition typography */
+/* Typography */
 @layer components {
   .expedition-log {
     font-size: 18px;
@@ -121,7 +91,7 @@
     @apply px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors border border-border;
   }
 
-  /* Expedition card with elevation */
+  /* Card with elevation */
   .card-expedition {
     @apply rounded-xl border border-border bg-card text-card-foreground;
     box-shadow: var(--shadow-base);
@@ -131,169 +101,126 @@
   .card-expedition-camp-3 { box-shadow: var(--shadow-camp-3); }
   .card-expedition-summit { box-shadow: var(--shadow-summit); }
 
-  /* Summit / success card gradient */
+  /* Solid card fills by semantic role */
   .card-gradient-success {
-    background: var(--gradient-card-success);
-    color: white;
+    background-color: #50A6C9;
+    color: #051524;
     border: none;
   }
   .card-gradient-warning {
-    background: var(--gradient-card-warning);
+    background-color: #26532B;
     color: white;
     border: none;
   }
   .card-gradient-alert {
-    background: var(--gradient-card-alert);
+    background-color: #1B3D20;
     color: white;
     border: none;
   }
 
-  /* Expedition app shell background (dark mode) */
-  .dark .expedition-bg {
-    background: var(--gradient-bg);
+  /* App shell background */
+  .expedition-bg {
+    background-color: hsl(var(--background));
     position: relative;
     min-height: 100vh;
   }
-  .dark .expedition-bg::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(15, 23, 42, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(15, 23, 42, 0.05) 1px, transparent 1px);
-    background-size: 24px 24px;
-    pointer-events: none;
-    z-index: 0;
-    opacity: 0.6;
-  }
-  .dark .expedition-bg::after {
-    content: '';
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 140px;
-    background: linear-gradient(to top, rgba(15, 23, 42, 0.5) 0%, transparent 70%);
-    pointer-events: none;
-    z-index: 0;
-  }
+  /* Dark mode removed */
 
   .expedition-header-gradient {
-    background: var(--gradient-header);
+    background-color: #1C486F;
   }
 
   /* ========== Marketing Campaign Status Cards ========== */
   .campaign-status-card {
     border-radius: 1.5em;
     border-width: 3px;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1);
   }
   .campaign-status-card:hover {
-    transform: scale(0.97);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
+    transform: scale(1.03);
+    box-shadow: 0 12px 24px rgba(5, 21, 36, 0.4);
   }
 
-  /* Planning: Slate border, white → #f8fafc gradient */
+  /* Card grid hover: siblings de-emphasize */
+  .campaign-card-grid > * {
+    transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 300ms ease;
+  }
+  .campaign-card-grid:hover > * {
+    transform: scale(0.97);
+    opacity: 0.85;
+  }
+  .campaign-card-grid:hover > *:hover {
+    transform: scale(1.03);
+    opacity: 1;
+  }
+
+  /* Planning: Grey Olive solid */
   .campaign-status-card--planning {
-    border-color: #94a3b8;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    border-color: #9F9F9D;
+    background-color: #9F9F9D;
+    color: #051524;
+    box-shadow: 0 4px 12px rgba(5, 21, 36, 0.3);
   }
   .campaign-status-card--planning:hover {
-    border-color: #64748b;
-  }
-  .campaign-status-card--planning::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background-image: radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.08) 1px, transparent 0);
-    background-size: 12px 12px;
-    pointer-events: none;
+    border-color: #8a8a88;
   }
 
-  /* Active: border by performance (set via inline/utility) */
+  /* Active Exceeding: Turquoise Surf solid */
   .campaign-status-card--active-exceeding {
-    border-color: #10b981;
-    background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.12);
+    border-color: #50A6C9;
+    background-color: #50A6C9;
+    color: #051524;
+    box-shadow: 0 4px 12px rgba(80, 166, 201, 0.3);
   }
   .campaign-status-card--active-exceeding:hover {
-    border-color: #059669;
+    border-color: #3d93b6;
   }
+
+  /* Active Meeting: Primary green solid (on track) */
   .campaign-status-card--active-meeting {
-    border-color: #3b82f6;
-    background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.12);
+    border-color: #26532B;
+    background-color: #26532B;
+    color: white;
+    box-shadow: 0 4px 12px rgba(38, 83, 43, 0.3);
   }
   .campaign-status-card--active-meeting:hover {
-    border-color: #2563eb;
+    border-color: #1F4524;
   }
+
+  /* Active Below: Cerulean solid (needs attention) */
   .campaign-status-card--active-below {
-    border-color: #f59e0b;
-    background: linear-gradient(180deg, #fffbeb 0%, #ffffff 100%);
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.12);
+    border-color: #347698;
+    background-color: #347698;
+    color: white;
+    box-shadow: 0 4px 12px rgba(52, 118, 152, 0.3);
   }
   .campaign-status-card--active-below:hover {
-    border-color: #d97706;
+    border-color: #2a6585;
   }
+
+  /* Active Critical: Forest Deep solid */
   .campaign-status-card--active-critical {
-    border-color: #ef4444;
-    background: linear-gradient(180deg, #fef2f2 0%, #ffffff 100%);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.12);
+    border-color: #1B3D20;
+    background-color: #1B3D20;
+    color: white;
+    box-shadow: 0 4px 12px rgba(27, 61, 32, 0.4);
   }
   .campaign-status-card--active-critical:hover {
-    border-color: #dc2626;
-  }
-  .campaign-status-card--active-exceeding::before,
-  .campaign-status-card--active-meeting::before,
-  .campaign-status-card--active-below::before,
-  .campaign-status-card--active-critical::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background-image: radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.04) 1px, transparent 0);
-    background-size: 10px 10px;
-    pointer-events: none;
+    border-color: #15311A;
   }
 
-  /* Completed: Violet border, #f5f3ff → white */
+  /* Completed: Yale Blue solid */
   .campaign-status-card--completed {
-    border-color: #8b5cf6;
-    background: linear-gradient(180deg, #f5f3ff 0%, #ffffff 100%);
-    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.12);
+    border-color: #1C486F;
+    background-color: #1C486F;
+    color: white;
+    box-shadow: 0 4px 12px rgba(28, 72, 111, 0.3);
   }
   .campaign-status-card--completed:hover {
-    border-color: #7c3aed;
-  }
-  .campaign-status-card--completed::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background-image: radial-gradient(circle at 1px 1px, rgba(139, 92, 246, 0.06) 1px, transparent 0);
-    background-size: 14px 14px;
-    pointer-events: none;
-  }
-
-  .dark .campaign-status-card--planning {
-    background: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--muted)) 100%);
-  }
-  .dark .campaign-status-card--active-exceeding {
-    background: linear-gradient(180deg, rgba(16, 185, 129, 0.15) 0%, hsl(var(--card)) 100%);
-  }
-  .dark .campaign-status-card--active-meeting {
-    background: linear-gradient(180deg, rgba(59, 130, 246, 0.15) 0%, hsl(var(--card)) 100%);
-  }
-  .dark .campaign-status-card--active-below {
-    background: linear-gradient(180deg, rgba(245, 158, 11, 0.15) 0%, hsl(var(--card)) 100%);
-  }
-  .dark .campaign-status-card--active-critical {
-    background: linear-gradient(180deg, rgba(239, 68, 68, 0.15) 0%, hsl(var(--card)) 100%);
-  }
-  .dark .campaign-status-card--completed {
-    background: linear-gradient(180deg, rgba(139, 92, 246, 0.2) 0%, hsl(var(--card)) 100%);
+    border-color: #153a5c;
   }
 
   /* Status dot: glow + white border */
@@ -302,13 +229,13 @@
     height: 10px;
     border-radius: 50%;
     border: 2px solid white;
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1), 0 0 8px currentColor;
+    box-shadow: 0 0 0 1px rgba(5, 21, 36, 0.2), 0 0 8px currentColor;
   }
   .status-dot--pulse {
     animation: status-dot-pulse 2s ease-in-out infinite;
   }
 
-  /* Performance flag: corner triangle container */
+  /* Performance flag */
   .performance-flag {
     width: 32px;
     height: 32px;
@@ -317,6 +244,56 @@
     align-items: center;
     justify-content: center;
     font-size: 14px;
+  }
+}
+
+/* ========== Section Switch (Segmented Control) ========== */
+.section-switch {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition: transform 120ms ease, box-shadow 200ms ease, border-color 200ms ease;
+  cursor: pointer;
+}
+
+.section-switch::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: hsl(var(--primary));
+  transform: translateX(-110%) skewX(20deg);
+  transition: transform 260ms cubic-bezier(.4, 0, .2, 1);
+  z-index: -1;
+  border-radius: inherit;
+}
+
+.section-switch:hover::before {
+  transform: translateX(0) skewX(0);
+}
+
+.section-switch:hover {
+  color: white;
+}
+
+.section-switch:active {
+  transform: scale(0.97);
+}
+
+.section-switch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--ring));
+}
+
+/* Active/selected state: fill stays revealed */
+.section-switch[data-state="active"]::before {
+  transform: translateX(0) skewX(0);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .section-switch,
+  .section-switch::before {
+    transition: none;
   }
 }
 
@@ -354,18 +331,18 @@
 }
 
 @keyframes risk-pulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
-  50% { opacity: 0.95; box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(38, 83, 43, 0.4); }
+  50% { opacity: 0.95; box-shadow: 0 0 0 8px rgba(38, 83, 43, 0); }
 }
 
 @keyframes risk-ripple {
-  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
-  100% { box-shadow: 0 0 0 12px rgba(245, 158, 11, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(38, 83, 43, 0.5); }
+  100% { box-shadow: 0 0 0 12px rgba(38, 83, 43, 0); }
 }
 
 @keyframes summit-beacon {
-  0%, 100% { box-shadow: 0 0 12px 2px rgba(239, 68, 68, 0.5); }
-  50% { box-shadow: 0 0 20px 6px rgba(239, 68, 68, 0.3); }
+  0%, 100% { box-shadow: 0 0 12px 2px rgba(38, 83, 43, 0.5); }
+  50% { box-shadow: 0 0 20px 6px rgba(38, 83, 43, 0.3); }
 }
 
 @keyframes drift-gain {
@@ -416,7 +393,7 @@
   animation: summit-beacon 1.5s ease-in-out infinite;
 }
 
-/* Dashboard loading: Mountain Reveal */
+/* Dashboard loading */
 .animate-mountain-reveal .reveal-line {
   stroke-dasharray: 100;
   animation: altitude-line-draw 600ms ease-out forwards;

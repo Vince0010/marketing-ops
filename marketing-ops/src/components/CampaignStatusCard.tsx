@@ -86,29 +86,32 @@ export function CampaignStatusCard({
         ? `campaign-status-card--active-${performanceTier}`
         : 'campaign-status-card--completed'
 
+  // Cards with lighter fills need dark text for contrast
+  const useDarkText = isPlanning || (isActive && performanceTier === 'exceeding')
+
   const progressValue = isCompleted ? 100 : isActive ? health : 0
   const progressColor =
     isActive
       ? performanceTier === 'exceeding'
-        ? '[&>div]:bg-emerald-500'
+        ? '[&>div]:bg-[#50A6C9]'
         : performanceTier === 'meeting'
-          ? '[&>div]:bg-blue-500'
+          ? '[&>div]:bg-[#26532B]'
           : performanceTier === 'below'
-            ? '[&>div]:bg-amber-500'
-            : '[&>div]:bg-red-500'
-      : '[&>div]:bg-primary'
+            ? '[&>div]:bg-[#347698]'
+            : '[&>div]:bg-[#1B3D20]'
+      : '[&>div]:bg-[#26532B]'
 
   const statusDotColor = isPlanning
-    ? '#64748b'
+    ? '#9F9F9D'
     : isActive
       ? performanceTier === 'exceeding'
-        ? '#10b981'
+        ? '#50A6C9'
         : performanceTier === 'meeting'
-          ? '#3b82f6'
+          ? '#26532B'
           : performanceTier === 'below'
-            ? '#f59e0b'
-            : '#ef4444'
-      : '#fbbf24'
+            ? '#347698'
+            : '#1B3D20'
+      : '#1C486F'
 
   const FlagIcon = isPlanning ? ClipboardList : isActive ? TrendingUp : Trophy
 
@@ -126,10 +129,10 @@ export function CampaignStatusCard({
         {/* Top: name (left), performance flag + status dot (right) */}
         <div className="flex items-start justify-between gap-3 p-5 pb-2">
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
+            <p className={cn("text-[10px] uppercase tracking-wider mb-0.5", useDarkText ? 'text-[#051524]/60' : 'text-white/60')}>
               {tagline}
             </p>
-            <h3 className="font-bold text-base truncate pr-2">{campaign.name}</h3>
+            <h3 className={cn("font-bold text-base truncate pr-2", useDarkText ? 'text-[#051524]' : 'text-white')}>{campaign.name}</h3>
             {(isPlanning) && (
               <div className="mt-1.5">
                 <DecisionStatusBadge
@@ -143,7 +146,7 @@ export function CampaignStatusCard({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <div
-              className="performance-flag bg-muted/80 text-muted-foreground dark:bg-muted"
+              className={cn("performance-flag", useDarkText ? 'bg-[#051524]/10 text-[#051524]/70' : 'bg-white/10 text-white/70')}
               title={phaseLabel}
             >
               <FlagIcon className="w-4 h-4" />
@@ -208,14 +211,11 @@ export function CampaignStatusCard({
         {/* Middle: Timeline (progress), Phase, Resources */}
         <div className="px-5 py-3 space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground font-medium">Timeline</span>
+            <span className={cn("font-medium", useDarkText ? 'text-[#051524]/60' : 'text-white/60')}>Timeline</span>
             <span
               className={cn(
                 'font-semibold',
-                industryStatus === 'On Track' && 'text-emerald-600 dark:text-emerald-400',
-                industryStatus === 'Needs Attention' && 'text-amber-600 dark:text-amber-400',
-                industryStatus === 'At Risk' && 'text-red-600 dark:text-red-400',
-                industryStatus === 'Complete' && 'text-violet-600 dark:text-violet-400'
+                useDarkText ? 'text-[#051524]' : 'text-white'
               )}
             >
               {industryStatus}
@@ -225,20 +225,20 @@ export function CampaignStatusCard({
             value={progressValue}
             className={cn('h-1.5', progressColor)}
           />
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <div className={cn("flex items-center justify-between text-[11px]", useDarkText ? 'text-[#051524]/60' : 'text-white/60')}>
             <span>Phase: {phaseLabel}</span>
             <span>Resources: —</span>
           </div>
         </div>
 
         {/* Bottom: Primary KPI (large), Budget (right), mini metrics */}
-        <div className="px-5 pb-5 pt-2 border-t border-border/60">
+        <div className={cn("px-5 pb-5 pt-2 border-t", useDarkText ? 'border-[#051524]/15' : 'border-white/15')}>
           <div className="flex items-end justify-between gap-4">
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
+              <p className={cn("text-[10px] uppercase tracking-wider mb-0.5", useDarkText ? 'text-[#051524]/60' : 'text-white/60')}>
                 {campaign.primary_kpi}
               </p>
-              <p className="text-2xl font-bold tabular-nums">
+              <p className={cn("text-2xl font-bold tabular-nums", useDarkText ? 'text-[#051524]' : 'text-white')}>
                 {campaign.target_value != null
                   ? typeof campaign.target_value === 'number'
                     ? campaign.primary_kpi === 'ROAS'
@@ -251,22 +251,22 @@ export function CampaignStatusCard({
               </p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
+              <p className={cn("text-[10px] uppercase tracking-wider mb-0.5", useDarkText ? 'text-[#051524]/60' : 'text-white/60')}>
                 Budget
               </p>
-              <p className="text-sm font-semibold tabular-nums">
+              <p className={cn("text-sm font-semibold tabular-nums", useDarkText ? 'text-[#051524]' : 'text-white')}>
                 {formatCurrency(campaign.total_budget)}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3 mt-3 text-[11px] text-muted-foreground">
+          <div className={cn("flex items-center gap-3 mt-3 text-[11px]", useDarkText ? 'text-[#051524]/60' : 'text-white/60')}>
             <span>{campaign.primary_kpi}</span>
             <span>·</span>
             <span>{campaign.campaign_type?.replace(/_/g, ' ')}</span>
             {isActive && campaign.drift_count > 0 && (
               <>
                 <span>·</span>
-                <span className="text-amber-600 dark:text-amber-400">
+                <span className={useDarkText ? 'text-[#051524] font-medium' : 'text-white font-medium'}>
                   {campaign.drift_count} drift
                 </span>
               </>

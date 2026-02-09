@@ -10,9 +10,9 @@ const alertVariants = cva(
       variant: {
         default: "bg-card text-foreground border-border",
         destructive:
-          "border-expedition-checkpoint/50 bg-expedition-checkpoint/10 text-expedition-checkpoint [&>svg]:text-expedition-checkpoint",
+          "border-expedition-rosewoodDark/50 bg-expedition-rosewoodDark/10 text-expedition-rosewoodDark [&>svg]:text-expedition-rosewoodDark",
         warning:
-          "border-expedition-signal/50 bg-expedition-signal/10 text-expedition-signal [&>svg]:text-expedition-signal",
+          "border-expedition-cerulean/50 bg-expedition-cerulean/10 text-expedition-cerulean [&>svg]:text-expedition-cerulean",
       },
     },
     defaultVariants: {

@@ -11,19 +11,21 @@ const CONFIG: Record<
   proceed: {
     label: 'Proceed',
     sublabel: 'Good to launch',
-    className: 'border-expedition-evergreen/40 bg-expedition-evergreen/10 text-expedition-evergreen',
+    className:
+      'border-expedition-rosewood/40 bg-expedition-rosewood/10 text-expedition-rosewood',
     Icon: CheckCircle2,
   },
   adjust: {
     label: 'Adjust',
     sublabel: 'Needs changes',
-    className: 'border-expedition-signal/40 bg-expedition-signal/10 text-expedition-signal',
+    className:
+      'border-expedition-cerulean/40 bg-expedition-cerulean/10 text-expedition-cerulean',
     Icon: AlertTriangle,
   },
   pause: {
     label: 'Pause',
     sublabel: 'Should not proceed',
-    className: 'border-expedition-checkpoint/40 bg-expedition-checkpoint/10 text-expedition-checkpoint',
+    className: 'border-expedition-rosewoodDark/40 bg-expedition-rosewoodDark/10 text-expedition-rosewoodDark',
     Icon: XCircle,
   },
 }

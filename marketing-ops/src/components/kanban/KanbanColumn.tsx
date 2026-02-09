@@ -145,17 +145,17 @@ export function KanbanColumn({ phase, tasks, campaignId, onCreateTask, onTaskCli
     const taskIds = tasks.map(t => t.id)
 
     return (
-        <div className="flex flex-col min-w-[280px] max-w-[320px] bg-slate-100 dark:bg-slate-900 rounded-lg">
+        <div className="flex flex-col min-w-[280px] max-w-[320px] bg-slate-100 rounded-lg">
             {/* Column Header */}
-            <div className="p-3 border-b border-slate-200 dark:border-slate-700">
+            <div className="p-3 border-b border-slate-200">
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                        <h3 className="text-sm font-semibold text-slate-700">
                             {isBacklog ? 'Backlog' : phase?.phase_name}
                         </h3>
                         {/* For backlog, just show count */}
                         {isBacklog ? (
-                            <span className="px-2 py-0.5 text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full">
+                            <span className="px-2 py-0.5 text-xs font-medium bg-slate-200 text-slate-600 rounded-full">
                                 {tasks.length}
                             </span>
                         ) : (
@@ -163,17 +163,17 @@ export function KanbanColumn({ phase, tasks, campaignId, onCreateTask, onTaskCli
                             <span className={cn(
                                 "px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1",
                                 tasks.length + completedCount === 0
-                                    ? "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                                    ? "bg-slate-200 text-slate-600"
                                     : completedCount === tasks.length + completedCount
-                                        ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
-                                        : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
+                                        ? "bg-green-100 text-green-700"
+                                        : "bg-blue-100 text-blue-700"
                             )}>
                                 {completedCount > 0 && <CheckCircle className="w-3 h-3" />}
                                 {completedCount}/{tasks.length + completedCount}
                             </span>
                         )}
                     </div>
-                    <button className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded">
+                    <button className="p-1 text-slate-400 hover:text-slate-600 rounded">
                         <MoreHorizontal className="w-4 h-4" />
                     </button>
                 </div>
@@ -182,14 +182,14 @@ export function KanbanColumn({ phase, tasks, campaignId, onCreateTask, onTaskCli
                 {!isBacklog && phase && (
                     <div className="flex items-center gap-3 text-xs">
                         {/* Total Time */}
-                        <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                        <div className="flex items-center gap-1 text-slate-500">
                             <Clock className="w-3 h-3" />
                             <span>{formatTime(phaseMetrics.totalMinutes)}</span>
                         </div>
 
                         {/* Planned Time */}
                         {phaseMetrics.plannedMinutes !== null && (
-                            <span className="text-slate-400 dark:text-slate-500">
+                            <span className="text-slate-400">
                                 / {formatTime(phaseMetrics.plannedMinutes)} planned
                             </span>
                         )}
@@ -199,8 +199,8 @@ export function KanbanColumn({ phase, tasks, campaignId, onCreateTask, onTaskCli
                             <div className={cn(
                                 "flex items-center gap-0.5 px-1.5 py-0.5 rounded font-medium",
                                 phaseMetrics.isOverBudget
-                                    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                                    : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                    ? "bg-red-100 text-red-700"
+                                    : "bg-green-100 text-green-700"
                             )}>
                                 {phaseMetrics.isOverBudget ? (
                                     <>
@@ -224,7 +224,7 @@ export function KanbanColumn({ phase, tasks, campaignId, onCreateTask, onTaskCli
                 ref={setNodeRef}
                 className={cn(
                     "flex-1 p-2 space-y-2 min-h-[200px] overflow-y-auto",
-                    isOver && "bg-blue-50 dark:bg-blue-900/20"
+                    isOver && "bg-blue-50"
                 )}
             >
                 <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
@@ -252,7 +252,7 @@ export function KanbanColumn({ phase, tasks, campaignId, onCreateTask, onTaskCli
                 ) : (
                     <button
                         onClick={() => setIsAddingTask(true)}
-                        className="w-full p-2 flex items-center justify-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                        className="w-full p-2 flex items-center justify-center gap-1 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
                     >
                         <Plus className="w-4 h-4" />
                         Add task
@@ -261,7 +261,7 @@ export function KanbanColumn({ phase, tasks, campaignId, onCreateTask, onTaskCli
 
                 {/* Empty state */}
                 {tasks.length === 0 && !isAddingTask && (
-                    <p className="text-center text-xs text-slate-400 dark:text-slate-500 py-4">
+                    <p className="text-center text-xs text-slate-400 py-4">
                         Drop tasks here
                     </p>
                 )}

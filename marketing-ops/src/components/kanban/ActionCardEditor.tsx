@@ -28,8 +28,8 @@ const COMMON_ACTION_TYPES = [
 const priorities: { value: ActionPriority; label: string; color: string }[] = [
     { value: 'low', label: 'Low', color: 'bg-slate-500' },
     { value: 'medium', label: 'Medium', color: 'bg-blue-500' },
-    { value: 'high', label: 'High', color: 'bg-amber-500' },
-    { value: 'critical', label: 'Critical', color: 'bg-red-500' },
+    { value: 'high', label: 'High', color: 'bg-[#26532B]' },
+    { value: 'critical', label: 'Critical', color: 'bg-[#1B3D20]' },
 ]
 
 export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCancel }: ActionCardEditorProps) {
@@ -69,17 +69,17 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
     }
 
     return (
-        <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border-2 border-blue-400 dark:border-blue-500 shadow-lg">
+        <div className="p-3 bg-white rounded-lg border-2 border-blue-400 shadow-lg">
             <form onSubmit={handleSubmit}>
                 {/* Header */}
                 <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                    <span className="text-xs font-medium text-blue-600">
                         New Task {phaseName && `in ${phaseName}`}
                     </span>
                     <button
                         type="button"
                         onClick={onCancel}
-                        className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                        className="p-1 text-slate-400 hover:text-slate-600"
                     >
                         <X className="w-4 h-4" />
                     </button>
@@ -91,7 +91,7 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="Task title..."
-                    className="w-full px-2 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-2 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     autoFocus
                 />
 
@@ -101,7 +101,7 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Description (optional)..."
                     rows={2}
-                    className="w-full px-2 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    className="w-full px-2 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 />
 
                 {/* Type & Priority */}
@@ -109,7 +109,7 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
                     <select
                         value={actionType}
                         onChange={(e) => setActionType(e.target.value)}
-                        className="px-2 py-1.5 text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="px-2 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                         {COMMON_ACTION_TYPES.map(type => (
                             <option key={type} value={type}>{type}</option>
@@ -119,7 +119,7 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
                     <select
                         value={priority}
                         onChange={(e) => setPriority(e.target.value as ActionPriority)}
-                        className="px-2 py-1.5 text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="px-2 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                         {priorities.map(p => (
                             <option key={p.value} value={p.value}>{p.label}</option>
@@ -134,13 +134,13 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
                         value={assignee}
                         onChange={(e) => setAssignee(e.target.value)}
                         placeholder="Assignee (optional)..."
-                        className="px-2 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="px-2 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <input
                         type="date"
                         value={dueDate}
                         onChange={(e) => setDueDate(e.target.value)}
-                        className="px-2 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="px-2 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                 </div>
 
@@ -153,7 +153,7 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
                         value={estimatedHours}
                         onChange={(e) => setEstimatedHours(e.target.value)}
                         placeholder="Estimated hours (optional)..."
-                        className="w-full px-2 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                 </div>
 
@@ -162,7 +162,7 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
                     <button
                         type="button"
                         onClick={onCancel}
-                        className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                        className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded"
                     >
                         Cancel
                     </button>
@@ -173,7 +173,7 @@ export function ActionCardEditor({ campaignId, phaseId, phaseName, onSave, onCan
                             "px-3 py-1.5 text-xs text-white rounded flex items-center gap-1",
                             title.trim() && !isSaving
                                 ? "bg-blue-500 hover:bg-blue-600"
-                                : "bg-slate-300 dark:bg-slate-600 cursor-not-allowed"
+                                : "bg-slate-300 cursor-not-allowed"
                         )}
                     >
                         {isSaving ? (

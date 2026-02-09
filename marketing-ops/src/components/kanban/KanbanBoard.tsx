@@ -233,7 +233,7 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
     if (executionLoading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                <Loader2 className="w-8 h-8 animate-spin text-[#347698]" />
             </div>
         )
     }
@@ -241,11 +241,11 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
     if (executionError) {
         return (
             <div className="flex flex-col items-center justify-center h-64 gap-4">
-                <AlertCircle className="w-12 h-12 text-red-500" />
-                <p className="text-red-600 dark:text-red-400">{executionError}</p>
+                <AlertCircle className="w-12 h-12 text-[#1B3D20]" />
+                <p className="text-[#1B3D20]">{executionError}</p>
                 <button
                     onClick={() => refetch()}
-                    className="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
+                    className="px-4 py-2 text-sm bg-[#347698] text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
                 >
                     <RefreshCw className="w-4 h-4" />
                     Retry
@@ -258,12 +258,12 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
         <div className="h-full">
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+                <h2 className="text-lg font-semibold text-slate-800">
                     Task Board
                 </h2>
                 <button
                     onClick={() => refetch()}
-                    className="p-2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                    className="p-2 text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-100"
                     title="Refresh"
                 >
                     <RefreshCw className="w-4 h-4" />
@@ -337,7 +337,7 @@ export default function KanbanBoard({ campaignId, externalData }: KanbanBoardPro
 
             {/* Empty state */}
             {phases.length === 0 && tasks.length === 0 && (
-                <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+                <div className="text-center py-12 text-slate-500">
                     <p>No phases or tasks yet.</p>
                     <p className="text-sm mt-1">Create phases in the Stage Builder first.</p>
                 </div>

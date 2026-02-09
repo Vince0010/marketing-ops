@@ -182,8 +182,8 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground weather-updates">Summits Today</p>
                 <p className="altitude-readings mt-1">{stats.completed}</p>
               </div>
-              <div className="w-12 h-12 bg-expedition-evergreen/10 rounded-lg flex items-center justify-center">
-                <Flag className="text-expedition-evergreen" size={24} />
+              <div className="w-12 h-12 bg-expedition-turquoiseSurf/10 rounded-lg flex items-center justify-center">
+                <Flag className="text-expedition-turquoiseSurf" size={24} />
               </div>
             </div>
           </CardContent>
@@ -196,8 +196,8 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground weather-updates">Weather Alerts</p>
                 <p className="altitude-readings mt-1">{stats.planning + stats.inProgress}</p>
               </div>
-              <div className="w-12 h-12 bg-expedition-signal/10 rounded-lg flex items-center justify-center">
-                <Cloud className="text-expedition-signal" size={24} />
+              <div className="w-12 h-12 bg-expedition-rosewood/10 rounded-lg flex items-center justify-center">
+                <Cloud className="text-expedition-rosewood" size={24} />
               </div>
             </div>
           </CardContent>
@@ -210,8 +210,8 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground weather-updates">Team Readiness</p>
                 <p className="altitude-readings mt-1">95%</p>
               </div>
-              <div className="w-12 h-12 bg-expedition-summit/10 rounded-lg flex items-center justify-center">
-                <Users className="text-expedition-summit" size={24} />
+              <div className="w-12 h-12 bg-expedition-cerulean/10 rounded-lg flex items-center justify-center">
+                <Users className="text-expedition-cerulean" size={24} />
               </div>
             </div>
           </CardContent>
@@ -246,7 +246,7 @@ export default function Dashboard() {
 
           {['all', 'active', 'planning', 'completed'].map((filter) => (
             <TabsContent key={filter} value={filter} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="campaign-card-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filterCampaigns(filter).map((campaign, idx) => (
                   <div
                     key={campaign.id}

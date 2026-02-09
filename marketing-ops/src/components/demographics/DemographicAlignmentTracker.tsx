@@ -80,8 +80,8 @@ export function DemographicAlignmentTracker({
                     <span
                       className={cn(
                         'w-14 text-right',
-                        row.diff > 0 && 'text-expedition-evergreen',
-                        row.diff < 0 && 'text-expedition-checkpoint',
+                        row.diff > 0 && 'text-expedition-turquoiseSurf',
+                        row.diff < 0 && 'text-expedition-rosewood',
                         row.diff === 0 && 'text-muted-foreground'
                       )}
                     >
@@ -107,7 +107,7 @@ export function DemographicAlignmentTracker({
                       <div
                         className={cn(
                           'h-full rounded-l transition-all',
-                          row.diff >= 0 ? 'bg-expedition-evergreen' : 'bg-expedition-signal'
+                          row.diff >= 0 ? 'bg-expedition-turquoiseSurf' : 'bg-expedition-rosewood'
                         )}
                         style={{ width: `${actualPct}%`, minWidth: actualPct > 0 ? '6px' : 0 }}
                         title={row.diff >= 0 ? `Achieved: ${actualPct}% (at or above target)` : `Achieved: ${actualPct}% (below target)`}
@@ -146,8 +146,8 @@ export function DemographicAlignmentTracker({
 
         {/* Simplified insights */}
         <div className={cn('grid gap-3', !compact && 'grid-cols-1 md:grid-cols-3')}>
-          <div className="rounded-lg border border-expedition-evergreen/40 bg-expedition-evergreen/10 p-3 space-y-1.5">
-            <p className="text-xs font-semibold text-expedition-evergreen flex items-center gap-1">
+          <div className="rounded-lg border border-expedition-turquoiseSurf/40 bg-expedition-turquoiseSurf/10 p-3 space-y-1.5">
+            <p className="text-xs font-semibold text-expedition-turquoiseSurf flex items-center gap-1">
               <TrendingUp className="w-3.5 h-3.5" /> Strong alignment
             </p>
             <ul className="text-xs text-muted-foreground space-y-0.5">
@@ -156,8 +156,8 @@ export function DemographicAlignmentTracker({
               ))}
             </ul>
           </div>
-          <div className="rounded-lg border border-expedition-signal/40 bg-expedition-signal/10 p-3 space-y-1.5">
-            <p className="text-xs font-semibold text-expedition-signal flex items-center gap-1">
+          <div className="rounded-lg border border-expedition-rosewood/40 bg-expedition-rosewood/10 p-3 space-y-1.5">
+            <p className="text-xs font-semibold text-expedition-rosewood flex items-center gap-1">
               <TrendingDown className="w-3.5 h-3.5" /> Adjustment areas
             </p>
             <ul className="text-xs text-muted-foreground space-y-0.5">

@@ -36,7 +36,7 @@ export function ObservationModeBadge({
             className={cn(
               'font-medium text-xs shrink-0 gap-1.5 cursor-help',
               isActive
-                ? 'border-expedition-signal/50 bg-expedition-signal/10 text-expedition-signal'
+                ? 'border-expedition-cerulean/50 bg-expedition-cerulean/10 text-expedition-cerulean'
                 : 'border-muted-foreground/30 bg-muted/50 text-muted-foreground',
               className
             )}

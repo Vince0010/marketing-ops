@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: ["class"],
+  // darkMode removed — light mode only
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -46,42 +46,30 @@ export default {
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',
-  			/* Expedition semantic + mountain palette */
+  			/* Analytics dashboard palette */
   			expedition: {
-  				summitSky: 'hsl(var(--summit-night))',
-  				mountainShadow: 'hsl(var(--mountain-shadow))',
-  				snowCap: 'hsl(var(--snow-cap))',
-  				glacialBlue: 'hsl(var(--glacial-blue))',
-  				navy: 'hsl(var(--expedition-navy))',
-  				trail: 'hsl(var(--trail-blue))',
-  				evergreen: 'hsl(var(--evergreen))',
-  				summit: 'hsl(var(--summit-teal))',
-  				signal: 'hsl(var(--signal-orange))',
-  				checkpoint: 'hsl(var(--checkpoint-red))',
-  				mist: 'hsl(var(--mist-gray))',
-  				slate: 'hsl(var(--slate))',
+  				inkBlack: '#051524',
+  				rosewood: '#26532B',
+  				cerulean: '#347698',
+  				yaleBlue: '#1C486F',
+  				turquoiseSurf: '#50A6C9',
+  				greyOlive: '#9F9F9D',
+  				rosewoodDark: '#1B3D20',
   			},
   			chart: {
-  				'1': 'hsl(var(--trail-blue))',
-  				'2': 'hsl(var(--evergreen))',
-  				'3': 'hsl(var(--summit-teal))',
-  				'4': 'hsl(var(--signal-orange))',
-  				'5': 'hsl(var(--checkpoint-red))'
+  				'1': '#347698',
+  				'2': '#50A6C9',
+  				'3': '#1C486F',
+  				'4': '#26532B',
+  				'5': '#9F9F9D'
   			}
   		},
-  		backgroundImage: {
-  			'expedition-bg': 'linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #0f1a2e 50%, #0c1628 75%, #0a1324 100%)',
-  			'expedition-header': 'linear-gradient(90deg, #0f172a, #1e293b, #0f172a)',
-  			'card-success': 'linear-gradient(145deg, #1e3a8a, #3b82f6)',
-  			'card-warning': 'linear-gradient(145deg, #92400e, #f59e0b)',
-  			'card-alert': 'linear-gradient(145deg, #991b1b, #ef4444)',
-  		},
   		boxShadow: {
-  			'expedition-base': '0 1px 3px rgba(0, 0, 0, 0.1)',
-  			'expedition-camp-1': '0 4px 6px rgba(0, 0, 0, 0.1)',
-  			'expedition-camp-2': '0 10px 15px rgba(0, 0, 0, 0.1)',
-  			'expedition-camp-3': '0 20px 25px rgba(0, 0, 0, 0.15)',
-  			'expedition-summit': '0 25px 50px rgba(0, 0, 0, 0.25)',
+  			'expedition-base': '0 1px 3px rgba(5, 21, 36, 0.3)',
+  			'expedition-camp-1': '0 4px 6px rgba(5, 21, 36, 0.3)',
+  			'expedition-camp-2': '0 10px 15px rgba(5, 21, 36, 0.3)',
+  			'expedition-camp-3': '0 20px 25px rgba(5, 21, 36, 0.4)',
+  			'expedition-summit': '0 25px 50px rgba(5, 21, 36, 0.5)',
   		},
   		keyframes: {
   			'mountain-ascent': {
@@ -101,12 +89,12 @@ export default {
   				to: { transform: 'scale(1)', opacity: '1' },
   			},
   			'risk-pulse': {
-  				'0%, 100%': { opacity: '1', boxShadow: '0 0 0 0 rgba(245, 158, 11, 0.4)' },
-  				'50%': { opacity: '0.95', boxShadow: '0 0 0 8px rgba(245, 158, 11, 0)' },
+  				'0%, 100%': { opacity: '1', boxShadow: '0 0 0 0 rgba(38, 83, 43, 0.4)' },
+  				'50%': { opacity: '0.95', boxShadow: '0 0 0 8px rgba(38, 83, 43, 0)' },
   			},
   			'summit-beacon': {
-  				'0%, 100%': { boxShadow: '0 0 12px 2px rgba(239, 68, 68, 0.5)' },
-  				'50%': { boxShadow: '0 0 20px 6px rgba(239, 68, 68, 0.3)' },
+  				'0%, 100%': { boxShadow: '0 0 12px 2px rgba(38, 83, 43, 0.5)' },
+  				'50%': { boxShadow: '0 0 20px 6px rgba(38, 83, 43, 0.3)' },
   			},
   		},
   		animation: {

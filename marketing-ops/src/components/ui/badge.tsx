@@ -16,13 +16,13 @@ const badgeVariants = cva(
           "border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/90",
         outline: "text-foreground border-border",
         success:
-          "border-transparent bg-expedition-evergreen text-white shadow hover:bg-expedition-evergreen/90",
+          "border-transparent bg-[hsl(var(--success))] text-primary-foreground shadow hover:bg-[hsl(var(--success))]/90",
         warning:
-          "border-transparent bg-expedition-signal text-white shadow hover:bg-expedition-signal/90",
+          "border-transparent bg-[hsl(var(--warning))] text-primary-foreground shadow hover:bg-[hsl(var(--warning))]/90",
         inProgress:
-          "border-transparent bg-expedition-summit text-white shadow hover:bg-expedition-summit/90",
+          "border-transparent bg-[hsl(var(--in-progress))] text-primary-foreground shadow hover:bg-[hsl(var(--in-progress))]/90",
         critical:
-          "border-transparent bg-expedition-checkpoint text-white shadow hover:bg-expedition-checkpoint/90",
+          "border-transparent bg-[hsl(var(--critical))] text-primary-foreground shadow hover:bg-[hsl(var(--critical))]/90",
       },
     },
     defaultVariants: {

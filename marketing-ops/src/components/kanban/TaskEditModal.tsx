@@ -27,8 +27,8 @@ const COMMON_ACTION_TYPES = [
 const priorities: { value: ActionPriority; label: string; color: string }[] = [
     { value: 'low', label: 'Low', color: 'bg-slate-500' },
     { value: 'medium', label: 'Medium', color: 'bg-blue-500' },
-    { value: 'high', label: 'High', color: 'bg-amber-500' },
-    { value: 'critical', label: 'Critical', color: 'bg-red-500' },
+    { value: 'high', label: 'High', color: 'bg-[#26532B]' },
+    { value: 'critical', label: 'Critical', color: 'bg-[#1B3D20]' },
 ]
 
 /**
@@ -105,13 +105,13 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className="w-full max-w-lg mx-4 bg-white dark:bg-slate-800 rounded-xl shadow-2xl overflow-hidden">
+            <div className="w-full max-w-lg mx-4 bg-white rounded-xl shadow-2xl overflow-hidden">
                 {/* Header */}
                 <div className={cn(
                     "flex items-center justify-between px-6 py-4 border-b",
                     isOverdue
-                        ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
-                        : "border-slate-200 dark:border-slate-700"
+                        ? "bg-red-50 border-red-200"
+                        : "border-slate-200"
                 )}>
                     <div className="flex items-center gap-3">
                         {isOverdue && (
@@ -120,15 +120,15 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
                         <h2 className={cn(
                             "text-lg font-semibold",
                             isOverdue
-                                ? "text-red-700 dark:text-red-400"
-                                : "text-slate-800 dark:text-slate-100"
+                                ? "text-red-700"
+                                : "text-slate-800"
                         )}>
                             {isOverdue ? 'Edit Overdue Task' : 'Edit Task'}
                         </h2>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded"
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded"
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -136,8 +136,8 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
 
                 {/* Overdue Warning Banner */}
                 {isOverdue && (
-                    <div className="px-6 py-3 bg-red-100 dark:bg-red-900/30 border-b border-red-200 dark:border-red-800">
-                        <p className="text-sm text-red-700 dark:text-red-400">
+                    <div className="px-6 py-3 bg-red-100 border-b border-red-200">
+                        <p className="text-sm text-red-700">
                             <strong>This task is overdue.</strong> The phase deadline was{' '}
                             {phase?.planned_end_date && new Date(phase.planned_end_date).toLocaleDateString()}.
                             Please provide a reason for the delay.
@@ -149,41 +149,41 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
                 <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
                     {/* Title */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
                             Title *
                         </label>
                         <input
                             type="text"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             required
                         />
                     </div>
 
                     {/* Description */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
                             Description
                         </label>
                         <textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             rows={3}
-                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                         />
                     </div>
 
                     {/* Type & Priority */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
                                 Type
                             </label>
                             <select
                                 value={actionType}
                                 onChange={(e) => setActionType(e.target.value)}
-                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                                 {COMMON_ACTION_TYPES.map(type => (
                                     <option key={type} value={type}>{type}</option>
@@ -192,13 +192,13 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
                                 Priority
                             </label>
                             <select
                                 value={priority}
                                 onChange={(e) => setPriority(e.target.value as ActionPriority)}
-                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                                 {priorities.map(p => (
                                     <option key={p.value} value={p.value}>{p.label}</option>
@@ -210,7 +210,7 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
                     {/* Assignee & Estimated Hours */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
                                 Assignee
                             </label>
                             <input
@@ -218,12 +218,12 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
                                 value={assignee}
                                 onChange={(e) => setAssignee(e.target.value)}
                                 placeholder="Name or email..."
-                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
                                 Estimated Hours
                             </label>
                             <input
@@ -233,14 +233,14 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
                                 value={estimatedHours}
                                 onChange={(e) => setEstimatedHours(e.target.value)}
                                 placeholder="e.g. 4"
-                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
                     </div>
 
                     {/* Due Date */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
                             <Calendar className="w-4 h-4 inline mr-1" />
                             Due Date
                         </label>
@@ -248,14 +248,14 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
                             type="date"
                             value={dueDate}
                             onChange={(e) => setDueDate(e.target.value)}
-                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                     </div>
 
                     {/* Delay Reason (shown when overdue) */}
                     {isOverdue && (
                         <div>
-                            <label className="block text-sm font-medium text-red-700 dark:text-red-400 mb-1">
+                            <label className="block text-sm font-medium text-red-700 mb-1">
                                 <AlertTriangle className="w-4 h-4 inline mr-1" />
                                 Reason for Delay *
                             </label>
@@ -264,18 +264,18 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
                                 onChange={(e) => setDelayReason(e.target.value)}
                                 rows={2}
                                 placeholder="Please explain why this task is delayed..."
-                                className="w-full px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+                                className="w-full px-3 py-2 bg-red-50 border border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
                                 required={isOverdue}
                             />
                         </div>
                     )}
 
                     {/* Actions */}
-                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+                            className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg"
                         >
                             Cancel
                         </button>
@@ -286,7 +286,7 @@ export function TaskEditModal({ task, phase, onSave, onClose }: TaskEditModalPro
                                 "px-4 py-2 text-sm text-white rounded-lg flex items-center gap-2",
                                 title.trim() && !isSaving && (!isOverdue || delayReason.trim())
                                     ? "bg-blue-500 hover:bg-blue-600"
-                                    : "bg-slate-300 dark:bg-slate-600 cursor-not-allowed"
+                                    : "bg-slate-300 cursor-not-allowed"
                             )}
                         >
                             {isSaving ? (
