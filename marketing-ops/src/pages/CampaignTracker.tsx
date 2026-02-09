@@ -548,7 +548,7 @@ export default function CampaignTracker() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Operational Health</CardTitle>
+            <CardTitle className="text-sm font-medium">Performance Health</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between mb-2">
@@ -563,7 +563,7 @@ export default function CampaignTracker() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Performance Health</CardTitle>
+            <CardTitle className="text-sm font-medium">Operational Health</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between mb-2">

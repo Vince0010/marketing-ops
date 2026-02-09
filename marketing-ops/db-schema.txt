@@ -1,0 +1,55 @@
+# Marketing Ops Database Schema Reference
+
+## Core Tables
+
+### campaigns
+- id, name, description, industry, status
+- campaign_type, primary_objective, primary_kpi, target_value
+- start_date, end_date, total_budget, daily_budget
+- target_audience (JSONB), audience_type (TEXT[])
+- operational_health, performance_health, drift_count
+- risk_score, gate_status
+
+### execution_phases
+- id, campaign_id, phase_number, phase_name, phase_type
+- planned_start_date, planned_end_date, planned_duration_days
+- actual_start_date, actual_end_date, actual_duration_days
+- status, drift_days, drift_type, owner
+- activities (TEXT[]), deliverables (TEXT[])
+
+### marketer_actions (Execution Tasks)
+- id, campaign_id, phase_id, title, description
+- action_type, status, priority
+- timestamp, created_by
+
+### task_phase_history
+- id, action_id, phase_id, phase_name
+- entered_at, exited_at, time_spent_minutes
+
+## Meta Ads Tables
+
+### meta_ads_metrics
+- campaign_id, impressions, reach, clicks, ctr, cpc, cpm
+- conversions, conversion_rate, cpa, roas
+- frequency, quality_score
+- spend, budget_remaining, budget_utilization
+
+### meta_ads_placements
+- campaign_id, placement, spend, impressions, clicks
+- conversions, ctr, cpc, cpa, roas
+
+### meta_ads_creatives
+- campaign_id, creative_id, creative_name, format
+- impressions, clicks, conversions, ctr, cpc, cpa
+- frequency, fatigue_score, status
+
+### meta_ads_audiences
+- campaign_id, segment, size, reach
+- impressions, clicks, conversions, ctr, cpa, roas
+
+## Supporting Tables
+- team_members, team_capacity
+- drift_events, risk_scores, recommendations
+- override_events, stakeholder_actions
+- performance_metrics, strategic_failures
+- campaign_templates
